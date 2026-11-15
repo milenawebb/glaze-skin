@@ -30,7 +30,7 @@ use the editor.
 <!-- LOVABLE:END -->
 
 <!-- AGENT-MEMORY:BEGIN -->
-- Keep app icons and the web manifest in public with head links in the root; home-screen support is manifest-only to avoid caching the preview.
+- Icons and manifest live in public, linked from root head; no service worker.
 - The Glaze skin lives self-contained in src/glaze/ (entry index.ts, own CSS vars, no app imports) so it can ship as its own package.
 - All skin sounds stay in src/glaze/sounds.ts, one function per sound, so recordings can replace synthesis.
 - Shell debris uses cached material, pooled shapes and one frame-batched queue capped at forty to avoid GPU readback and phone stalls.
@@ -53,10 +53,10 @@ use the editor.
 - Bottom-band buttons own deduplicated pointerup/click actions and per-instance squish listeners; capture-dismiss the compact picker to prevent outside taps damaging the frame.
 - Each fixed option in preferences.ts derives its internal glaze style; color and material interpolate together without modifying shared coating, dent or recovery maps, so selection never resets damage or playback.
 - The sounds prop is a startup fallback beneath saved viewer preferences; mount preloads recordings without resume, and player window-capture unlock runs before control/frame presses so suspended audio can schedule the first clip.
-- Demo preview sizes live outside the skin and resize one stable player instance; the skin's player-width observer selects compact controls so preview modes cannot reset playback or damage.
-- Control activity listeners belong on the video stage, never the frame container; player leave clears activity while paused state and stage keyboard focus retain visibility.
+- Demo preview sizes live outside the skin and resize one stable player; the skin width observer picks compact controls.
+- Control activity listeners live on the video stage only, never the frame.
 - Phone video taps toggle controls on touch/pen pointerup, not click/down; ignore implicit touch leave so Safari cannot immediately undo the tap, and keep hidden rows non-interactive.
 - Compact flavor choices open horizontally beside the existing toggle in the bottom band above other player layers; demo-only preview tabs use viewport visibility independently of the skin's width.
-- Dent rise-back is shader-driven (rise map plus riseK uniform, baked once per press/finish); phones use half-size height and coating maps and restore from retained maps after WebGL context loss.
-- Phone frame tools sit in one glass row below the frame via .sq-frame-tools (display: contents on wider players), keeping the squishy band free.
+- Dent rise-back is a shader uniform over a rise map, baked once per press; phones halve map sizes and restore maps after GPU context loss.
+- Phone frame tools use one .sq-frame-tools row below the frame (display: contents when wide).
 <!-- AGENT-MEMORY:END -->
