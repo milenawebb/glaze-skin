@@ -171,6 +171,8 @@
     min-height: 100vh; background: radial-gradient(ellipse 720px 480px at 50% 380px, var(--demo-spotlight), var(--demo-background)); padding: 32px max(28px, 5vw) 48px; font-family: var(--font-display); overflow-x: clip;
   }
   .demo-title { text-align: center; font-size: 2.5rem; font-weight: 700; color: var(--demo-text); margin-bottom: 4px; }
+  .demo-logo { display: block; height: 56px; width: auto; max-width: 100%; margin-inline: auto; }
+  @media (width < 480px) { .demo-logo { height: 40px; } }
   .demo-subtitle { text-align: center; font-size: 16px; color: var(--demo-text); margin-bottom: 20px; }
   .demo-preview { position: relative; width: 100%; margin-inline: auto; transition-property: max-width; transition-timing-function: ease; }
   .demo-preview[data-preview="Mobile"]::before { content: ""; position: absolute; inset: -8px; border: 1px solid var(--demo-outline); border-radius: 54px; pointer-events: none; }
