@@ -162,7 +162,13 @@
   .demo { min-height: 100vh; background: var(--color-background); padding: 32px max(28px, 5vw) 48px; font-family: var(--font-display); overflow-x: clip; }
   .demo-title { text-align: center; font-size: 2.5rem; font-weight: 700; color: var(--color-foreground); margin-bottom: 4px; }
   .demo-subtitle { text-align: center; font-size: 16px; color: var(--color-foreground); margin-bottom: 20px; }
-  .demo > .sq-root, .demo-placeholder { max-width: 960px; }
+  .demo-preview { position: relative; width: 100%; margin-inline: auto; transition-property: max-width; transition-timing-function: ease; }
+  .demo-preview[data-preview="Mobile"]::before { content: ""; position: absolute; inset: -8px; border: 1px solid var(--color-border); border-radius: 54px; pointer-events: none; }
+  .demo-preview-tabs { display: flex; width: fit-content; max-width: 100%; margin: 0 auto 28px; padding: 4px; border: 1px solid var(--color-border); border-radius: 999px; gap: 2px; }
+  .demo-preview-tabs .demo-preview-tab { border-radius: 999px; min-height: 40px; padding-inline: 16px; color: var(--color-foreground); font: inherit; font-size: 14px; }
+  .demo-preview-tab[aria-selected="true"] { background: var(--color-secondary); }
+  :root[data-sq-pointer] .demo-preview-tab:focus { outline: none; box-shadow: none; }
+  .demo-preview .sq-root, .demo-placeholder { max-width: 960px; }
   .demo-placeholder { margin-inline: auto; aspect-ratio: 900 / 632; width: 100%; }
   .demo-actions { display: flex; justify-content: center; gap: 12px; margin-top: 24px; }
   .demo-btn {
@@ -177,3 +183,4 @@
   :root:not([data-sq-pointer]) .demo-btn:focus-visible { outline: 3px solid var(--color-ring); outline-offset: 3px; }
   .demo-icon { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 }
+@media (prefers-reduced-motion: reduce) { .demo-preview { transition: none; } }

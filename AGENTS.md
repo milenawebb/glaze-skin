@@ -47,4 +47,5 @@ use the editor.
 - Frame candy controls live above the canvas and fragments; viewer preferences use guarded localStorage in preferences.ts, while shader palette interpolation changes shell/foam without touching dent or coating maps and sprinkles use independent color uniforms.
 - Each fixed option in preferences.ts derives its internal glaze style; color and material interpolate together without modifying shared coating, dent or recovery maps, so selection never resets damage or playback.
 - The sounds prop is a startup fallback beneath saved viewer preferences; mount preloads recordings without resume, and player window-capture unlock runs before control/frame presses so suspended audio can schedule the first clip.
+- Demo preview sizes live outside the skin and resize one stable player instance; the skin's player-width observer selects compact controls so preview modes cannot reset playback or damage.
 <!-- AGENT-MEMORY:END -->
