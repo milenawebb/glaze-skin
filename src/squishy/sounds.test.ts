@@ -3,10 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const sources: any[] = [];
 const gains: any[] = [];
 let clock = 0;
+let contextState = "running";
 const resume = vi.fn(() => Promise.resolve());
 const decode = vi.fn(async (data) => ({ url: data }));
 class AudioContextMock {
-  state = "running";
+  state = contextState;
   sampleRate = 48000;
   destination = {};
   get currentTime() { return clock; }
@@ -26,7 +27,7 @@ class AudioContextMock {
 }
 let sounds: typeof import("./sounds");
 beforeEach(async () => {
-  vi.resetModules(); sources.length = 0; gains.length = 0; clock = 0;
+  vi.resetModules(); sources.length = 0; gains.length = 0; clock = 0; contextState = "running";
   vi.stubGlobal("AudioContext", AudioContextMock);
   vi.stubGlobal("fetch", vi.fn(async (url) => ({ ok: true, arrayBuffer: async () => url })));
   sounds = await import("./sounds");
@@ -38,6 +39,17 @@ async function enable() {
   sources.length = 0;
 }
 describe("recorded Squishy sounds", () => {
+  it("preloads all ten recordings without resuming before a gesture", async () => {
+    contextState = "suspended";
+    sounds.setSoundsEnabled(true, false);
+    expect(fetch).toHaveBeenCalledTimes(10);
+    expect(resume).not.toHaveBeenCalled(); expect(sources).toHaveLength(0);
+    await vi.waitFor(() => expect(decode).toHaveBeenCalledTimes(10));
+    sounds.unlockSounds(); sounds.playCrack();
+    expect(resume).toHaveBeenCalledOnce();
+    expect(sources[1].buffer.url).toMatch(/\/crack-[12]\.mp3$/);
+    expect(sources[1].start).toHaveBeenCalledOnce();
+  });
   it("defaults off without fetching or creating audio voices", () => {
     expect(sounds.getSoundsEnabled()).toBe(false);
     sounds.playSquelch(); sounds.playCrack(); sounds.playShatter(); sounds.playCrunch();

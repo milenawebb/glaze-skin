@@ -8,7 +8,7 @@ import { useSquishAll } from "./squish";
 import { POPUP_SPEEDS, VOLUME_CLOSE_MS, CONTROLS_IDLE_MS, controlsVisible } from "./controls";
 import { CAPTIONS_DEFAULT_ON, observeCaptionCues, isCaptionEngine } from "./captions";
 import { COLORS, OPTIONS, readPreferences, savePreferences, type SquishyColor } from "./preferences";
-import { setSoundsEnabled } from "./sounds";
+import { setSoundsEnabled, unlockSounds } from "./sounds";
 import "./squishy.css";
 
 export const squishy = createPlayer({ features: videoFeatures });
@@ -21,12 +21,14 @@ export interface SquishyPlayerProps {
   /** Changing this number puffs the frame back to smooth and re-bakes the crust. */
   resetKey?: number;
   title?: string;
+  /** Start with squish sounds on; a remembered viewer choice takes priority. */
+  sounds?: boolean;
 }
 
-export function SquishyPlayer({ playbackId, resetKey = 0, title = "Video" }: SquishyPlayerProps) {
+export function SquishyPlayer({ playbackId, resetKey = 0, title = "Video", sounds = false }: SquishyPlayerProps) {
   return (
     <Player>
-      <SquishySkin resetKey={resetKey} label={title}>
+      <SquishySkin resetKey={resetKey} label={title} sounds={sounds}>
         <MuxVideo
           source={{ playbackId }}
           poster={`https://image.mux.com/${playbackId}/thumbnail.webp?time=1`}
@@ -45,7 +47,7 @@ const fmt = (s: number) => {
   return `${h ? h + ":" : ""}${mm}:${String(sec).padStart(2, "0")}`;
 };
 
-export function SquishySkin({ children, resetKey, label }: { children: ReactNode; resetKey: number; label: string }) {
+export function SquishySkin({ children, resetKey, label, sounds: startSounds = false }: { children: ReactNode; resetKey: number; label: string; sounds?: boolean }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const flakeRef = useRef<HTMLDivElement>(null);
   const [fallback, setFallback] = useState(false);
@@ -61,7 +63,8 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
   const [localReset, setLocalReset] = useState(0);
   const [color, setColor] = useState<SquishyColor>("Rainbow");
   const glazeStyle = OPTIONS[color].glazeStyle;
-  const [sounds, setSounds] = useState(false);
+  const [sounds, setSounds] = useState(startSounds);
+  const [soundHint, setSoundHint] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
   const colorRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -74,7 +77,23 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
     return () => { window.removeEventListener("pointerdown", outside); window.removeEventListener("keydown", escape); };
   }, [colorOpen]);
   useEffect(() => {
-    try { const prefs = readPreferences(window.localStorage); setColor(prefs.color); setSounds(prefs.sounds); setSoundsEnabled(prefs.sounds); } catch { /* Storage is optional. */ }
+    let on = startSounds;
+    try { const prefs = readPreferences(window.localStorage, startSounds); setColor(prefs.color); on = prefs.sounds; } catch { /* Storage is optional. */ }
+    setSounds(on); setSoundsEnabled(on, false);
+    try {
+      if (!on && !window.localStorage.getItem("squishy-sound-hint-seen")) { setSoundHint(true); window.localStorage.setItem("squishy-sound-hint-seen", "true"); }
+    } catch { if (!on) setSoundHint(true); }
+    const firstGesture = (e: Event) => {
+      if (e.target instanceof Node && rootRef.current?.contains(e.target)) {
+        unlockSounds();
+        window.removeEventListener("pointerdown", firstGesture, true);
+        window.removeEventListener("keydown", firstGesture, true);
+      }
+    };
+    // Window capture precedes control capture listeners and frame target handlers.
+    window.addEventListener("pointerdown", firstGesture, true);
+    window.addEventListener("keydown", firstGesture, true);
+    return () => { window.removeEventListener("pointerdown", firstGesture, true); window.removeEventListener("keydown", firstGesture, true); };
   }, []);
   const persist = (nextColor: SquishyColor, nextSounds: boolean) => {
     try { savePreferences(window.localStorage, nextColor, nextSounds); } catch { /* Storage is optional. */ }
@@ -186,6 +205,7 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
         </div>
       </div>
       <div className="sq-frame-actions">
+        {soundHint && !sounds && <span className="sq-sound-hint">Turn on squish sounds</span>}
         <button type="button" className="sq-candy sq-squish" aria-label="Reset squishy" title="Reset squishy" onClick={() => setLocalReset((n) => n + 1)}><span className="sq-candy-face sq-squish-body"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6a7 7 0 1 1-1 7M4 2v5h5" /></svg></span></button>
         <button type="button" className="sq-candy sq-squish" aria-label={`Squish sounds ${sounds ? "on" : "off"}`} title={`Squish sounds ${sounds ? "on" : "off"}`} aria-pressed={sounds} onClick={() => { const next = !sounds; setSoundsEnabled(next); setSounds(next); persist(color, next); }}><span className="sq-candy-face sq-squish-body"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 3 1.8 4.2L13 9l-4.2 1.8L7 15l-1.8-4.2L1 9l4.2-1.8ZM14 6a5 5 0 0 1 0 8m3-10a8 8 0 0 1 0 12" />{!sounds && <path d="m2 18 16-16" />}</svg></span></button>
       </div>

@@ -46,4 +46,5 @@ use the editor.
 - Phone controls reuse one bottom glass row and an absolutely positioned top pill without duplicate media or buttons; captions stay above the bottom row while visible and near the bottom when hidden.
 - Frame candy controls live above the canvas and fragments; viewer preferences use guarded localStorage in preferences.ts, while shader palette interpolation changes shell/foam without touching dent or coating maps and sprinkles use independent color uniforms.
 - Each fixed option in preferences.ts derives its internal glaze style; color and material interpolate together without modifying shared coating, dent or recovery maps, so selection never resets damage or playback.
+- The sounds prop is a startup fallback beneath saved viewer preferences; mount preloads recordings without resume, and player window-capture unlock runs before control/frame presses so suspended audio can schedule the first clip.
 <!-- AGENT-MEMORY:END -->

@@ -91,6 +91,7 @@
 .sq-frame-colors, .sq-frame-actions { position: absolute; z-index: 6; bottom: 48px; translate: 0 50%; display: flex; gap: 8px; }
 .sq-frame-colors { left: 24px; }
 .sq-frame-actions { right: 24px; }
+.sq-sound-hint { position: absolute; right: 0; bottom: calc(100% + 8px); white-space: nowrap; padding: 6px 10px; border-radius: 8px; font-size: 12px; color: var(--sq-liquid-ink); background: var(--sq-liquid-surface); box-shadow: var(--sq-liquid-shadow); }
 .sq-color-choices { display: flex; }
 .sq-root:not([data-compact]) .sq-color-choices .sq-candy:not(:last-child) { margin-right: -10px; }
 .sq-root:not([data-compact]) .sq-color-toggle { display: none; }

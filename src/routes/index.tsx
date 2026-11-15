@@ -29,7 +29,7 @@ function Index() {
       <h1 className="demo-title">Squishy</h1>
       <ClientOnly fallback={<Placeholder />}>
         <Suspense fallback={<Placeholder />}>
-          <SquishyPlayer playbackId={PLAYBACK_ID} title="Squishy demo video" />
+          <SquishyPlayer playbackId={PLAYBACK_ID} title="Squishy demo video" sounds={true} />
         </Suspense>
       </ClientOnly>
     </main>

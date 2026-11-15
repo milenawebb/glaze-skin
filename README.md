@@ -21,7 +21,12 @@ npm i
 npm run dev
 ```
 
-## Built with
+## Squishy skin settings
+
+- `sounds`: start with squish sounds on (default `false`). A viewer's remembered sound-button choice overrides this starting setting.
+- The demo passes `sounds={true}`. Recordings preload on player mount, and the first player gesture resumes audio before its press sound is scheduled.
+
+## Technology
 
 - TanStack Start
 - TypeScript

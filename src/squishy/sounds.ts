@@ -36,7 +36,20 @@ function getCtx(): AudioContext | null {
   return ctx;
 }
 
-export function setSoundsEnabled(on: boolean) {
+export function unlockSounds() {
+  if (!enabled) return;
+  const c = getCtx();
+  if (!c) return;
+  void c.resume().catch(() => {});
+  const unlock = c.createBufferSource();
+  unlock.buffer = c.createBuffer(1, 1, c.sampleRate);
+  unlock.connect(c.destination);
+  unlock.onended = () => unlock.disconnect();
+  unlock.start();
+}
+
+/** Preload on mount without requiring or consuming a user gesture. */
+export function setSoundsEnabled(on: boolean, unlock = true) {
   enabled = on;
   if (!on) {
     for (const source of active) { try { source.stop(); } catch { /* Already ended. */ } }
@@ -47,13 +60,7 @@ export function setSoundsEnabled(on: boolean) {
   }
   const c = getCtx();
   if (!c) return;
-  // Both resume and a silent buffer start happen synchronously on the enabling tap.
-  void c.resume().catch(() => {});
-  const unlock = c.createBufferSource();
-  unlock.buffer = c.createBuffer(1, 1, c.sampleRate);
-  unlock.connect(c.destination);
-  unlock.onended = () => unlock.disconnect();
-  unlock.start();
+  if (unlock) unlockSounds();
   if (!loading) {
     loading = Promise.all(Object.values(groups).flat().map(async (url) => {
       if (buffers.has(url)) return;
@@ -69,7 +76,8 @@ export function setSoundsEnabled(on: boolean) {
 export function getSoundsEnabled() { return enabled; }
 
 function recording(group: Group, depth = 0, volumeScale = 1) {
-  if (!enabled || !ctx || ctx.state !== "running") return;
+  // A source scheduled during resume starts as soon as Safari's context runs.
+  if (!enabled || !ctx || ctx.state === "closed") return;
   const c = ctx;
   const choices = groups[group].map((url, index) => ({ buffer: buffers.get(url), index }))
     .filter((item) => item.buffer && item.index !== previous.get(group));
