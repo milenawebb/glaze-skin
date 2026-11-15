@@ -5,15 +5,13 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent as RKeyboa
 import { SquishyFrame } from "./SquishyFrame";
 import { crackCrust } from "./crust";
 import { useSquishAll } from "./squish";
-import { playPop, playSqueeze, playSquelch } from "./sounds";
-import { vibratePress } from "./haptics";
+import { playPop, playSquelch } from "./sounds";
+import { nextPlaybackRate } from "./controls";
 import "./squishy.css";
 
 export const squishy = createPlayer({ features: videoFeatures });
 const { Player, usePlayer } = squishy;
 
-const SEGMENTS = 8;
-const RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 const IDLE_MS = 2000;
 
 export interface SquishyPlayerProps {
@@ -53,7 +51,7 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
   const [ar, setAr] = useState(16 / 9);
   const [active, setActive] = useState(true);
   const paused = usePlayer((s) => s.paused);
-  const [crust, setCrust] = useState({ play: true, ball: true, tube: Array(SEGMENTS).fill(true) as boolean[] });
+  const [crust, setCrust] = useState({ play: true, tube: true });
 
   useEffect(() => {
     const root = rootRef.current;
@@ -64,7 +62,7 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
   }, []);
 
   useEffect(() => {
-    setCrust({ play: true, ball: true, tube: Array(SEGMENTS).fill(true) });
+    setCrust({ play: true, tube: true });
   }, [resetKey]);
 
   // Keep the frame shaped around the video's real aspect ratio.
@@ -151,12 +149,11 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
         <div className="sq-controls" data-visible={visible || undefined}>
           <JellySeek
             crust={crust.tube}
-            onCrack={(i, el, pt) =>
+            onCrack={(el, pt) =>
               crackCrust(el, flakeRef.current, {
-                duration: 0.5,
-                pieces: 3 + Math.floor(Math.random() * 2),
+                duration: 0.8,
                 ...pt,
-                onRemove: () => setCrust((c) => ({ ...c, tube: c.tube.map((v, j) => (j === i ? false : v)) })),
+                onRemove: () => setCrust((c) => ({ ...c, tube: false })),
               })
             }
           />
@@ -169,14 +166,9 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
             />
             <TimePill />
             <span className="sq-spacer" />
-            <StressBall
-              crusted={crust.ball}
-              onCrack={(el, pt) =>
-                crackCrust(el, flakeRef.current, { ...pt, onRemove: () => setCrust((c) => ({ ...c, ball: false })) })
-              }
-            />
+            <VolumeButton />
             <CaptionsPill />
-            <SpeedMenu />
+            <SpeedButton />
             <FullscreenPill />
           </div>
         </div>
@@ -247,42 +239,24 @@ function BunPlay({ crusted, onCrack }: { crusted: boolean; onCrack: CrackFn }) {
       }}
     >
       <span className="sq-bun-body sq-squish-body">
-        <span className="sq-face" aria-hidden="true">
-          <span className="sq-eye" />
-          <span className="sq-eye" />
-          <span className="sq-cheek sq-cheek-l" />
-          <span className="sq-cheek sq-cheek-r" />
-          <span className="sq-smile" />
-        </span>
+        <svg className="sq-play-icon" viewBox="0 0 24 24" aria-hidden="true">
+          {paused ? <path d="M8 4 21 12 8 20Z" /> : <path d="M6 4h4v16H6zM14 4h4v16h-4z" />}
+        </svg>
         {crusted && (
           <span ref={crustRef} className="sq-crust-wrap">
             <Crust />
           </span>
         )}
       </span>
-      <span className="sq-badge" aria-hidden="true">
-        {paused ? (
-          <svg viewBox="0 0 10 10"><path d="M3 2 L8 5 L3 8 Z" /></svg>
-        ) : (
-          <svg viewBox="0 0 10 10"><rect x="2.5" y="2" width="1.8" height="6" rx=".6" /><rect x="5.7" y="2" width="1.8" height="6" rx=".6" /></svg>
-        )}
-      </span>
     </button>
   );
 }
 
-function JellySeek({ crust, onCrack }: { crust: boolean[]; onCrack: (i: number, el: HTMLElement | null, pt: Point) => void }) {
+function JellySeek({ crust, onCrack }: { crust: boolean; onCrack: CrackFn }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const down = useRef(false);
-  const time = usePlayer((s) => ({ t: s.currentTime, d: s.duration }));
-  const crackAt = (frac: number, x?: number) => {
-    const i = Math.min(SEGMENTS - 1, Math.max(0, Math.floor(frac * SEGMENTS)));
-    if (!crust[i]) return;
-    onCrack(i, wrapRef.current?.querySelector<HTMLElement>(`[data-seg="${i}"] .sq-crust`) ?? null, { x });
-  };
-  const fracFrom = (clientX: number) => {
-    const r = wrapRef.current!.getBoundingClientRect();
-    return (clientX - r.left) / r.width;
+  const crack = (pt: Point) => {
+    if (crust) onCrack(crustOf(wrapRef.current), pt);
   };
   return (
     <div
@@ -291,10 +265,7 @@ function JellySeek({ crust, onCrack }: { crust: boolean[]; onCrack: (i: number, 
       onPointerDownCapture={(e) => {
         down.current = true;
         playSquelch();
-        crackAt(fracFrom(e.clientX), e.clientX);
-      }}
-      onPointerMoveCapture={(e) => {
-        if (down.current) crackAt(fracFrom(e.clientX), e.clientX);
+        crack({ x: e.clientX, y: e.clientY });
       }}
       onPointerUpCapture={() => {
         if (down.current) playPop();
@@ -302,20 +273,13 @@ function JellySeek({ crust, onCrack }: { crust: boolean[]; onCrack: (i: number, 
       }}
       onPointerCancelCapture={() => (down.current = false)}
       onKeyDownCapture={(e: RKeyboardEvent) => {
-        if (e.key.startsWith("Arrow") || e.key === "Home" || e.key === "End") crackAt(time.d ? time.t / time.d : 0);
+        if (e.key.startsWith("Arrow") || e.key === "Home" || e.key === "End") crack({});
       }}
     >
       <TimeSlider.Root className="sq-tube" label="Seek">
         <TimeSlider.Track className="sq-tube-track sq-squish-body">
-          <TimeSlider.Buffer className="sq-tube-buffer" />
           <TimeSlider.Fill className="sq-tube-fill" />
-          <span className="sq-tube-crust" aria-hidden="true">
-            {crust.map((on, i) => (
-              <span key={i} data-seg={i} className="sq-seg" data-on={on || undefined}>
-                {on && <Crust />}
-              </span>
-            ))}
-          </span>
+          {crust && <span className="sq-tube-crust" aria-hidden="true"><Crust /></span>}
         </TimeSlider.Track>
         <TimeSlider.Thumb className="sq-bead" />
       </TimeSlider.Root>
@@ -336,89 +300,30 @@ function TimePill() {
   );
 }
 
-function StressBall({ crusted, onCrack }: { crusted: boolean; onCrack: CrackFn }) {
+function VolumeButton() {
   const store = usePlayer();
   const v = usePlayer((s) => ({ volume: s.volume, muted: s.muted }));
-  const level = Math.max(1, Math.min(5, Math.round(v.volume * 5)));
-  const [squeeze, setSqueeze] = useState(0);
-  const crustRef = useRef<HTMLSpanElement>(null);
-  const hold = useRef<{ t?: number; i?: number; stepped: boolean; crack: boolean } | null>(null);
-
-  const end = (tap: boolean) => {
-    const h = hold.current;
-    if (!h) return;
-    window.clearTimeout(h.t);
-    window.clearInterval(h.i);
-    hold.current = null;
-    setSqueeze(0);
-    playPop();
-    if (tap && !h.stepped && !h.crack) store.setMuted(!store.muted);
-  };
-
+  const { handlers } = usePress();
   return (
-    <button
-      type="button"
-      className="sq-ball sq-squish"
-      data-squeeze={squeeze}
-      data-muted={v.muted || undefined}
-      aria-label={`Volume ${level} of 5${v.muted ? ", muted" : ""}. Tap to ${v.muted ? "unmute" : "mute"}, hold to turn up`}
-      aria-keyshortcuts="m ArrowUp ArrowDown"
-      onPointerDown={(e) => {
-        e.currentTarget.setPointerCapture?.(e.pointerId);
-        playSquelch();
-        if (crusted) {
-          onCrack(crustOf(crustRef.current), { x: e.clientX, y: e.clientY });
-          hold.current = { stepped: false, crack: true };
-          setSqueeze(1);
-          return;
-        }
-        const h: NonNullable<typeof hold.current> = { stepped: false, crack: false };
-        hold.current = h;
-        setSqueeze(1);
-        h.t = window.setTimeout(() => {
-          let lv = 1;
-          const apply = () => {
-            h.stepped = true;
-            store.setMuted(false);
-            store.setVolume(lv / 5);
-            setSqueeze(lv);
-            playSqueeze();
-          };
-          apply();
-          h.i = window.setInterval(() => {
-            if (lv >= 5) return window.clearInterval(h.i);
-            lv++;
-            apply();
-          }, 450);
-        }, 300);
-      }}
-      onPointerUp={() => end(true)}
-      onPointerCancel={() => end(false)}
-      onClick={(e) => {
-        // Keyboard activation (Enter / Space) toggles mute.
-        if (e.detail !== 0) return;
-        if (crusted) onCrack(crustOf(crustRef.current), {});
-        else store.setMuted(!store.muted);
-      }}
-      onKeyDown={(e) => {
-        if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-          e.preventDefault();
-          e.stopPropagation();
-          const next = Math.max(0, Math.min(5, level + (e.key === "ArrowUp" ? 1 : -1)));
-          store.setMuted(next === 0);
-          if (next) store.setVolume(next / 5);
-        }
-      }}
-    >
-      <span className="sq-ball-body sq-squish-body">
-        <span className="sq-ball-num" aria-hidden="true">{v.muted ? "×" : level}</span>
-        {crusted && (
-          <span ref={crustRef} className="sq-crust-wrap">
-            <Crust />
-          </span>
-        )}
-      </span>
-    </button>
+    <div className="sq-volume">
+      <button type="button" className="sq-pill sq-btn sq-icon sq-squish sq-squish-body"
+        aria-label={v.muted ? "Unmute" : "Mute"} aria-pressed={v.muted}
+        aria-keyshortcuts="m ArrowUp ArrowDown" {...handlers}
+        onClick={() => store.setMuted(!store.muted)}>
+        <span className="sq-phone-face"><svg viewBox="0 0 20 20" aria-hidden="true">
+          <path d="M3 8h3l4-3v10l-4-3H3z" />
+          {v.muted ? <path d="m13 8 4 4m0-4-4 4" /> : <path d="M13 7a4 4 0 0 1 0 6m2-8a7 7 0 0 1 0 10" />}
+        </svg></span>
+      </button>
+      <div className="sq-volume-slider">
+        <input type="range" min="0" max="1" step="0.01" value={v.muted ? 0 : v.volume}
+          aria-label="Volume" onChange={(e) => {
+            const volume = Number(e.target.value);
+            store.setVolume(volume);
+            store.setMuted(volume === 0);
+          }} onKeyDown={(e) => e.stopPropagation()} />
+      </div>
+    </div>
   );
 }
 
@@ -442,82 +347,17 @@ function CaptionsPill() {
   );
 }
 
-function SpeedMenu() {
+function SpeedButton() {
   const store = usePlayer();
   const rate = usePlayer((s) => s.playbackRate);
-  const [open, setOpen] = useState(false);
-  const { pressed, handlers } = usePress();
-  const wrap = useRef<HTMLDivElement>(null);
-  const btn = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const items = wrap.current?.querySelectorAll<HTMLButtonElement>("[role=menuitemradio]");
-    const cur = Array.from(items ?? []).find((b) => b.getAttribute("aria-checked") === "true");
-    (cur ?? items?.[0])?.focus();
-    const away = (e: PointerEvent) => {
-      if (!wrap.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("pointerdown", away);
-    return () => document.removeEventListener("pointerdown", away);
-  }, [open]);
-
-  const onMenuKey = (e: RKeyboardEvent) => {
-    const items = Array.from(wrap.current?.querySelectorAll<HTMLButtonElement>("[role=menuitemradio]") ?? []);
-    const i = items.indexOf(document.activeElement as HTMLButtonElement);
-    if (e.key === "Escape") {
-      e.stopPropagation();
-      setOpen(false);
-      btn.current?.focus();
-    } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      e.preventDefault();
-      e.stopPropagation();
-      const n = (i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
-      items[n]?.focus();
-    } else if (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === " " || e.key === "k" || e.key === "f" || e.key === "m" || e.key === "c") {
-      e.stopPropagation();
-    } else if (e.key === "Tab") {
-      setOpen(false);
-    }
-  };
-
+  const { handlers } = usePress();
   return (
-    <div className="sq-speed" ref={wrap}>
-      <button
-        ref={btn}
-        type="button"
-        className="sq-pill sq-btn sq-squish sq-squish-body"
-        data-pressed={pressed || undefined}
-        aria-label={`Playback speed, ${rate}x`}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        {...handlers}
-        onClick={() => setOpen((o) => !o)}
-      >
+    <div className="sq-speed">
+      <button type="button" className="sq-pill sq-btn sq-squish sq-squish-body"
+        aria-label={`Playback speed, ${rate}x`} {...handlers}
+        onClick={() => store.setPlaybackRate(nextPlaybackRate(rate))}>
         <span className="sq-phone-face">{rate}×</span>
       </button>
-      {open && (
-        <div className="sq-menu" role="menu" aria-label="Playback speed" onKeyDown={onMenuKey}>
-          {RATES.map((r) => (
-            <button
-              key={r}
-              type="button"
-              role="menuitemradio"
-              aria-checked={r === rate}
-              className="sq-menu-item"
-              tabIndex={-1}
-              onPointerDown={vibratePress}
-              onClick={() => {
-                store.setPlaybackRate(r);
-                setOpen(false);
-                btn.current?.focus();
-              }}
-            >
-              {r}×
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

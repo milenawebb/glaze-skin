@@ -17,3 +17,8 @@ export function dentRadius(pointerType: string) {
 export function dentDepth(held: number, pressure: number | null) {
   return pressure === null ? Math.min(1, 0.32 + held * 0.45) : 0.6 * pressure;
 }
+
+export function faceExpression(presses: number, sinceRelease: number, reducedMotion: boolean) {
+  if (presses > 0) return 1;
+  return reducedMotion ? 0 : Math.pow(Math.max(0, 1 - sinceRelease / 1000), 2);
+}

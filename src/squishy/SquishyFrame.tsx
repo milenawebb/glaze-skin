@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createFrameRenderer, isOnRing, smoothDents, stampDent, type FrameRenderer } from "./frame-gl";
 import { playPop, playSquelch } from "./sounds";
 import { vibratePress } from "./haptics";
-import { dentDepth, dentRadius, frameInsets, pressureScale } from "./touch";
+import { dentDepth, dentRadius, faceExpression, frameInsets, pressureScale } from "./touch";
 
 const RESET_MS = 1500;
 
@@ -29,9 +29,12 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
     const presses = new Map<number, Press>();
     let size = { w: 1, h: 1 };
     let raf = 0;
+    let released = -1000;
 
     const loop = (now: number) => {
       raf = 0;
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      r.face = faceExpression(presses.size, now - released, reduce);
       for (const p of presses.values()) {
         const held = (now - p.start) / 1000;
         const radius = p.radius + (p.pressure === null ? Math.min(held, 2) * 3 : 0);
@@ -47,7 +50,7 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
         if (t >= 1) resetRef.current = null;
       }
       r.render();
-      if (presses.size || resetRef.current) raf = requestAnimationFrame(loop);
+      if (presses.size || resetRef.current || r.face > 0) raf = requestAnimationFrame(loop);
     };
     const schedule = () => {
       if (!raf) raf = requestAnimationFrame(loop);
@@ -104,7 +107,11 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
       schedule();
     };
     const up = (e: PointerEvent) => {
-      if (presses.delete(e.pointerId)) playPop();
+      if (presses.delete(e.pointerId)) {
+        playPop();
+        if (!presses.size) released = performance.now();
+        schedule();
+      }
     };
     // Native non-passive touch listeners keep iOS Safari from scrolling / bouncing.
     const stopTouch = (e: TouchEvent) => {

@@ -35,4 +35,6 @@ use the editor.
 - Keep haptics in src/squishy/haptics.ts gated by the shared sound switch; touch.ts holds pressure and narrow-frame rules so exact device behavior can be tested without WebGL.
 - Read frame renderer insets from the player’s computed padding so touch hit testing and the rendered ring stay aligned with narrow layouts.
 - Phone layout positions the existing controls through data-compact rather than mounting duplicates, preserving media, squish, and crust state across resizes; compact pill faces separate 32px artwork from 44px buttons.
+- Render the bottom-band face in the frame shader using the same dent map and lighting, so permanent dents deform rather than erase it; animate its expression independently of the dent reset.
+- Keep the playback-speed tap cycle in controls.ts with a concrete behavior test so the button and its sequence stay aligned.
 <!-- AGENT-MEMORY:END -->

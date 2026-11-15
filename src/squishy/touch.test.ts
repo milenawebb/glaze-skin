@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { dentDepth, dentRadius, frameInsets, pressureScale } from "./touch";
+import { dentDepth, dentRadius, faceExpression, frameInsets, pressureScale } from "./touch";
 
 describe("phone and tablet frame rules", () => {
+  it("keeps eyes shut for any finger and relaxes fully after one second", () => {
+    expect(faceExpression(1, 1500, false)).toBe(1);
+    expect(faceExpression(3, 1500, false)).toBe(1);
+    expect(faceExpression(0, 0, false)).toBe(1);
+    expect(faceExpression(0, 500, false)).toBe(0.25);
+    expect(faceExpression(0, 1000, false)).toBe(0);
+    expect(faceExpression(0, 0, true)).toBe(0);
+  });
   it("uses 14px sides and top and a 110px bottom below 480px", () => {
     expect(frameInsets(479)).toEqual({ l: 14, t: 14, r: 14, b: 110 });
     expect(frameInsets(480)).toEqual({ l: 30, t: 30, r: 30, b: 96 });

@@ -15,7 +15,7 @@ precision highp float;
 precision mediump float;
 #endif
 uniform vec2 uRes; uniform vec4 uIns; uniform float uRo; uniform float uRi;
-uniform sampler2D uDent; varying vec2 vUv;
+uniform sampler2D uDent; uniform float uFace; varying vec2 vUv;
 float sdRR(vec2 p, vec2 c, vec2 hs, float r){ vec2 q=abs(p-c)-hs+r; return length(max(q,0.))+min(max(q.x,q.y),0.)-r; }
 float sdO(vec2 p){ return sdRR(p, uRes*.5, uRes*.5, uRo); }
 float sdI(vec2 p){ vec2 a=uIns.xy; vec2 b=uRes-uIns.zw; return sdRR(p,(a+b)*.5,(b-a)*.5,uRi); }
@@ -54,6 +54,26 @@ vec3 marble(vec2 p){
   c+=(hash(floor(p))-.5)*.018;
   return c;
 }
+float segment(vec2 p, vec2 a, vec2 b){
+  vec2 v=b-a; return length(p-a-v*clamp(dot(p-a,v)/dot(v,v),0.,1.));
+}
+vec3 face(vec2 p, vec3 col){
+  vec2 center=vec2(uRes.x*.5,uRes.y-uIns.w*.5);
+  vec2 q=p-center;
+  // Paint adheres to the same surface: the dent's slope stretches and bends it.
+  vec2 slope=vec2(dent(p+vec2(2.,0.))-dent(p-vec2(2.,0.)),dent(p+vec2(0.,2.))-dent(p-vec2(0.,2.)));
+  q+=slope*75.;
+  q.y/=1.-dent(p)*.22;
+  vec2 eye=vec2(abs(q.x)-18.,q.y+5.);
+  float open=1.-smoothstep(2.,3.,length(eye/vec2(1.,1.25)));
+  float closed=1.-smoothstep(1.1,2.1,min(segment(eye,vec2(-4.,2.),vec2(0.,-2.)),segment(eye,vec2(0.,-2.),vec2(4.,2.))));
+  float eyes=mix(open,closed,uFace);
+  float smile=(1.-smoothstep(.9,1.8,abs(length(q-vec2(0.,5.))-6.)))*smoothstep(5.,6.,q.y);
+  vec2 cheek=vec2((abs(q.x)-29.)/8.,(q.y-4.)/4.);
+  float blush=(1.-smoothstep(.4,1.,length(cheek)))*mix(.5,.85,uFace);
+  col=mix(col,vec3(1.,.45,.65)*(.82+.18*dot(col,vec3(.333))),blush);
+  return mix(col,vec3(.29,.137,.22),max(eyes,smile)*.94);
+}
 void main(){
   vec2 p=vec2(vUv.x,1.-vUv.y)*uRes;
   float so=sdO(p), si=sdI(p);
@@ -67,7 +87,7 @@ void main(){
   vec3 V=vec3(0.,0.,1.);
   float d=dent(p);
   float amp; float pr=prof(p,amp);
-  vec3 col=marble(p);
+  vec3 col=face(p,marble(p));
   // pressed material: darker and more saturated
   float lum=dot(col,vec3(.299,.587,.114));
   col=mix(vec3(lum),col,1.+.45*d)*(1.-.08*d);
@@ -97,6 +117,7 @@ export interface FrameRenderer {
   dent: Float32Array;
   dw: number;
   dh: number;
+  face: number;
   destroy(): void;
 }
 
@@ -107,7 +128,8 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
   if (!gl) return null;
 
   const sh = (type: number, src: string) => {
-    const s = gl.createShader(type)!;
+    const s = gl.createShader(type);
+    if (!s) throw new Error("Could not create frame shader");
     gl.shaderSource(s, src);
     gl.compileShader(s);
     if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) ?? "shader");
@@ -115,7 +137,9 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
   };
   let prog: WebGLProgram;
   try {
-    prog = gl.createProgram()!;
+    const program = gl.createProgram();
+    if (!program) return null;
+    prog = program;
     gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS));
     gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
     gl.linkProgram(prog);
@@ -131,7 +155,7 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
   gl.enableVertexAttribArray(loc);
   gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
   const u = (n: string) => gl.getUniformLocation(prog, n);
-  const uRes = u("uRes"), uIns = u("uIns"), uRo = u("uRo"), uRi = u("uRi");
+  const uRes = u("uRes"), uIns = u("uIns"), uRo = u("uRo"), uRi = u("uRi"), uFace = u("uFace");
   gl.uniform1i(u("uDent"), 0);
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
@@ -149,6 +173,7 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
     dent: new Float32Array(0),
     dw: 0,
     dh: 0,
+    face: 0,
     resize(w, h, ins) {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       canvas.width = Math.max(1, Math.round(w * dpr));
@@ -164,7 +189,7 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
         if (r.dw && r.dh) {
           for (let y = 0; y < nh; y++) {
             const sy = Math.min(r.dh - 1, Math.floor((y * r.dh) / nh));
-            for (let x = 0; x < nw; x++) next[y * nw + x] = r.dent[sy * r.dw + Math.min(r.dw - 1, Math.floor((x * r.dw) / nw))]!;
+            for (let x = 0; x < nw; x++) next[y * nw + x] = r.dent[sy * r.dw + Math.min(r.dw - 1, Math.floor((x * r.dw) / nw))] ?? 0;
           }
         }
         r.dent = next;
@@ -174,12 +199,13 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
       }
     },
     render() {
+      gl.uniform1f(uFace, r.face);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, tex);
       if (gl2) {
         gl2.texImage2D(gl2.TEXTURE_2D, 0, gl2.R16F, r.dw, r.dh, 0, gl2.RED, gl2.FLOAT, r.dent);
       } else {
-        for (let i = 0; i < r.dent.length; i++) bytes[i] = Math.round(r.dent[i]! * 255);
+        for (let i = 0; i < r.dent.length; i++) bytes[i] = Math.round((r.dent[i] ?? 0) * 255);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, r.dw, r.dh, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, bytes);
       }
       gl.clearColor(0, 0, 0, 0);
@@ -221,7 +247,7 @@ export function stampDent(r: FrameRenderer, cssX: number, cssY: number, radiusCs
       const dx = x - cx, dy = y - cy;
       const target = depth * Math.exp(-(dx * dx + dy * dy) * inv);
       const i = y * r.dw + x;
-      const cur = r.dent[i]!;
+      const cur = r.dent[i] ?? 0;
       if (target > cur) r.dent[i] = cur + (target - cur) * rate;
     }
   }
@@ -238,8 +264,8 @@ export function smoothDents(r: FrameRenderer, cssX0: number, cssY0: number, cssX
   for (let y = y0; y <= y1; y++)
     for (let x = x0; x <= x1; x++) {
       const i = y * w + x;
-      tmp[k++] = src[i]! * 0.4 + (src[i - 1]! + src[i + 1]! + src[i - w]! + src[i + w]!) * 0.1 + (src[i - w - 1]! + src[i - w + 1]! + src[i + w - 1]! + src[i + w + 1]!) * 0.05;
+      tmp[k++] = (src[i] ?? 0) * 0.4 + ((src[i - 1] ?? 0) + (src[i + 1] ?? 0) + (src[i - w] ?? 0) + (src[i + w] ?? 0)) * 0.1 + ((src[i - w - 1] ?? 0) + (src[i - w + 1] ?? 0) + (src[i + w - 1] ?? 0) + (src[i + w + 1] ?? 0)) * 0.05;
     }
   k = 0;
-  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) src[y * w + x] = tmp[k++]!;
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) src[y * w + x] = tmp[k++] ?? 0;
 }

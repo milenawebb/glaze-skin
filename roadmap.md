@@ -1,3 +1,6 @@
+- [x] Simplify play, seek, volume, speed and shared control styling; preserve keyboard/touch targets.
+- [x] Render a permanent, dent-following face on the bottom frame with press reactions.
+- [x] Verify playback, whole-bar cracking/seeking, mute/volume, speed cycling, phone layout, dents and Reset in Chromium; physical devices remain unverified.
 - [x] Add sound-linked vibration and pressure-sensitive, larger touch dents.
 - [x] Adapt narrow frame bands and keep simultaneous touches independent.
 - [x] Verify 360px controls, dents, crust cracking, and Reset in Chromium touch emulation; physical-device vibration and iOS Safari remain unverified.
