@@ -30,7 +30,7 @@ const GlazePlayer = lazy(async () => {
   }
 });
 
-const PLAYBACK_ID = "5IiMBO6roP5VlYPOZXrh56mWj66uuNrSHAilgwppQKs";
+const PLAYBACK_ID = "IL8LEwPXBY4C2HldJqjKKjtO6y5aGkQXqVPWx5cuo01g";
 
 export const Route = createFileRoute("/")({
   head: () => ({
