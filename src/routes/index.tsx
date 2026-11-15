@@ -62,7 +62,7 @@ function Index() {
       <h1 className="demo-title"><img className="demo-logo" src="/glaze-logo-on-dark.svg" alt="Glaze" width="944" height="240" /></h1>
       <p className="demo-subtitle">An ASMR squishy skin for Video.js</p>
       <p className="demo-tagline">Crack the glaze. Squish the frame. Press play.</p>
-      <p className="demo-intro">Squishies and ASMR are everywhere right now. Glaze brings them to the video player.</p>
+      <p className="demo-intro">There's a reason squishies and ASMR are so popular. Press play and find out.</p>
       <div ref={tabs} className="demo-preview-tabs" role="tablist" aria-label="Player preview size">
         {PREVIEW_MODES.map(mode => <Button key={mode} variant="ghost" role="tab" id={`preview-tab-${mode}`} aria-controls="player-preview" aria-selected={preview === mode} tabIndex={preview === mode ? 0 : -1} className="demo-preview-tab" onClick={() => setPreview(mode)} onKeyDown={e => {
           if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
