@@ -61,6 +61,16 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
   const [localReset, setLocalReset] = useState(0);
   const [color, setColor] = useState<SquishyColor>("Rainbow");
   const [sounds, setSounds] = useState(false);
+  const [colorOpen, setColorOpen] = useState(false);
+  const colorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!colorOpen) return;
+    const outside = (e: PointerEvent) => { if (e.target instanceof Node && !colorRef.current?.contains(e.target)) setColorOpen(false); };
+    const escape = (e: KeyboardEvent) => { if (e.key === "Escape") { setColorOpen(false); colorRef.current?.querySelector<HTMLButtonElement>(".sq-color-toggle")?.focus(); } };
+    window.addEventListener("pointerdown", outside);
+    window.addEventListener("keydown", escape);
+    return () => { window.removeEventListener("pointerdown", outside); window.removeEventListener("keydown", escape); };
+  }, [colorOpen]);
   useEffect(() => {
     try { const prefs = readPreferences(window.localStorage); setColor(prefs.color); setSounds(prefs.sounds); setSoundsEnabled(prefs.sounds); } catch { /* Storage is optional. */ }
   }, []);
@@ -162,12 +172,15 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
       onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setKeyboardFocus(false); }}
     >
       {!fallback && <SquishyFrame resetKey={resetKey + localReset} color={color} onFallback={() => setFallback(true)} />}
-      <div className="sq-frame-colors" role="group" aria-label="Squishy colors">
-        {COLORS.map((choice) => <button key={choice} type="button" className="sq-candy sq-squish" data-swatch={choice} aria-label={`Color: ${choice}`} title={`Color: ${choice}`} aria-pressed={color === choice} onClick={() => { setColor(choice); persist(choice, sounds); }}><span className="sq-candy-face sq-squish-body" /></button>)}
+      <div ref={colorRef} className="sq-frame-colors" role="group" aria-label="Squishy colors">
+        <button type="button" className="sq-candy sq-squish sq-color-toggle" data-swatch={color} aria-label={`Choose color: ${color}`} title={`Choose color: ${color}`} aria-expanded={colorOpen} onClick={() => setColorOpen((open) => !open)}><span className="sq-candy-face sq-squish-body" /></button>
+        <div className="sq-color-choices" data-open={colorOpen || undefined}>
+          {COLORS.map((choice) => <button key={choice} type="button" className="sq-candy sq-squish" data-swatch={choice} aria-label={`Color: ${choice}`} title={`Color: ${choice}`} aria-pressed={color === choice} onClick={() => { setColor(choice); persist(choice, sounds); setColorOpen(false); }}><span className="sq-candy-face sq-squish-body" /></button>)}
+        </div>
       </div>
       <div className="sq-frame-actions">
         <button type="button" className="sq-candy sq-squish" aria-label="Reset squishy" title="Reset squishy" onClick={() => setLocalReset((n) => n + 1)}><span className="sq-candy-face sq-squish-body"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6a7 7 0 1 1-1 7M4 2v5h5" /></svg></span></button>
-        <button type="button" className="sq-candy sq-squish" aria-label={`Turn sounds ${sounds ? "off" : "on"}`} title={`Turn sounds ${sounds ? "off" : "on"}`} aria-pressed={sounds} onClick={() => { const next = !sounds; setSoundsEnabled(next); setSounds(next); persist(color, next); }}><span className="sq-candy-face sq-squish-body"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8h3l4-3v10l-4-3H3z" />{sounds ? <path d="M13 7a4 4 0 0 1 0 6m2-8a7 7 0 0 1 0 10" /> : <path d="m13 8 4 4m0-4-4 4" />}</svg></span></button>
+        <button type="button" className="sq-candy sq-squish" aria-label={`Squish sounds ${sounds ? "on" : "off"}`} title={`Squish sounds ${sounds ? "on" : "off"}`} aria-pressed={sounds} onClick={() => { const next = !sounds; setSoundsEnabled(next); setSounds(next); persist(color, next); }}><span className="sq-candy-face sq-squish-body"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 3 1.8 4.2L13 9l-4.2 1.8L7 15l-1.8-4.2L1 9l4.2-1.8ZM14 6a5 5 0 0 1 0 8m3-10a8 8 0 0 1 0 12" />{!sounds && <path d="m2 18 16-16" />}</svg></span></button>
       </div>
       <div className="sq-stage" onClickCapture={(e) => {
         if (compact && !(e.target as Element).closest(".sq-controls button, .sq-seek")) {
