@@ -92,11 +92,14 @@ export function createCrackTrail(a:ShellPoint,b:ShellPoint,random=Math.random) {
 export function peelShell(layer: HTMLElement,image:HTMLCanvasElement,shape:ShellBreak,x:number,y:number,radius:number) {
   if(window.matchMedia("(prefers-reduced-motion: reduce)").matches)return;
   const polygons=shape.plates.filter(poly=>poly.length>2);
+  const generation=debrisGeneration;
+  const jobs:(()=>void)[]=[];
   for(const poly of polygons){
     const center={x:poly.reduce((n,p)=>n+p.x,0)/poly.length,y:poly.reduce((n,p)=>n+p.y,0)/poly.length};
     const span=Math.max(Math.max(...poly.map(p=>p.x))-Math.min(...poly.map(p=>p.x)),Math.max(...poly.map(p=>p.y))-Math.min(...poly.map(p=>p.y)));
     // One substantial chunk, three midsize flakes, and eight crumbs/dust specks.
     for(let i=0;i<12;i++){
+      jobs.push(()=>{if(generation!==debrisGeneration||!layer.isConnected)return;
       while(layer.querySelectorAll(".sq-shell-plate").length>=MAX_FLYING_PIECES){const oldest=layer.querySelector(".sq-shell-plate");if(!oldest)break;oldest.getAnimations().forEach(a=>a.cancel());oldest.remove();}
       const crumb=i>=4,size=i===0?span*.44:i<4?span*(.1+Math.random()*.12):.35+Math.random()*2;
       let origin=center;
@@ -107,16 +110,20 @@ export function peelShell(layer: HTMLElement,image:HTMLCanvasElement,shape:Shell
       const piece=document.createElement("canvas");piece.className="sq-shell-plate";piece.dataset['debris']=crumb?"crumb":i===0?"chunk":"flake";
       const scale=crumb?1:Math.min(2,image.width/(radius*2));piece.width=Math.ceil(w*scale);piece.height=Math.ceil(h*scale);
       piece.style.width=`${w}px`;piece.style.height=`${h}px`;piece.style.left=`${left}px`;piece.style.top=`${top}px`;piece.style.setProperty("--sq-piece-thickness",`${motion.thickness}px`);piece.style.transformOrigin=`${Math.random()*100}% ${Math.random()*100}%`;
-      const ctx=piece.getContext("2d");if(!ctx)continue;ctx.scale(scale,scale);
+      const ctx=piece.getContext("2d");if(!ctx)return;ctx.scale(scale,scale);
       const clip=(points:ShellPoint[])=>{ctx.beginPath();points.forEach((p,j)=>j===0?ctx.moveTo(p.x-left,p.y-top):ctx.lineTo(p.x-left,p.y-top));ctx.closePath();ctx.clip();};
       clip(poly);clip(fragment);ctx.drawImage(image,x-radius-left,y-radius-top,radius*2,radius*2);layer.appendChild(piece);
       const anim=piece.animate([{transform:"translate(0,0) rotateX(0deg) rotate(0deg)",opacity:1},{transform:`translate(${motion.dx*.25}px,${-motion.lift}px) rotateX(${motion.tilt}deg) rotate(${motion.spin*.2}deg)`,opacity:1,offset:.25},{transform:`translate(${motion.dx}px,${motion.dy}px) rotateX(${motion.tilt*2}deg) rotate(${motion.spin}deg)`,opacity:0}],{duration:motion.duration,easing:"cubic-bezier(.3,.15,.65,1)",fill:"forwards"});anim.onfinish=()=>piece.remove();
+      });
     }
   }
+  const batch=()=>{const start=performance.now();let count=0;while(jobs.length&&count<3&&performance.now()-start<2){jobs.shift()?.();count++;}if(jobs.length&&generation===debrisGeneration)requestAnimationFrame(batch);};requestAnimationFrame(batch);
 }
+let debrisGeneration=0;
+export function cancelShellDebris(){debrisGeneration++;}
 /** Red holes and green fissures, rasterized only when damage changes. */
 export function paintCoating(canvas:HTMLCanvasElement,width:number,shape:ShellBreak,hole:boolean,progress=1) {
- const ctx=canvas.getContext("2d");if(!ctx)return;ctx.save();ctx.scale(canvas.width/width,canvas.width/width);
+ const ctx=canvas.getContext("2d",{willReadFrequently:true});if(!ctx)return;ctx.save();ctx.scale(canvas.width/width,canvas.width/width);
  if(hole){ctx.globalCompositeOperation="source-over";ctx.fillStyle=`rgb(${Math.round(255*progress)},0,0)`;ctx.beginPath();shape.boundary.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));ctx.closePath();ctx.fill();}
  else {ctx.strokeStyle="rgb(0,255,0)";ctx.lineJoin="round";ctx.lineCap="round";for(const path of [...shape.cracks,...shape.arcs])for(let i=1;i<path.length;i++){const a=path[i-1],b=path[i];if(!a||!b)continue;ctx.lineWidth=.14+.65*(1-i/path.length);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}}
  ctx.restore();

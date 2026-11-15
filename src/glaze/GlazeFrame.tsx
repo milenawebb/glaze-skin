@@ -7,7 +7,7 @@ import { dentDepth, dentRadius, faceExpression, frameInsets, pressureScale } fro
 
 import { breakGlaze, hasGlaze } from "./glaze";
 
-import { createShellBreak, takeShellChips, peelShell, SHELL_BREAK_MS, paintCoating, insideShellPolygon, framePressStage, type ShellBreak } from "./shell";
+import { cancelShellDebris, createShellBreak, takeShellChips, peelShell, SHELL_BREAK_MS, paintCoating, insideShellPolygon, framePressStage, type ShellBreak } from "./shell";
 import { createGlazeStrip, isGlazeDrag, stripWidth } from "./strip";
 
 import { recoverySettings, recoveryFactor, immediateDepth } from "./recovery";
@@ -15,7 +15,7 @@ import { settledResize } from "./resize";
 import { fingerPad, fingerDepth, stampFingertip, type FingerPad } from "./fingertip";
 import type { GlazeColor } from "./preferences";
 import { DEFAULT_GLAZE_STYLE, monoStyleAmount, type GlazeStyle } from "./glaze-style";
-const RESET_MS = 1500;
+import { region, resetAmount, RESET_MS, type Region } from "./regions";
 
 interface Press { pad:FingerPad; before:Float32Array; x: number; y: number; origin: {x:number;y:number}; dragging:boolean; pointerType:string; exposed:ShellBreak[]; initialFoam:boolean; start: number; radius: number; pressure: number | null; sound: ((depth: number) => void) | undefined; foam: boolean; spots: {x:number;y:number}[]; flakeDistance:number }
 
@@ -48,16 +48,20 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     const breaks: { x: number; y: number; radius: number; start: number; duration: number; shape: ShellBreak }[] = [];
 
     const cracked: { x:number; y:number; radius:number; shape:ShellBreak; removed:boolean; start:number; drawn:boolean }[]=[];
-    const protectedRects = () => {
+    let protectedCache:{x:number;y:number;w:number;h:number}[]=[];
+    const refreshProtected = () => {
       const bounds=canvas.getBoundingClientRect();
-      return Array.from(canvas.parentElement?.querySelectorAll<HTMLElement>(".sq-stage")??[]).map(el=>{const b=el.getBoundingClientRect();return {x:b.left-bounds.left-3,y:b.top-bounds.top-3,w:b.width+6,h:b.height+6};});
+      protectedCache=Array.from(canvas.parentElement?.querySelectorAll<HTMLElement>(".sq-stage")??[]).map(el=>{const b=el.getBoundingClientRect();return {x:b.left-bounds.left-3,y:b.top-bounds.top-3,w:b.width+6,h:b.height+6};});
     };
     const safe = (x:number,y:number) => {
       const insets=frameInsets(size.w);
-      return isOnRing(x,y,size.w,size.h,insets) && !protectedRects().some(b=>x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h);
+      return isOnRing(x,y,size.w,size.h,insets) && !protectedCache.some(b=>x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h);
     };
     const damage=damageRef.current;
-    const intact = (x:number,y:number) => safe(x,y) && hasGlaze(r,x,y) && !damage.some(d=>d.hole&&insideShellPolygon(x/size.w,y/size.h,d.shape.boundary));
+    const holeBins=new Map<string,ShellBreak[]>();
+    const binKey=(x:number,y:number)=>`${Math.floor(x/32)},${Math.floor(y/32)}`;
+    const indexHole=(shape:ShellBreak)=>{const points=shape.boundary;if(!points.length)return;const x0=Math.floor(Math.min(...points.map(p=>p.x))*size.w/32),x1=Math.floor(Math.max(...points.map(p=>p.x))*size.w/32),y0=Math.floor(Math.min(...points.map(p=>p.y))*size.h/32),y1=Math.floor(Math.max(...points.map(p=>p.y))*size.h/32);for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const key=`${x},${y}`,items=holeBins.get(key)??[];if(!items.includes(shape))items.push(shape);holeBins.set(key,items);}};
+    const intact = (x:number,y:number) => safe(x,y) && hasGlaze(r,x,y) && !(holeBins.get(binKey(x,y))??[]).some(shape=>insideShellPolygon(x/size.w,y/size.h,shape.boundary));
     let replaying=false;
     const paint = (shape:ShellBreak,hole:boolean,progress=1) => {
       if(!hole)shape={...shape,cracks:clipCrackPaths(shape.cracks,intact),arcs:clipCrackPaths(shape.arcs,intact)};
@@ -65,26 +69,32 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       if(!replaying){
         const normalized=mapShell(shape,1/size.w,1/size.h);
         const retained=hole?damage.find(d=>d.hole&&d.shape.boundary.length===normalized.boundary.length&&d.shape.boundary.every((p,i)=>Math.abs(p.x-(normalized.boundary[i]?.x??-1))<1e-9&&Math.abs(p.y-(normalized.boundary[i]?.y??-1))<1e-9)):undefined;
-        if(retained)retained.progress=progress;else damage.push({shape:normalized,hole,progress});
+        if(retained)retained.progress=progress;else {damage.push({shape:normalized,hole,progress});if(hole)indexHole(normalized);}
       }
-      const ctx=r.coating.getContext("2d");if(!ctx)return;
+      const ctx=r.coating.getContext("2d",{willReadFrequently:true});if(!ctx)return;
       const scale=r.coating.width/size.w;
       ctx.save();ctx.scale(scale,scale);ctx.beginPath();ctx.rect(0,0,size.w,size.h);
-      for(const b of protectedRects())ctx.rect(b.x,b.y,b.w,b.h);
+      for(const b of protectedCache)ctx.rect(b.x,b.y,b.w,b.h);
       ctx.clip("evenodd");ctx.scale(1/scale,1/scale);paintCoating(r.coating,size.w,shape,hole,progress);ctx.restore();
+      const points=hole?shape.boundary:[...shape.cracks,...shape.arcs].flat();
+      if(points.length)r.dirtyCoating(Math.min(...points.map(p=>p.x))-2,Math.min(...points.map(p=>p.y))-2,Math.max(...points.map(p=>p.x))+2,Math.max(...points.map(p=>p.y))+2);
     };
-    const recoveries: { start:number; duration:number; fraction:number; lastFactor:number; cells:{i:number;depth:number}[] }[]=[];
-    clearTransient.current=()=>{breaks.length=0;cracked.length=0;recoveries.length=0;damage.length=0;canvas.parentElement?.querySelectorAll(".sq-shell-plate").forEach(p=>p.remove());};
+    const recoveries: { start:number; duration:number; fraction:number; lastFactor:number; bounds:Region|undefined; cells:{i:number;depth:number}[] }[]=[];
+    clearTransient.current=()=>{cancelShellDebris();breaks.length=0;cracked.length=0;recoveries.length=0;damage.length=0;holeBins.clear();pending.length=0;canvas.parentElement?.querySelectorAll(".sq-shell-plate").forEach(p=>p.remove());};
     const loop = (now: number) => {
       raf = 0;
       // CSS stretches the last rendered bitmap; no mask replay or upload mid-resize.
       if(resizing)return;
+      refreshProtected();
+      const deadline=performance.now()+6;
+      while(pending.length&&performance.now()<deadline){const event=pending.shift();if(event)processEvent(event);}
       const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       r.face = faceExpression(presses.size, now - released, reduce);
       for(let j=recoveries.length-1;j>=0;j--){
         const rec=recoveries[j]; if(!rec)continue;
         const factor=recoveryFactor(now-rec.start,rec.duration,rec.fraction);
         for(const cell of rec.cells) r.dent[cell.i]=(r.dent[cell.i]??0)+cell.depth*(factor-rec.lastFactor);
+        if(rec.bounds)r.dirtyHeight(rec.bounds);
         rec.lastFactor=factor;
         if(now-rec.start>=rec.duration)recoveries.splice(j,1);
       }
@@ -108,24 +118,21 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
         const shape=mapShell(b.shape,size.w,size.h);
         breakGlaze(r, b.x*size.w, b.y*size.h, b.radius*size.w, Math.min(1,t/.35), shape.boundary);
         paint(shape,true,Math.min(1,t/.35));
-        if (t === 1) breaks.splice(i, 1);
+        if (t >= .35) breaks.splice(i, 1);
       }
       const rs = resetRef.current;
       if (rs) {
         breaks.length = 0; cracked.length=0; recoveries.length=0;
-        const ctx=r.coating.getContext("2d");
-        if(ctx){ctx.clearRect(0,0,r.coating.width,r.coating.height);ctx.globalAlpha=Math.pow(1-Math.min(1,(now-rs.start)/RESET_MS),3);replaying=true; for(const d of rs.damage) paint(mapShell(d.shape,size.w,size.h),d.hole,d.progress); replaying=false;ctx.globalAlpha=1;}
-        canvas.parentElement?.querySelectorAll(".sq-shell-plate").forEach(piece => piece.remove());
-        const t = Math.min(1, (now - rs.start) / RESET_MS);
-        const k = 1 - (1 - Math.pow(1 - t, 3));
-        for (let i = 0; i < r.dent.length; i++) {
-          r.dent[i] = (rs.snap[i] ?? 0) * k;
-          r.glaze[i] = (rs.glaze[i] ?? 0) * k;
+        r.resetAmount=resetAmount(now-rs.start);
+        if(now-rs.start>=RESET_MS){
+          r.dent.fill(0);r.glaze.fill(0);r.coating.getContext("2d",{willReadFrequently:true})?.clearRect(0,0,r.coating.width,r.coating.height);
+          r.dirtyHeight(region(r.dw,r.dh,0,0,r.dw-1,r.dh-1));r.dirtyCoating(0,0,size.w,size.h);
+          resetRef.current=null;damage.length=0;holeBins.clear();r.resetAmount=1;
         }
-        if (t >= 1) { resetRef.current = null; damage.length=0; }
       }
+
       r.render();
-      if (presses.size || breaks.length || recoveries.length || cracked.some(c=>!c.removed&&!c.drawn) || resetRef.current || r.face > 0 || r.paletteAnimating()) raf = requestAnimationFrame(loop);
+      if (pending.length || presses.size || breaks.length || recoveries.length || cracked.some(c=>!c.removed&&!c.drawn) || resetRef.current || r.face > 0 || r.paletteAnimating()) raf = requestAnimationFrame(loop);
     };
     const schedule = () => {
       if (!raf) raf = requestAnimationFrame(loop);
@@ -137,8 +144,9 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       const old=size;
       size = { w: rect.width, h: rect.height };
       for(const p of presses.values()){p.x=p.x/old.w*size.w;p.y=p.y/old.h*size.h;p.origin={x:p.origin.x/old.w*size.w,y:p.origin.y/old.h*size.h};p.spots=p.spots.map(v=>({x:v.x/old.w*size.w,y:v.y/old.h*size.h}));}
+      refreshProtected();holeBins.clear();for(const d of damage)if(d.hole)indexHole(d.shape);
       if (snapSize(r, size)) {
-        r.coating.getContext("2d")?.clearRect(0,0,r.coating.width,r.coating.height);
+        r.coating.getContext("2d",{willReadFrequently:true})?.clearRect(0,0,r.coating.width,r.coating.height);
         replaying=true;
         for(const d of damage) paint(mapShell(d.shape,size.w,size.h),d.hole,d.progress);
         replaying=false;
@@ -199,11 +207,10 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       return "crack";
     };
     const down = (e: PointerEvent) => {
-      if(resizing){resizeJob.cancel();rebuild();}
+      if(resizing)return;
       const { x, y } = local(e);
       if (!isOnRing(x, y, size.w, size.h, frameInsets(size.w))) return;
-      e.preventDefault();
-      canvas.setPointerCapture?.(e.pointerId);
+
       const pressure = pressureScale(e);
       // A new press owns these cells; an older rise must not pull against it.
       for(const rec of recoveries)for(const c of rec.cells){const dx=(c.i%r.dw)/r.dw*size.w-x,dy=Math.floor(c.i/r.dw)/r.dh*size.h-y;c.depth*=1-Math.exp(-(dx*dx+dy*dy)/(2*Math.pow(dentRadius(e.pointerType)*2.5,2)));}
@@ -280,22 +287,37 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
         const settings=recoverySettings();
         const cells:{i:number;depth:number}[]=[];
         // Recover the complete smooth contribution, including its tails, not a disc.
-        for(let i=0;i<r.dent.length;i++)cells.push({i,depth:(r.dent[i]??0)-(press.before[i]??0)});
-        recoveries.push({start:performance.now(),...settings,lastFactor:1,cells});
+        let bounds:Region|null=null;
+        for(let i=0;i<r.dent.length;i++){const depth=(r.dent[i]??0)-(press.before[i]??0);if(depth!==0){cells.push({i,depth});const x=i%r.dw,y=Math.floor(i/r.dw);bounds=bounds?{x0:Math.min(bounds.x0,x),y0:Math.min(bounds.y0,y),x1:Math.max(bounds.x1,x),y1:Math.max(bounds.y1,y)}:{x0:x,y0:y,x1:x,y1:y};}}
+        recoveries.push({start:performance.now(),...settings,lastFactor:1,bounds:bounds??undefined,cells});
         if (!presses.size) released = performance.now();
         schedule();
       }
+    };
+    // Handlers enqueue only input; all mutation runs in the next frame.
+    const pending:PointerEvent[]=[];
+    const processEvent=(e:PointerEvent)=>{if(e.type==="pointerdown")down(e);else if(e.type==="pointermove")move(e);else up(e);};
+    const queue=(e:PointerEvent)=>{
+      if(e.type==="pointerdown"){
+        const {x,y}=local(e);if(!isOnRing(x,y,size.w,size.h,frameInsets(size.w)))return;
+        e.preventDefault();canvas.setPointerCapture?.(e.pointerId);
+      }
+      if(e.type==="pointermove"){
+        const last=pending.at(-1);
+        if(last?.type==="pointermove"&&last.pointerId===e.pointerId)pending.pop();
+      }
+      pending.push(e);schedule();
     };
     // Native non-passive touch listeners keep iOS Safari from scrolling / bouncing.
     const stopTouch = (e: TouchEvent) => {
       if (e.cancelable) e.preventDefault();
     };
 
-    canvas.addEventListener("pointerdown", down);
-    canvas.addEventListener("pointermove", move);
-    canvas.addEventListener("pointerup", up);
-    canvas.addEventListener("pointercancel", up);
-    canvas.addEventListener("lostpointercapture", up);
+    canvas.addEventListener("pointerdown", queue);
+    canvas.addEventListener("pointermove", queue);
+    canvas.addEventListener("pointerup", queue);
+    canvas.addEventListener("pointercancel", queue);
+    canvas.addEventListener("lostpointercapture", queue);
     canvas.addEventListener("touchstart", stopTouch, { passive: false });
     canvas.addEventListener("touchmove", stopTouch, { passive: false });
     canvas.addEventListener("touchend", stopTouch, { passive: false });
@@ -303,11 +325,11 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       ro.disconnect();
       resizeJob.cancel();
       cancelAnimationFrame(raf);
-      canvas.removeEventListener("pointerdown", down);
-      canvas.removeEventListener("pointermove", move);
-      canvas.removeEventListener("pointerup", up);
-      canvas.removeEventListener("pointercancel", up);
-      canvas.removeEventListener("lostpointercapture", up);
+      canvas.removeEventListener("pointerdown", queue);
+      canvas.removeEventListener("pointermove", queue);
+      canvas.removeEventListener("pointerup", queue);
+      canvas.removeEventListener("pointercancel", queue);
+      canvas.removeEventListener("lostpointercapture", queue);
       canvas.removeEventListener("touchstart", stopTouch);
       canvas.removeEventListener("touchmove", stopTouch);
       canvas.removeEventListener("touchend", stopTouch);
@@ -325,9 +347,11 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       clearTransient.current();
       r.dent.fill(0);
       r.glaze.fill(0);
-      r.coating.getContext("2d")?.clearRect(0,0,r.coating.width,r.coating.height);
+      r.coating.getContext("2d",{willReadFrequently:true})?.clearRect(0,0,r.coating.width,r.coating.height);
+      r.dirtyHeight(region(r.dw,r.dh,0,0,r.dw-1,r.dh-1));r.dirtyCoating(0,0,r.width,r.height);r.resetAmount=1;
       resetRef.current = null;
     } else {
+      clearTransient.current();
       resetRef.current = { start: performance.now(), snap: r.dent.slice(), glaze: r.glaze.slice(),damage:damageRef.current.slice() };
     }
     kick.current();

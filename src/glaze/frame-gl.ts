@@ -4,7 +4,7 @@
  * frame and lit in the fragment shader.
  */
 import { COLOR_FADE_MS } from "./preferences";
-import { rasterHeight } from "./damage";
+import { region, union, tailWeight, type Region } from "./regions";
 export const FRAME = { side: 30, top: 30, bottom: 96, outerRadius: 46, innerRadius: 16 };
 
 const VS = `attribute vec2 aPos; varying vec2 vUv;
@@ -17,7 +17,7 @@ precision highp float;
 precision mediump float;
 #endif
 uniform vec2 uRes; uniform vec4 uIns; uniform float uRo; uniform float uRi;
-uniform sampler2D uDent; uniform sampler2D uGlaze; uniform float uFace;
+uniform sampler2D uDent; uniform sampler2D uGlaze; uniform float uFace; uniform float uReset;
 uniform vec3 uWaxBlue; uniform vec3 uWaxMilk; uniform vec3 uWaxYellow;
 uniform vec3 uFoam; uniform vec3 uPore; uniform vec3 uSprinklePink;
 uniform vec3 uSprinkleRed; uniform vec3 uSprinkleGreen;
@@ -32,14 +32,14 @@ float prof(vec2 p, out float amp){
   float a=max(-sdO(p),0.); float b=max(sdI(p),0.); float w=a+b+1e-3; float t=a/w;
   amp=min(w,64.)/64.; float x=clamp(4.*t*(1.-t),0.,1.); return pow(x,.55);
 }
-float dent0(vec2 p){ return texture2D(uDent, p/uRes).r*4.-.5; }
+float dent0(vec2 p){ return (texture2D(uDent, p/uRes).r*4.-.5)*uReset; }
 float dent(vec2 p){
   float s=dent0(p)*.25;
   s+=(dent0(p+vec2(3.,0.))+dent0(p-vec2(3.,0.))+dent0(p+vec2(0.,3.))+dent0(p-vec2(0.,3.)))*.125;
   s+=(dent0(p+vec2(2.5,2.5))+dent0(p-vec2(2.5,2.5))+dent0(p+vec2(2.5,-2.5))+dent0(p-vec2(2.5,-2.5)))*.0625;
   return s;
 }
-float broken(vec2 p){ return texture2D(uGlaze,p/uRes).r; }
+float broken(vec2 p){ return texture2D(uGlaze,p/uRes).r*uReset; }
 float H(vec2 p){ float amp; float pr=prof(p,amp); return 24.*amp*pr*(1.-0.8*dent(p))-3.5*broken(p); }
 float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
 float noise(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.-2.*f);
@@ -156,8 +156,8 @@ void main(){
   }
   if(uSprinkles>0.) c=mix(c,sprinkles(p,c,coat),uSprinkles);
   c=face(p,c,hole);
-  float crack=texture2D(uGlaze,p/uRes).g*coat;
-  float crackShadow=texture2D(uGlaze,(p-vec2(.8,.9))/uRes).g*coat;
+  float crack=texture2D(uGlaze,p/uRes).g*coat*uReset;
+  float crackShadow=texture2D(uGlaze,(p-vec2(.8,.9))/uRes).g*coat*uReset;
   vec3 glazeTint=mix(shell,uMonoColor,uMono);
   c=mix(c,glazeTint*.72,crack*.6);
   c=mix(c,mix(glazeTint,uWaxMilk,.32),max(0.,crackShadow-crack)*.45);
@@ -169,6 +169,9 @@ void main(){
 export interface FrameRenderer {
   resize(w: number, h: number, insets: { l: number; t: number; r: number; b: number }): void;
   render(): void;
+  dirtyHeight(bounds: Region): void;
+  dirtyCoating(x0:number,y0:number,x1:number,y1:number): void;
+  resetAmount: number;
   updatePalette(): void;
   paletteAnimating(): boolean;
   snapshot(x: number, y: number, radius: number): HTMLCanvasElement;
@@ -253,8 +256,14 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
   let targetColors: number[][] = [];
   let currentMono = 0, fromMono = 0, targetMono = 0;
   const coating = document.createElement("canvas");
-  let bytes = new Uint8Array(0);
+  let heightDirty:Region|null=null, coatDirty:Region|null=null;
+  let fullUpload=true;
+  const tile=document.createElement("canvas");
+  const material=document.createElement("canvas");let materialJob=0;
   const r: FrameRenderer = {
+    resetAmount:1,
+    dirtyHeight(bounds){heightDirty=union(heightDirty,bounds);},
+    dirtyCoating(x0,y0,x1,y1){const scale=coating.width/r.width;coatDirty=union(coatDirty,region(coating.width,coating.height,x0*scale-2,y0*scale-2,x1*scale+2,y1*scale+2));},
     dent: new Float32Array(512*512),
     glaze: new Float32Array(512*512),
     coating,
@@ -295,7 +304,7 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
       gl.uniform4f(uIns, ins.l, ins.t, ins.r, ins.b);
       gl.uniform1f(uRo, FRAME.outerRadius);
       gl.uniform1f(uRi, FRAME.innerRadius);
-      bytes = new Uint8Array(canvas.width * canvas.height);
+      fullUpload=true;
     },
     render() {
       const t = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : Math.min(1, (performance.now() - paletteStart) / COLOR_FADE_MS);
@@ -307,33 +316,47 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
       gl.uniform1f(uFace, r.face);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, tex);
-      const height = rasterHeight(r.dent,r.dw,r.dh,canvas.width,canvas.height);
-      for(let i=0;i<height.length;i++)height[i]=((height[i]??0)+.5)/4;
-      if (gl2) {
-        gl2.texImage2D(gl2.TEXTURE_2D, 0, gl2.R16F, canvas.width, canvas.height, 0, gl2.RED, gl2.FLOAT, height);
-      } else {
-        for (let i = 0; i < height.length; i++) bytes[i] = Math.round((height[i] ?? 0) * 255);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, canvas.width, canvas.height, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, bytes);
+      gl.uniform1f(u("uReset"),r.resetAmount);
+      // Height data already lives in normalized coordinates: retain its texture.
+      // Linear texture sampling gives the same bilinear surface at every DPR.
+      if(fullUpload){
+        if(gl2)gl2.texImage2D(gl2.TEXTURE_2D,0,gl2.R16F,r.dw,r.dh,0,gl2.RED,gl2.FLOAT,null);
+        else gl.texImage2D(gl.TEXTURE_2D,0,gl.LUMINANCE,r.dw,r.dh,0,gl.LUMINANCE,gl.UNSIGNED_BYTE,null);
+        heightDirty=region(r.dw,r.dh,0,0,r.dw-1,r.dh-1);
+      }
+      if(heightDirty){
+        const b=heightDirty,w=b.x1-b.x0+1,h=b.y1-b.y0+1;
+        const values=gl2?new Float32Array(w*h):new Uint8Array(w*h);
+        for(let y=0;y<h;y++)for(let x=0;x<w;x++){const value=((r.dent[(y+b.y0)*r.dw+x+b.x0]??0)+.5)/4;values[y*w+x]=gl2?value:Math.round(value*255);}
+        gl.texSubImage2D(gl.TEXTURE_2D,0,b.x0,b.y0,w,h,gl2?gl2.RED:gl.LUMINANCE,gl2?gl.FLOAT:gl.UNSIGNED_BYTE,values);
+        heightDirty=null;
       }
       gl.activeTexture(gl.TEXTURE1);
-      gl.bindTexture(gl.TEXTURE_2D, glazeTex);
-      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,coating);
+      gl.bindTexture(gl.TEXTURE_2D,glazeTex);
+      if(fullUpload){gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,coating.width,coating.height,0,gl.RGBA,gl.UNSIGNED_BYTE,null);coatDirty=region(coating.width,coating.height,0,0,coating.width-1,coating.height-1);}
+      if(coatDirty){
+        const b=coatDirty;tile.width=b.x1-b.x0+1;tile.height=b.y1-b.y0+1;
+        tile.getContext("2d",{willReadFrequently:true})?.drawImage(coating,b.x0,b.y0,tile.width,tile.height,0,0,tile.width,tile.height);
+        gl.texSubImage2D(gl.TEXTURE_2D,0,b.x0,b.y0,gl.RGBA,gl.UNSIGNED_BYTE,tile);coatDirty=null;
+      }
+      const capture=fullUpload;fullUpload=false;
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      if(capture||t<1){clearTimeout(materialJob);materialJob=window.setTimeout(()=>{material.width=canvas.width;material.height=canvas.height;material.getContext("2d",{willReadFrequently:true})?.drawImage(canvas,0,0);},150);}
+
     },
     snapshot(x, y, radius) {
-      r.render();
       const image = document.createElement("canvas");
       // Local fragments are tiny textured quads; avoid full-frame canvas clones.
       image.width = Math.ceil(radius * 4); image.height = image.width;
       const context = image.getContext("2d");
       const scale = canvas.width / canvas.getBoundingClientRect().width;
-      context?.drawImage(canvas, (x - radius) * scale, (y - radius) * scale, radius * 2 * scale, radius * 2 * scale, 0, 0, image.width, image.height);
+      context?.drawImage(material, (x - radius) * scale, (y - radius) * scale, radius * 2 * scale, radius * 2 * scale, 0, 0, image.width, image.height);
       return image;
     },
     destroy() {
-      gl.deleteTexture(tex);
+      clearTimeout(materialJob);gl.deleteTexture(tex);
       gl.deleteTexture(glazeTex);
       gl.deleteBuffer(buf);
       gl.deleteProgram(prog);
@@ -359,10 +382,12 @@ export function isOnRing(x: number, y: number, w: number, h: number, ins: { l: n
 /** Gaussian tails span the map, without a radius cutoff or disc edge. */
 export function stampDent(r: FrameRenderer, cssX: number, cssY: number, radiusCss: number, depth: number, rate: number) {
   const inv = 1 / (2 * radiusCss * radiusCss);
-  for (let y = 0; y < r.dh; y++) {
-    for (let x = 0; x < r.dw; x++) {
+  const bounds=region(r.dw,r.dh,(cssX-radiusCss*6)*r.dw/r.width,(cssY-radiusCss*6)*r.dh/r.height,(cssX+radiusCss*6)*r.dw/r.width,(cssY+radiusCss*6)*r.dh/r.height);
+  r.dirtyHeight?.(bounds);
+  for (let y = bounds.y0; y <= bounds.y1; y++) {
+    for (let x = bounds.x0; x <= bounds.x1; x++) {
       const dx=x*r.width/r.dw-cssX,dy=y*r.height/r.dh-cssY;
-      const weight=Math.exp(-(dx*dx+dy*dy)*inv);
+      const weight=Math.exp(-(dx*dx+dy*dy)*inv)*tailWeight(Math.hypot(dx,dy)/radiusCss);
       const target = depth * weight;
       const i = y * r.dw + x;
       const cur = r.dent[i] ?? 0;
@@ -374,7 +399,8 @@ export function stampDent(r: FrameRenderer, cssX: number, cssY: number, radiusCs
 
 /** Lightly blur a region of the height map so overlapping dents and grooves blend smoothly. */
 export function smoothDents(r: FrameRenderer, cssX0: number, cssY0: number, cssX1: number, cssY1: number) {
-  const x0=0,x1=r.dw-1,y0=0,y1=r.dh-1;
+  const bounds=region(r.dw,r.dh,(cssX0-12)*r.dw/r.width,(cssY0-12)*r.dh/r.height,(cssX1+12)*r.dw/r.width,(cssY1+12)*r.dh/r.height);
+  const {x0,x1,y0,y1}=bounds;r.dirtyHeight?.(bounds);
   if (x1 <= x0 || y1 <= y0) return;
   const w = r.dw, src = r.dent;
   const ox=Math.max(1,Math.round(2.5*r.dw/r.width)),oy=Math.max(1,Math.round(2.5*r.dh/r.height));
@@ -387,7 +413,8 @@ export function smoothDents(r: FrameRenderer, cssX0: number, cssY0: number, cssX
       const rx=Math.abs(cssX1-cssX0)*.5+2.5,ry=Math.abs(cssY1-cssY0)*.5+2.5;
       const weight=Math.exp(-.5*(dx*dx/(rx*rx)+dy*dy/(ry*ry)));
       const blurred=sample(x,y)*.25+(sample(x-ox,y)+sample(x+ox,y)+sample(x,y-oy)+sample(x,y+oy))*.125+(sample(x-ox,y-oy)+sample(x+ox,y-oy)+sample(x-ox,y+oy)+sample(x+ox,y+oy))*.0625;
-      tmp[k++]=sample(x,y)+(blurred-sample(x,y))*weight;
+      const edge=Math.min(x-x0,x1-x,y-y0,y1-y);const blend=Math.min(1,edge/Math.max(ox,oy,1));
+      tmp[k++]=sample(x,y)+(blurred-sample(x,y))*weight*blend*blend*(3-2*blend);
     }
   k = 0;
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) src[y * w + x] = tmp[k++] ?? 0;
