@@ -49,6 +49,7 @@ export function DemoSections() {
         <div className="demo-cards">
           {STEPS.map(s => <div key={s.title} className="demo-card">{s.svg}<h3>{s.title}</h3><p>{s.text}</p></div>)}
         </div>
+        <p className="demo-keys">Keyboard: Space play · ← → skip · ↑ ↓ volume · M mute · C captions · F fullscreen</p>
         <p className="demo-note">Made a mess? Hit Reset and it's glazed and new again.</p>
       </section>
       <section aria-labelledby="inside-heading">

@@ -189,7 +189,7 @@
 .sq-root :focus, .sq-root:focus { outline: none; }
 :root:not([data-sq-pointer]) .sq-root :focus-visible,
 :root:not([data-sq-pointer]) .sq-root:focus-visible {
-  outline: 3px solid var(--sq-focus); outline-offset: 3px; box-shadow: 0 0 0 3px #fff; border-radius: 999px;
+  outline: none; box-shadow: 0 0 0 2px #F7B8D2, 0 0 10px 2px rgb(247 184 210 / 0.6); border-radius: 999px;
 }
 
 .sq-root .sq-pill {
@@ -396,7 +396,7 @@
   .sq-btn[aria-pressed="true"] { background: Highlight; color: HighlightText; }
   .sq-root[data-compact] .sq-phone-face { background: ButtonFace; color: ButtonText; border: 2px solid ButtonText; box-shadow: none; }
   :root:not([data-sq-pointer]) .sq-root :focus-visible,
-  :root:not([data-sq-pointer]) .sq-root:focus-visible { outline-color: Highlight; }
+  :root:not([data-sq-pointer]) .sq-root:focus-visible { outline: 2px solid Highlight; }
 }
 
 /* Phones: frame tools leave the squishy band and sit in one glass row below the frame. */
@@ -406,3 +406,5 @@
 .sq-root[data-compact] .sq-frame-colors, .sq-root[data-compact] .sq-frame-actions { position: relative; inset: auto; bottom: auto; left: auto; right: auto; translate: none; gap: 4px; align-items: center; }
 .sq-root[data-compact] .sq-color-choices { position: static; translate: none; width: auto; padding: 0; background: none; backdrop-filter: none; box-shadow: none; gap: 0; }
 .sq-root[data-compact] .sq-color-choices[data-open] { display: flex; }
+
+:root:not([data-sq-pointer]) .sq-root .sq-canvas:focus-visible { box-shadow: none; border-radius: 0; filter: drop-shadow(0 0 2px #F7B8D2) drop-shadow(0 0 8px rgb(247 184 210 / 0.7)); }

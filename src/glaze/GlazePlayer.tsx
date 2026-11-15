@@ -206,7 +206,7 @@ export function GlazeSkin({ children, resetKey, label, sounds: startSounds = fal
         }
       }}
     >
-      {!fallback && <GlazeFrame resetKey={resetKey + localReset} color={color} glazeStyle={glazeStyle} onFallback={() => setFallback(true)} />}
+      {!fallback && <GlazeFrame resetKey={resetKey + localReset} color={color} glazeStyle={glazeStyle} onFallback={() => setFallback(true)} onReset={() => setLocalReset((n) => n + 1)} />}
       <div className="sq-frame-tools">
       <div ref={colorRef} className="sq-frame-colors" role="group" aria-label="Glaze colors">
         <FrameButton className="sq-candy sq-squish sq-color-toggle" data-swatch={color} aria-label={`Choose color: ${OPTIONS[color].label}`} title={`Choose color: ${OPTIONS[color].label}`} aria-expanded={colorOpen} action={() => setColorOpen((open) => !open)}><span className="sq-candy-face sq-squish-body" /></FrameButton>
@@ -285,8 +285,8 @@ export function GlazeSkin({ children, resetKey, label, sounds: startSounds = fal
       <Hotkey keys="k" action="togglePaused" />
       <Hotkey keys="ArrowLeft" action="seekStep" value={-5} />
       <Hotkey keys="ArrowRight" action="seekStep" value={5} />
-      <Hotkey keys="ArrowUp" action="volumeStep" value={0.2} />
-      <Hotkey keys="ArrowDown" action="volumeStep" value={-0.2} />
+      <Hotkey keys="ArrowUp" action="volumeStep" value={0.1} />
+      <Hotkey keys="ArrowDown" action="volumeStep" value={-0.1} />
       <Hotkey keys="f" action="toggleFullscreen" />
       <Hotkey keys="m" action="toggleMuted" />
     </Container>
@@ -425,7 +425,8 @@ function VolumeButton({ compact, open, setOpen }: { compact: boolean; open: bool
   useEffect(() => () => clearTimeout(closeTimer.current), []);
   return (
     <div className="sq-volume" onPointerEnter={(e) => { if (e.pointerType !== "touch") show(); }} onPointerLeave={close}
-      onFocus={() => { if (!document.documentElement.hasAttribute("data-sq-pointer")) show(); }} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) close(); }}>
+      onFocus={() => { if (!document.documentElement.hasAttribute("data-sq-pointer")) show(); }} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) close(); }}
+      onKeyDown={(e) => { if (e.key === "Escape" && open) { e.stopPropagation(); clearTimeout(closeTimer.current); setOpen(false); e.currentTarget.querySelector<HTMLButtonElement>(".sq-btn")?.focus(); } }}>
       <button type="button" className="sq-pill sq-btn sq-icon sq-squish sq-squish-body"
         aria-label={v.muted ? "Unmute" : "Mute"} aria-pressed={v.muted}
         aria-keyshortcuts="m ArrowUp ArrowDown" {...handlers}

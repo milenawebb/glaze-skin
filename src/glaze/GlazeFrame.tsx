@@ -20,7 +20,8 @@ import { region, resetAmount, RESET_MS, union, type Region } from "./regions";
 interface Press { crackedOnDown:boolean; pad:FingerPad; before:Float32Array; x: number; y: number; origin: {x:number;y:number}; dragging:boolean; pointerType:string; exposed:ShellBreak[]; initialFoam:boolean; start: number; radius: number; pressure: number | null; sound: ((depth: number) => void) | undefined; foam: boolean; spots: {x:number;y:number}[]; flakeDistance:number }
 
 /** WebGL squishy frame. Dents stay until `resetKey` changes. */
-export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_GLAZE_STYLE, onFallback }: { resetKey: number; color?: GlazeColor; glazeStyle?: GlazeStyle; onFallback: () => void }) {
+export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_GLAZE_STYLE, onFallback, onReset }: { resetKey: number; color?: GlazeColor; glazeStyle?: GlazeStyle; onFallback: () => void; onReset?: () => void }) {
+  const onResetRef = useRef(onReset); onResetRef.current = onReset;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<FrameRenderer | null>(null);
   const kick = useRef<() => void>(() => {});
@@ -335,6 +336,17 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       }
       pending.push(e);schedule();
     };
+    const key = (e: KeyboardEvent) => {
+      if (e.altKey || e.ctrlKey || e.metaKey || e.repeat || resizing) return;
+      if (e.key === "Enter") {
+        e.preventDefault(); e.stopPropagation(); refreshProtected();
+        for (let i = 0; i < 200; i++) {
+          const x = Math.random() * size.w, y = Math.random() * size.h;
+          if (safe(x, y) && intact(x, y) && crack(x, y) !== "foam") { schedule(); break; }
+        }
+      } else if (e.key.toLowerCase() === "r") { e.preventDefault(); e.stopPropagation(); onResetRef.current?.(); }
+    };
+    canvas.addEventListener("keydown", key);
     canvas.addEventListener("pointerdown", queue);
     canvas.addEventListener("pointermove", queue);
     canvas.addEventListener("pointerup", queue);
@@ -344,6 +356,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       ro.disconnect();
       resizeJob.cancel();
       cancelAnimationFrame(raf);
+      canvas.removeEventListener("keydown", key);
       canvas.removeEventListener("pointerdown", queue);
       canvas.removeEventListener("pointermove", queue);
       canvas.removeEventListener("pointerup", queue);
@@ -374,5 +387,5 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     kick.current();
   }, [resetKey]);
 
-  return <canvas ref={canvasRef} className="sq-canvas" data-ready={ready || undefined} aria-hidden="true" />;
+  return <canvas ref={canvasRef} className="sq-canvas" data-ready={ready || undefined} tabIndex={0} role="button" aria-label="Glaze frame, press Enter to crack, R to reset" aria-keyshortcuts="Enter r" />;
 }
