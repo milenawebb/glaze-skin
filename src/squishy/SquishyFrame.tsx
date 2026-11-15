@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { FRAME, createFrameRenderer, isOnRing, smoothDents, stampDent, type FrameRenderer } from "./frame-gl";
+import { createFrameRenderer, isOnRing, smoothDents, stampDent, type FrameRenderer } from "./frame-gl";
 import { playPop, playSquelch } from "./sounds";
+import { vibratePress } from "./haptics";
+import { dentDepth, dentRadius, frameInsets, pressureScale } from "./touch";
 
-const INSETS = { l: FRAME.side, t: FRAME.top, r: FRAME.side, b: FRAME.bottom };
 const RESET_MS = 1500;
 
-interface Press { x: number; y: number; start: number }
+interface Press { x: number; y: number; start: number; radius: number; pressure: number | null }
 
 /** WebGL squishy frame. Dents stay until `resetKey` changes. */
 export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFallback: () => void }) {
@@ -16,7 +17,8 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const canvas = canvasRef.current!;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
     const r = createFrameRenderer(canvas);
     if (!r) {
       onFallback();
@@ -32,14 +34,16 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
       raf = 0;
       for (const p of presses.values()) {
         const held = (now - p.start) / 1000;
-        stampDent(r, p.x, p.y, 16 + Math.min(held, 2) * 3, Math.min(1, 0.32 + held * 0.45), 0.18);
-        smoothDents(r, p.x - 40, p.y - 40, p.x + 40, p.y + 40);
+        const radius = p.radius + (p.pressure === null ? Math.min(held, 2) * 3 : 0);
+        stampDent(r, p.x, p.y, radius, dentDepth(held, p.pressure), 0.18);
+        const extent = radius * 2.2;
+        smoothDents(r, p.x - extent, p.y - extent, p.x + extent, p.y + extent);
       }
       const rs = resetRef.current;
       if (rs) {
         const t = Math.min(1, (now - rs.start) / RESET_MS);
         const k = 1 - (1 - Math.pow(1 - t, 3));
-        for (let i = 0; i < r.dent.length; i++) r.dent[i] = rs.snap[i]! * k;
+        for (let i = 0; i < r.dent.length; i++) r.dent[i] = (rs.snap[i] ?? 0) * k;
         if (t >= 1) resetRef.current = null;
       }
       r.render();
@@ -57,7 +61,10 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
     });
     const snapSize = (rr: FrameRenderer, s: { w: number; h: number }) => {
       if (s.w < 2 || s.h < 2) return false;
-      rr.resize(s.w, s.h, INSETS);
+      const parent = canvas.parentElement;
+      if (!parent) return false;
+      const css = getComputedStyle(parent);
+      rr.resize(s.w, s.h, { l: parseFloat(css.paddingLeft), t: parseFloat(css.paddingTop), r: parseFloat(css.paddingRight), b: parseFloat(css.paddingBottom) });
       return true;
     };
     ro.observe(canvas);
@@ -68,12 +75,13 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
     };
     const down = (e: PointerEvent) => {
       const { x, y } = local(e);
-      if (!isOnRing(x, y, size.w, size.h, INSETS)) return;
+      if (!isOnRing(x, y, size.w, size.h, frameInsets(size.w))) return;
       e.preventDefault();
       canvas.setPointerCapture?.(e.pointerId);
-      presses.set(e.pointerId, { x, y, start: performance.now() });
+      presses.set(e.pointerId, { x, y, start: performance.now(), radius: dentRadius(e.pointerType), pressure: pressureScale(e) });
       resetRef.current = null;
       playSquelch();
+      vibratePress();
       schedule();
     };
     const move = (e: PointerEvent) => {
@@ -81,15 +89,16 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
       if (!p) return;
       const { x, y } = local(e);
       const held = (performance.now() - p.start) / 1000;
-      const depth = Math.min(1, 0.32 + held * 0.45);
+      p.pressure = pressureScale(e);
+      const depth = dentDepth(held, p.pressure);
       const dist = Math.hypot(x - p.x, y - p.y);
       const steps = Math.max(1, Math.ceil(dist / 3));
       for (let s = 1; s <= steps; s++) {
         const t = s / steps;
-        stampDent(r, p.x + (x - p.x) * t, p.y + (y - p.y) * t, 15, depth * 0.85, 1);
+        stampDent(r, p.x + (x - p.x) * t, p.y + (y - p.y) * t, p.radius - 1, depth * 0.85, 1);
       }
-      smoothDents(r, p.x - 36, p.y - 36, x + 36, y + 36);
-      smoothDents(r, p.x - 36, p.y - 36, x + 36, y + 36);
+      const extent = p.radius * 2.2;
+      smoothDents(r, Math.min(p.x, x) - extent, Math.min(p.y, y) - extent, Math.max(p.x, x) + extent, Math.max(p.y, y) + extent);
       p.x = x;
       p.y = y;
       schedule();

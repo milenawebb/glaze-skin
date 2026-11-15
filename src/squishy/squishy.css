@@ -39,6 +39,8 @@
 .sq-root *::before,
 .sq-root *::after { box-sizing: border-box; }
 
+.sq-root[data-compact] { padding: 22px 22px 120px; }
+
 .sq-canvas {
   position: absolute;
   inset: 0;
@@ -259,7 +261,7 @@
 
 /* Phones and tablets: 44px targets */
 @media (pointer: coarse), (max-width: 640px) {
-  .sq-pill { min-height: 44px; min-width: 44px; }
+  .sq-root .sq-pill { min-height: 44px; min-width: 44px; }
   .sq-tube { height: 44px; }
   .sq-ball { width: 52px; height: 52px; }
   .sq-bun { min-height: 50px; }
@@ -267,6 +269,16 @@
   .sq-controls { padding: 12px 6px 6px; gap: 2px; }
   .sq-row { gap: 4px; }
 }
+
+/* Two stable rows leave the narrow video free of overlapping controls. */
+.sq-root[data-compact] .sq-controls { padding: 0 6px 2px; gap: 0; }
+.sq-root[data-compact] .sq-tube { height: 44px; }
+.sq-root[data-compact] .sq-row { display: grid; grid-template-columns: 60px minmax(44px, 1fr) minmax(44px, 1fr) 52px; gap: 0; }
+.sq-root[data-compact] .sq-spacer { display: none; }
+.sq-root[data-compact] .sq-time { grid-column: span 2; padding-inline: 4px; white-space: nowrap; }
+.sq-root[data-compact] .sq-row > .sq-btn:nth-last-child(3) { grid-column: 2; }
+.sq-root[data-compact] .sq-pill { min-height: 44px; min-width: 44px; }
+.sq-root[data-compact] .sq-menu-item { min-height: 44px; }
 
 @media (prefers-reduced-motion: reduce) {
   .sq-root *, .sq-root *::before, .sq-root *::after { transition: none !important; animation: none !important; }

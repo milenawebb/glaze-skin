@@ -32,4 +32,6 @@ use the editor.
 <!-- AGENT-MEMORY:BEGIN -->
 - The Squishy skin lives self-contained in src/squishy/ (entry index.ts, own CSS vars, no app imports) so it can ship as its own package.
 - All skin sounds stay in src/squishy/sounds.ts, one function per sound, so recordings can replace synthesis.
+- Keep haptics in src/squishy/haptics.ts gated by the shared sound switch; touch.ts holds pressure and narrow-frame rules so exact device behavior can be tested without WebGL.
+- Read frame renderer insets from the player’s computed padding so touch hit testing and the rendered ring stay aligned with narrow layouts.
 <!-- AGENT-MEMORY:END -->

@@ -1,4 +1,5 @@
 import { playCrunch } from "./sounds";
+import { vibrateBreak, vibrateCrack } from "./haptics";
 
 export function prefersReducedMotion() {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -28,11 +29,12 @@ export function crackCrust(crust: HTMLElement | null, layer: HTMLElement | null,
   playCrunch(dur / 1000);
   if (!crust || !layer) return opts.onRemove();
   crust.dataset["cracking"] = "1";
+  vibrateCrack();
 
   if (prefersReducedMotion()) {
     crust.style.transition = "opacity 200ms linear";
     crust.style.opacity = "0";
-    window.setTimeout(opts.onRemove, 200);
+    window.setTimeout(() => { vibrateBreak(); opts.onRemove(); }, 200);
     return;
   }
 
@@ -73,6 +75,7 @@ export function crackCrust(crust: HTMLElement | null, layer: HTMLElement | null,
 
   // b) + c) swap the crust for pieces that lift, then peel away and fall
   window.setTimeout(() => {
+    vibrateBreak();
     const r = crust.getBoundingClientRect();
     const l = layer.getBoundingClientRect();
     const radius = getComputedStyle(crust).borderRadius;

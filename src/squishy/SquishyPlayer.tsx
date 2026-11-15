@@ -6,6 +6,7 @@ import { SquishyFrame } from "./SquishyFrame";
 import { crackCrust } from "./crust";
 import { useSquishAll } from "./squish";
 import { playPop, playSqueeze, playSquelch } from "./sounds";
+import { vibratePress } from "./haptics";
 import "./squishy.css";
 
 export const squishy = createPlayer({ features: videoFeatures });
@@ -48,10 +49,19 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
   const rootRef = useRef<HTMLDivElement>(null);
   const flakeRef = useRef<HTMLDivElement>(null);
   const [fallback, setFallback] = useState(false);
+  const [compact, setCompact] = useState(false);
   const [ar, setAr] = useState(16 / 9);
   const [active, setActive] = useState(true);
   const paused = usePlayer((s) => s.paused);
   const [crust, setCrust] = useState({ play: true, ball: true, tube: Array(SEGMENTS).fill(true) as boolean[] });
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const resize = new ResizeObserver(() => setCompact(root.getBoundingClientRect().width < 480));
+    resize.observe(root);
+    return () => resize.disconnect();
+  }, []);
 
   useEffect(() => {
     setCrust({ play: true, ball: true, tube: Array(SEGMENTS).fill(true) });
@@ -122,6 +132,7 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
       ref={rootRef}
       className="sq-root"
       data-fallback={fallback || undefined}
+      data-compact={compact || undefined}
       style={{ ["--sq-ar" as string]: String(ar) }}
       aria-label={`${label} — Squishy player`}
       onPointerMove={poke}
@@ -490,6 +501,7 @@ function SpeedMenu() {
               aria-checked={r === rate}
               className="sq-menu-item"
               tabIndex={-1}
+              onPointerDown={vibratePress}
               onClick={() => {
                 store.setPlaybackRate(r);
                 setOpen(false);

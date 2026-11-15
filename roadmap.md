@@ -1,0 +1,3 @@
+- [x] Add sound-linked vibration and pressure-sensitive, larger touch dents.
+- [x] Adapt narrow frame bands and keep simultaneous touches independent.
+- [x] Verify 360px controls, dents, crust cracking, and Reset in Chromium touch emulation; physical-device vibration and iOS Safari remain unverified.

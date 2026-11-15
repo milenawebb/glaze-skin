@@ -1,5 +1,6 @@
 import { useEffect, type RefObject } from "react";
 import { prefersReducedMotion } from "./crust";
+import { vibratePress } from "./haptics";
 
 const RISE_MS = 1500;
 
@@ -31,6 +32,7 @@ export function attachSquish(el: HTMLElement): () => void {
     if (!raf) raf = requestAnimationFrame(tick);
   };
   const start = (px: number, py: number) => {
+    vibratePress();
     if (prefersReducedMotion()) {
       el.setAttribute("data-squish-pressed", "");
       return;
