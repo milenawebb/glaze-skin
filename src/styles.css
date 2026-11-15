@@ -175,6 +175,7 @@
   .demo-preview { position: relative; width: 100%; margin-inline: auto; transition-property: max-width; transition-timing-function: ease; }
   .demo-preview[data-preview="Mobile"]::before { content: ""; position: absolute; inset: -8px; border: 1px solid var(--demo-outline); border-radius: 54px; pointer-events: none; }
   .demo-preview-tabs { display: flex; width: fit-content; max-width: 100%; margin: 0 auto 28px; padding: 4px; border: 1px solid var(--demo-outline); border-radius: 999px; gap: 2px; }
+  @media (width < 768px) { .demo-preview-tabs { display: none; } }
   .demo-preview-tabs .demo-preview-tab { border-radius: 999px; min-height: 40px; padding-inline: 16px; color: var(--demo-text); font: inherit; font-size: 14px; }
   .demo-preview-tabs .demo-preview-tab:hover { background: var(--demo-tab-hover); color: var(--demo-text); }
   .demo-preview-tabs .demo-preview-tab[aria-selected="true"] { background: var(--demo-tab-glass); color: var(--demo-background); backdrop-filter: blur(8px); }
