@@ -44,7 +44,8 @@ export function DemoSections() {
   return (
     <div className="demo-content">
       <section aria-labelledby="how-heading">
-        <h2 id="how-heading">How to play</h2>
+        <p className="demo-eyebrow">How to play</p>
+        <h2 id="how-heading">Indulge your senses</h2>
         <div className="demo-cards">
           {STEPS.map(s => <div key={s.title} className="demo-card">{s.svg}<h3>{s.title}</h3><p>{s.text}</p></div>)}
         </div>
