@@ -256,6 +256,11 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
   let targetColors: number[][] = [];
   let currentMono = 0, fromMono = 0, targetMono = 0;
   const coating = document.createElement("canvas");
+  // Reused upload buffers: no per-frame allocations, and no 2D readbacks.
+  const heightScratch=gl2?new Float32Array(512*512):new Uint8Array(512*512);
+  const coatScratch=document.createElement("canvas");
+  const snapshots=Array.from({length:8},()=>document.createElement("canvas"));let snapshotIndex=0;
+  gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL,gl.NONE);
   let heightDirty:Region|null=null, coatDirty:Region|null=null;
   let fullUpload=true;
 
@@ -326,7 +331,7 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
       }
       if(heightDirty){
         const b=heightDirty,w=b.x1-b.x0+1,h=b.y1-b.y0+1;
-        const values=gl2?new Float32Array(w*h):new Uint8Array(w*h);
+        const values=heightScratch;
         for(let y=0;y<h;y++)for(let x=0;x<w;x++){const value=((r.dent[(y+b.y0)*r.dw+x+b.x0]??0)+.5)/4;values[y*w+x]=gl2?value:Math.round(value*255);}
         gl.texSubImage2D(gl.TEXTURE_2D,0,b.x0,b.y0,w,h,gl2?gl2.RED:gl.LUMINANCE,gl2?gl.FLOAT:gl.UNSIGNED_BYTE,values);
         heightDirty=null;
@@ -336,21 +341,30 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
       if(fullUpload){gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,coating.width,coating.height,0,gl.RGBA,gl.UNSIGNED_BYTE,null);coatDirty=region(coating.width,coating.height,0,0,coating.width-1,coating.height-1);}
       if(coatDirty){
         const b=coatDirty,w=b.x1-b.x0+1,h=b.y1-b.y0+1;
-        const pixels=coating.getContext("2d",{willReadFrequently:true})?.getImageData(b.x0,b.y0,w,h);
-        if(pixels)gl.texSubImage2D(gl.TEXTURE_2D,0,b.x0,b.y0,w,h,gl.RGBA,gl.UNSIGNED_BYTE,pixels.data);coatDirty=null;
+        if(gl2){
+          // WebGL2 uploads the dirty sub-rectangle straight from the canvas.
+          gl2.pixelStorei(gl2.UNPACK_SKIP_PIXELS,b.x0);gl2.pixelStorei(gl2.UNPACK_SKIP_ROWS,b.y0);
+          gl2.texSubImage2D(gl2.TEXTURE_2D,0,b.x0,b.y0,w,h,gl2.RGBA,gl2.UNSIGNED_BYTE,coating);
+          gl2.pixelStorei(gl2.UNPACK_SKIP_PIXELS,0);gl2.pixelStorei(gl2.UNPACK_SKIP_ROWS,0);
+        }else{
+          if(coatScratch.width!==w)coatScratch.width=w;if(coatScratch.height!==h)coatScratch.height=h;
+          const sc=coatScratch.getContext("2d");
+          if(sc){sc.clearRect(0,0,w,h);sc.drawImage(coating,b.x0,b.y0,w,h,0,0,w,h);gl.texSubImage2D(gl.TEXTURE_2D,0,b.x0,b.y0,gl.RGBA,gl.UNSIGNED_BYTE,coatScratch);}
+        }
+        coatDirty=null;
       }
       const capture=fullUpload;fullUpload=false;
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-      if(capture||t<1){clearTimeout(materialJob);materialJob=window.setTimeout(()=>{material.width=canvas.width;material.height=canvas.height;material.getContext("2d",{willReadFrequently:true})?.drawImage(canvas,0,0);},150);}
+      if(capture||t<1){clearTimeout(materialJob);materialJob=window.setTimeout(()=>{material.width=canvas.width;material.height=canvas.height;material.getContext("2d")?.drawImage(canvas,0,0);},150);}
 
     },
     snapshot(x, y, radius) {
-      const image = document.createElement("canvas");
+      const image = snapshots[snapshotIndex++%snapshots.length] ?? document.createElement("canvas");
       // Local fragments are tiny textured quads; avoid full-frame canvas clones.
       image.width = Math.ceil(radius * 4); image.height = image.width;
-      const context = image.getContext("2d");
+      const context = image.getContext("2d");context?.clearRect(0,0,image.width,image.height);
       const scale = canvas.width / canvas.getBoundingClientRect().width;
       context?.drawImage(material, (x - radius) * scale, (y - radius) * scale, radius * 2 * scale, radius * 2 * scale, 0, 0, image.width, image.height);
       return image;
@@ -397,6 +411,7 @@ export function stampDent(r: FrameRenderer, cssX: number, cssY: number, radiusCs
   }
 }
 
+let smoothScratch=new Float32Array(512*512);
 /** Lightly blur a region of the height map so overlapping dents and grooves blend smoothly. */
 export function smoothDents(r: FrameRenderer, cssX0: number, cssY0: number, cssX1: number, cssY1: number) {
   const bounds=region(r.dw,r.dh,(cssX0-12)*r.dw/r.width,(cssY0-12)*r.dh/r.height,(cssX1+12)*r.dw/r.width,(cssY1+12)*r.dh/r.height);
@@ -405,7 +420,9 @@ export function smoothDents(r: FrameRenderer, cssX0: number, cssY0: number, cssX
   const w = r.dw, src = r.dent;
   const ox=Math.max(1,Math.round(2.5*r.dw/r.width)),oy=Math.max(1,Math.round(2.5*r.dh/r.height));
   const sample=(x:number,y:number)=>src[Math.max(0,Math.min(r.dh-1,y))*w+Math.max(0,Math.min(w-1,x))]??0;
-  const tmp = new Float32Array((x1 - x0 + 1) * (y1 - y0 + 1));
+  const need=(x1 - x0 + 1) * (y1 - y0 + 1);
+  if(smoothScratch.length<need)smoothScratch=new Float32Array(need);
+  const tmp = smoothScratch;
   let k = 0;
   for (let y = y0; y <= y1; y++)
     for (let x = x0; x <= x1; x++) {

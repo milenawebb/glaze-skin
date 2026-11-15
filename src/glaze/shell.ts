@@ -100,7 +100,7 @@ export function peelShell(layer: HTMLElement,image:HTMLCanvasElement,shape:Shell
     // One substantial chunk, three midsize flakes, and eight crumbs/dust specks.
     for(let i=0;i<12;i++){
       jobs.push(()=>{if(generation!==debrisGeneration||!layer.isConnected)return;
-      while(layer.querySelectorAll(".sq-shell-plate").length>=MAX_FLYING_PIECES){const oldest=layer.querySelector(".sq-shell-plate");if(!oldest)break;oldest.getAnimations().forEach(a=>a.cancel());oldest.remove();}
+      const flying=layer.getElementsByClassName("sq-shell-plate");while(flying.length>=MAX_FLYING_PIECES){const oldest=flying[0] as HTMLCanvasElement|undefined;if(!oldest)break;oldest.getAnimations().forEach(a=>a.cancel());recyclePiece(oldest);}
       const crumb=i>=4,size=i===0?span*.44:i<4?span*(.1+Math.random()*.12):.35+Math.random()*2;
       let origin=center;
       if(i>0){for(let attempt=0;attempt<20;attempt++){const candidate={x:center.x+(Math.random()-.5)*span,y:center.y+(Math.random()-.5)*span};if(insideShellPolygon(candidate.x,candidate.y,poly)){origin=candidate;break;}}}
@@ -109,35 +109,35 @@ export function peelShell(layer: HTMLElement,image:HTMLCanvasElement,shape:Shell
       prepareShellDebris();
       const left=Math.min(...fragment.map(p=>p.x))-1,top=Math.min(...fragment.map(p=>p.y))-1;
       const w=Math.max(2,Math.max(...fragment.map(p=>p.x))-left+1),h=Math.max(2,Math.max(...fragment.map(p=>p.y))-top+1);
-      const piece=document.createElement("canvas");piece.className="sq-shell-plate";piece.dataset['debris']=crumb?"crumb":i===0?"chunk":"flake";
+      const piece=canvasPool.pop()??document.createElement("canvas");piece.className="sq-shell-plate";piece.removeAttribute("style");piece.dataset['debris']=crumb?"crumb":i===0?"chunk":"flake";
       const scale=crumb?1:Math.min(2,image.width/(radius*2));piece.width=Math.ceil(w*scale);piece.height=Math.ceil(h*scale);
       piece.style.width=`${w}px`;piece.style.height=`${h}px`;piece.style.left=`${left}px`;piece.style.top=`${top}px`;piece.style.setProperty("--sq-piece-thickness",`${motion.thickness}px`);piece.style.transformOrigin=`${Math.random()*100}% ${Math.random()*100}%`;
       const ctx=piece.getContext("2d");if(!ctx)return;ctx.scale(scale,scale);
       const clip=(points:ShellPoint[])=>{ctx.beginPath();points.forEach((p,j)=>j===0?ctx.moveTo(p.x-left,p.y-top):ctx.lineTo(p.x-left,p.y-top));ctx.closePath();ctx.clip();};
       clip(poly);clip(fragment);ctx.drawImage(image,x-radius-left,y-radius-top,radius*2,radius*2);layer.appendChild(piece);
-      const anim=piece.animate([{transform:"translate(0,0) rotateX(0deg) rotate(0deg)",opacity:1},{transform:`translate(${motion.dx*.25}px,${-motion.lift}px) rotateX(${motion.tilt}deg) rotate(${motion.spin*.2}deg)`,opacity:1,offset:.25},{transform:`translate(${motion.dx}px,${motion.dy}px) rotateX(${motion.tilt*2}deg) rotate(${motion.spin}deg)`,opacity:0}],{duration:motion.duration,easing:"cubic-bezier(.3,.15,.65,1)",fill:"forwards"});anim.onfinish=()=>piece.remove();
+      const anim=piece.animate([{transform:"translate(0,0) rotateX(0deg) rotate(0deg)",opacity:1},{transform:`translate(${motion.dx*.25}px,${-motion.lift}px) rotateX(${motion.tilt}deg) rotate(${motion.spin*.2}deg)`,opacity:1,offset:.25},{transform:`translate(${motion.dx}px,${motion.dy}px) rotateX(${motion.tilt*2}deg) rotate(${motion.spin}deg)`,opacity:0}],{duration:motion.duration,easing:"cubic-bezier(.3,.15,.65,1)",fill:"forwards"});anim.onfinish=()=>recyclePiece(piece);
       });
     }
   }
-  scheduleDebris();
+  // The first few pieces appear in this frame; the rest follow over the next frames.
+  runDebris(4);scheduleDebris();
 }
+const canvasPool:HTMLCanvasElement[]=[];
+function recyclePiece(piece:HTMLCanvasElement){piece.remove();if(canvasPool.length<MAX_FLYING_PIECES)canvasPool.push(piece);}
+function runDebris(max:number){const start=performance.now();let count=0;while(debrisJobs.length&&count<max&&performance.now()-start<5){debrisJobs.shift()?.();count++;}}
 const piecePool=Array.from({length:12},()=>[] as {shape:ShellPoint[];motion:ReturnType<typeof pieceMotion>}[]);
 let preparation=0;
 export function prepareShellDebris(){if(preparation)return;preparation=requestAnimationFrame(()=>{preparation=0;const start=performance.now();for(let i=0;i<12;i++){const pool=piecePool[i];if(pool&&pool.length<8)pool.push({shape:debrisPolygon({x:0,y:0},1,i),motion:pieceMotion(i>=4)});if(performance.now()-start>1)break;}if(piecePool.some(p=>p.length<8))prepareShellDebris();});}
 let debrisGeneration=0,debrisFrame=0;
 const debrisJobs:(()=>void)[]=[];
-function scheduleDebris(){if(debrisFrame)return;debrisFrame=requestAnimationFrame(()=>{debrisFrame=0;const start=performance.now();let count=0;while(debrisJobs.length&&count<3&&performance.now()-start<2){debrisJobs.shift()?.();count++;}if(debrisJobs.length)scheduleDebris();});}
+function scheduleDebris(){if(debrisFrame)return;debrisFrame=requestAnimationFrame(()=>{debrisFrame=0;runDebris(14);if(debrisJobs.length)scheduleDebris();});}
 export function cancelShellDebris(){debrisGeneration++;debrisJobs.length=0;cancelAnimationFrame(debrisFrame);debrisFrame=0;}
 /** Red holes and green fissures, rasterized only when damage changes. */
 export function paintCoating(canvas:HTMLCanvasElement,width:number,shape:ShellBreak,hole:boolean,progress=1) {
- const ctx=canvas.getContext("2d",{willReadFrequently:true});if(!ctx)return;ctx.save();ctx.scale(canvas.width/width,canvas.width/width);
- if(hole){ctx.globalCompositeOperation="source-over";ctx.fillStyle=`rgb(${Math.round(255*progress)},0,0)`;ctx.beginPath();shape.boundary.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));ctx.closePath();ctx.fill();}
+ const ctx=canvas.getContext("2d");if(!ctx)return;ctx.save();ctx.scale(canvas.width/width,canvas.width/width);
+ if(hole){ctx.globalCompositeOperation="source-over";ctx.fillStyle=`rgb(${Math.round(255*progress)},0,0)`;ctx.beginPath();shape.boundary.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));ctx.closePath();ctx.fill();
+   // A thin same-colour edge stroke covers antialiased fissure pixels: no readback needed.
+   ctx.strokeStyle=ctx.fillStyle;ctx.lineWidth=width/canvas.width;ctx.lineJoin="round";ctx.stroke();}
  else {ctx.strokeStyle="rgb(0,255,0)";ctx.lineJoin="round";ctx.lineCap="round";for(const path of [...shape.cracks,...shape.arcs])for(let i=1;i<path.length;i++){const a=path[i-1],b=path[i];if(!a||!b)continue;ctx.lineWidth=.14+.65*(1-i/path.length);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}}
  ctx.restore();
- if(hole&&shape.boundary.length){
-   const scale=canvas.width/width;
-   const x=Math.max(0,Math.floor(Math.min(...shape.boundary.map(p=>p.x))*scale)-2),y=Math.max(0,Math.floor(Math.min(...shape.boundary.map(p=>p.y))*scale)-2);
-   const w=Math.min(canvas.width-x,Math.ceil(Math.max(...shape.boundary.map(p=>p.x))*scale)+2-x),h=Math.min(canvas.height-y,Math.ceil(Math.max(...shape.boundary.map(p=>p.y))*scale)+2-y);
-   if(w>0&&h>0){const image=ctx.getImageData(x,y,w,h);for(let i=0;i<image.data.length;i+=4)if((image.data[i]??0)>=128)image.data[i+1]=0;ctx.putImageData(image,x,y);}
- }
 }

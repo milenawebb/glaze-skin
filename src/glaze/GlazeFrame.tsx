@@ -72,7 +72,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
         const retained=hole?damage.find(d=>d.hole&&d.shape.boundary.length===normalized.boundary.length&&d.shape.boundary.every((p,i)=>Math.abs(p.x-(normalized.boundary[i]?.x??-1))<1e-9&&Math.abs(p.y-(normalized.boundary[i]?.y??-1))<1e-9)):undefined;
         if(retained)retained.progress=progress;else {damage.push({shape:normalized,hole,progress});if(hole)indexHole(normalized);}
       }
-      const ctx=r.coating.getContext("2d",{willReadFrequently:true});if(!ctx)return;
+      const ctx=r.coating.getContext("2d");if(!ctx)return;
       const scale=r.coating.width/size.w;
       ctx.save();ctx.scale(scale,scale);ctx.beginPath();ctx.rect(0,0,size.w,size.h);
       for(const b of protectedCache)ctx.rect(b.x,b.y,b.w,b.h);
@@ -80,7 +80,8 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       const points=hole?shape.boundary:[...shape.cracks,...shape.arcs].flat();
       if(points.length)r.dirtyCoating(Math.min(...points.map(p=>p.x))-2,Math.min(...points.map(p=>p.y))-2,Math.max(...points.map(p=>p.x))+2,Math.max(...points.map(p=>p.y))+2);
     };
-    const recoveries: { start:number; duration:number; fraction:number; lastFactor:number; bounds:Region|undefined; cells:{i:number;depth:number}[] }[]=[];
+    const recoveries: { start:number; duration:number; fraction:number; lastFactor:number; bounds:Region|undefined; idx:Int32Array; depth:Float32Array }[]=[];
+    const beforePool:Float32Array[]=[];let scanIdx=new Int32Array(512*512),scanDepth=new Float32Array(512*512);
     clearTransient.current=()=>{cancelShellDebris();breaks.length=0;cracked.length=0;recoveries.length=0;damage.length=0;holeBins.clear();pending.length=0;canvas.parentElement?.querySelectorAll(".sq-shell-plate").forEach(p=>p.remove());};
     const loop = (now: number) => {
       raf = 0;
@@ -94,7 +95,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       for(let j=recoveries.length-1;j>=0;j--){
         const rec=recoveries[j]; if(!rec)continue;
         const factor=recoveryFactor(now-rec.start,rec.duration,rec.fraction);
-        for(const cell of rec.cells) r.dent[cell.i]=(r.dent[cell.i]??0)+cell.depth*(factor-rec.lastFactor);
+        const k=factor-rec.lastFactor,ids=rec.idx,ds=rec.depth;for(let c=0;c<ids.length;c++){const i=ids[c]??0;r.dent[i]=(r.dent[i]??0)+(ds[c]??0)*k;}
         if(rec.bounds)r.dirtyHeight(rec.bounds);
         rec.lastFactor=factor;
         if(now-rec.start>=rec.duration)recoveries.splice(j,1);
@@ -127,7 +128,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
         breaks.length = 0; cracked.length=0; recoveries.length=0;
         r.resetAmount=resetAmount(now-rs.start);
         if(now-rs.start>=RESET_MS){
-          r.dent.fill(0);r.glaze.fill(0);r.coating.getContext("2d",{willReadFrequently:true})?.clearRect(0,0,r.coating.width,r.coating.height);
+          r.dent.fill(0);r.glaze.fill(0);r.coating.getContext("2d")?.clearRect(0,0,r.coating.width,r.coating.height);
           r.dirtyHeight(region(r.dw,r.dh,0,0,r.dw-1,r.dh-1));r.dirtyCoating(0,0,size.w,size.h);
           resetRef.current=null;damage.length=0;holeBins.clear();r.resetAmount=1;
         }
@@ -148,7 +149,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       for(const p of presses.values()){p.x=p.x/old.w*size.w;p.y=p.y/old.h*size.h;p.origin={x:p.origin.x/old.w*size.w,y:p.origin.y/old.h*size.h};p.spots=p.spots.map(v=>({x:v.x/old.w*size.w,y:v.y/old.h*size.h}));}
       refreshProtected();holeBins.clear();for(const d of damage)if(d.hole)indexHole(d.shape);
       if (snapSize(r, size)) {
-        r.coating.getContext("2d",{willReadFrequently:true})?.clearRect(0,0,r.coating.width,r.coating.height);
+        r.coating.getContext("2d")?.clearRect(0,0,r.coating.width,r.coating.height);
         replaying=true;
         for(const d of damage) paint(mapShell(d.shape,size.w,size.h),d.hole,d.progress);
         replaying=false;
@@ -215,10 +216,10 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
 
       const pressure = pressureScale(e);
       // A new press owns these cells; an older rise must not pull against it.
-      for(const rec of recoveries)for(const c of rec.cells){const dx=(c.i%r.dw)/r.dw*size.w-x,dy=Math.floor(c.i/r.dw)/r.dh*size.h-y;c.depth*=1-Math.exp(-(dx*dx+dy*dy)/(2*Math.pow(dentRadius(e.pointerType)*2.5,2)));}
+      const inv=1/(2*Math.pow(dentRadius(e.pointerType)*2.5,2));for(const rec of recoveries){const ids=rec.idx,ds=rec.depth;for(let c=0;c<ids.length;c++){const i=ids[c]??0,dx=(i%r.dw)/r.dw*size.w-x,dy=Math.floor(i/r.dw)/r.dh*size.h-y;ds[c]=(ds[c]??0)*(1-Math.exp(-(dx*dx+dy*dy)*inv));}}
       const foam=!intact(x,y);
       const radius=dentRadius(e.pointerType);
-      const before=r.dent.slice();
+      const before=beforePool.pop()??new Float32Array(r.dent.length);before.set(r.dent);
       const pad=fingerPad(e.pointerType);
       if(foam)stampFingertip(r,x,y,pad,fingerDepth(0,pressure),1);else stampDent(r,x,y,radius,immediateDepth(1),1);
       smoothDents(r,x-radius*2.2,y-radius*2.2,x+radius*2.2,y+radius*2.2);
@@ -289,12 +290,14 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       if (press && presses.delete(e.pointerId)) {
         if(e.type==="pointerup"&&!press.dragging&&!press.initialFoam)crack(press.origin.x,press.origin.y);
         const settings=recoverySettings();
-        const cells:{i:number;depth:number}[]=[];
         // Recover the complete smooth contribution, including its tails, not a disc.
-        let bounds:Region|null=null;
+        let bounds:Region|null=null,n=0;
         const radius=press.pad.length*5;const area=region(r.dw,r.dh,(Math.min(...press.spots.map(p=>p.x))-radius)*r.dw/size.w,(Math.min(...press.spots.map(p=>p.y))-radius)*r.dh/size.h,(Math.max(...press.spots.map(p=>p.x))+radius)*r.dw/size.w,(Math.max(...press.spots.map(p=>p.y))+radius)*r.dh/size.h);
-        for(let y=area.y0;y<=area.y1;y++)for(let x=area.x0;x<=area.x1;x++){const i=y*r.dw+x;const depth=(r.dent[i]??0)-(press.before[i]??0);if(depth!==0){cells.push({i,depth});bounds=bounds?{x0:Math.min(bounds.x0,x),y0:Math.min(bounds.y0,y),x1:Math.max(bounds.x1,x),y1:Math.max(bounds.y1,y)}:{x0:x,y0:y,x1:x,y1:y};}}
-        recoveries.push({start:performance.now(),...settings,lastFactor:1,bounds:bounds??undefined,cells});
+        let bx0=r.dw,by0=r.dh,bx1=-1,by1=-1;const before=press.before;
+        for(let y=area.y0;y<=area.y1;y++)for(let x=area.x0;x<=area.x1;x++){const i=y*r.dw+x;const depth=(r.dent[i]??0)-(before[i]??0);if(depth!==0){scanIdx[n]=i;scanDepth[n++]=depth;if(x<bx0)bx0=x;if(x>bx1)bx1=x;if(y<by0)by0=y;if(y>by1)by1=y;}}
+        if(n)bounds={x0:bx0,y0:by0,x1:bx1,y1:by1};
+        beforePool.push(before);
+        recoveries.push({start:performance.now(),...settings,lastFactor:1,bounds:bounds??undefined,idx:scanIdx.slice(0,n),depth:scanDepth.slice(0,n)});
         if (!presses.size) released = performance.now();
         schedule();
       }
@@ -352,7 +355,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       clearTransient.current();
       r.dent.fill(0);
       r.glaze.fill(0);
-      r.coating.getContext("2d",{willReadFrequently:true})?.clearRect(0,0,r.coating.width,r.coating.height);
+      r.coating.getContext("2d")?.clearRect(0,0,r.coating.width,r.coating.height);
       r.dirtyHeight(region(r.dw,r.dh,0,0,r.dw-1,r.dh-1));r.dirtyCoating(0,0,r.width,r.height);r.resetAmount=1;
       resetRef.current = null;
     } else {
