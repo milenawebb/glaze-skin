@@ -89,7 +89,7 @@
 .sq-root[data-color="Strawberry"] { --sq-wax-blue: #f6b9cf; --sq-wax-milk: #ffe5ef; --sq-wax-yellow: #f4c5d6; --sq-foam: #fff6df; --sq-foam-pore: #d3bca0; }
 .sq-root[data-color="Matcha"] { --sq-mono-color: #cbe6bc; }
 .sq-root[data-glaze-style="mono"][data-fallback] { background: var(--sq-mono-color); }
-.sq-frame-colors, .sq-frame-actions { position: absolute; z-index: 6; bottom: 48px; translate: 0 50%; display: flex; gap: 8px; }
+.sq-frame-colors, .sq-frame-actions { position: absolute; z-index: 8; pointer-events: auto; bottom: 48px; translate: 0 50%; display: flex; gap: 8px; }
 .sq-frame-colors { left: 24px; }
 .sq-frame-actions { right: 24px; }
 .sq-sound-hint { position: absolute; right: 0; bottom: calc(100% + 8px); white-space: nowrap; padding: 6px 10px; border-radius: 8px; font-size: 12px; color: var(--sq-liquid-ink); background: var(--sq-liquid-surface); box-shadow: var(--sq-liquid-shadow); }
@@ -117,6 +117,7 @@
 
 .sq-canvas {
   position: absolute;
+  z-index: 0;
   inset: 0;
   width: 100%;
   height: 100%;

@@ -59,9 +59,11 @@ function playbackSession() {
 function bindGestures() {
   if (gesturesBound || typeof window === "undefined") return;
   gesturesBound = true;
-  const retry = () => { if (enabled && ctx?.state !== "running") unlockSounds(); };
-  for (const type of ["pointerdown", "touchend", "click"]) window.addEventListener(type, retry, { capture: true, passive: true });
+  const retry = () => { if (enabled) unlockSounds(); };
+  window.addEventListener("pointerdown", () => { if(enabled && ctx?.state!=="running")unlockSounds(); }, { capture:true,passive:true });
+  for (const type of ["touchend", "click"]) window.addEventListener(type, retry, { capture: true, passive: true });
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && enabled && ctx) void ctx.resume().catch(() => {}).then(notifyBlocked); });
+  window.addEventListener("pageshow", () => { if (enabled) unlockSounds(); });
 }
 
 export function unlockSounds() {
@@ -113,6 +115,7 @@ export function getSoundsEnabled() { return enabled; }
 function recording(group: Group, depth = 0, volumeScale = 1) {
   // A source scheduled during resume starts as soon as Safari's context runs.
   if (!enabled || !ctx || !master || ctx.state === "closed") return;
+  if (ctx.state !== "running") void ctx.resume().catch(() => {}).then(notifyBlocked);
   const c = ctx;
   const choices = groups[group].map((url, index) => ({ buffer: buffers.get(url), index }))
     .filter((item) => item.buffer && item.index !== previous.get(group));

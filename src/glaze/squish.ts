@@ -85,7 +85,7 @@ export function attachSquish(el: HTMLElement): () => void {
 /** Attach squish to every `.sq-squish` element inside a container. */
 export function useSquishAll(ref: RefObject<HTMLElement | null>) {
   useEffect(() => {
-    const els = Array.from(ref.current?.querySelectorAll<HTMLElement>(".sq-squish") ?? []);
+    const els = Array.from(ref.current?.querySelectorAll<HTMLElement>(".sq-squish:not([data-glaze-control])") ?? []);
     const offs = els.map(attachSquish);
     return () => offs.forEach((off) => off());
   }, [ref]);

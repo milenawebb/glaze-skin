@@ -4,7 +4,8 @@ import { MuxVideo } from "@videojs/react/media/mux-video";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent as RKeyboardEvent, type ReactNode } from "react";
 import { GlazeFrame } from "./GlazeFrame";
 import { crackCrust } from "./crust";
-import { useSquishAll } from "./squish";
+import { attachSquish, useSquishAll } from "./squish";
+import { attachFrameAction } from "./frame-control";
 import { POPUP_SPEEDS, VOLUME_CLOSE_MS, CONTROLS_IDLE_MS, controlsVisible, videoTapActivity } from "./controls";
 import { CAPTIONS_DEFAULT_ON, observeCaptionCues, isCaptionEngine } from "./captions";
 import { COLORS, OPTIONS, readPreferences, savePreferences, type GlazeColor } from "./preferences";
@@ -72,12 +73,17 @@ export function GlazeSkin({ children, resetKey, label, sounds: startSounds = fal
   useEffect(() => {
     if (!colorOpen) return;
     colorRef.current?.querySelector<HTMLButtonElement>('.sq-color-choices button')?.focus();
-    const outside = (e: PointerEvent) => { if (e.target instanceof Node && !colorRef.current?.contains(e.target)) setColorOpen(false); };
+    const outside = (e: PointerEvent) => {
+      if (e.target instanceof Node && !colorRef.current?.contains(e.target)) {
+        setColorOpen(false);
+        if (compact) { e.stopPropagation(); if(e.cancelable)e.preventDefault(); }
+      }
+    };
     const escape = (e: KeyboardEvent) => { if (e.key === "Escape") { setColorOpen(false); colorRef.current?.querySelector<HTMLButtonElement>(".sq-color-toggle")?.focus(); } };
-    window.addEventListener("pointerdown", outside);
+    window.addEventListener("pointerdown", outside, true);
     window.addEventListener("keydown", escape);
-    return () => { window.removeEventListener("pointerdown", outside); window.removeEventListener("keydown", escape); };
-  }, [colorOpen]);
+    return () => { window.removeEventListener("pointerdown", outside, true); window.removeEventListener("keydown", escape); };
+  }, [colorOpen, compact]);
   useEffect(() => {
     let on = startSounds;
     try { const prefs = readPreferences(window.localStorage, startSounds); setColor(prefs.color); on = prefs.sounds; } catch { /* Storage is optional. */ }
@@ -202,16 +208,16 @@ export function GlazeSkin({ children, resetKey, label, sounds: startSounds = fal
     >
       {!fallback && <GlazeFrame resetKey={resetKey + localReset} color={color} glazeStyle={glazeStyle} onFallback={() => setFallback(true)} />}
       <div ref={colorRef} className="sq-frame-colors" role="group" aria-label="Glaze colors">
-        <button type="button" className="sq-candy sq-squish sq-color-toggle" data-swatch={color} aria-label={`Choose color: ${OPTIONS[color].label}`} title={`Choose color: ${OPTIONS[color].label}`} aria-expanded={colorOpen} onClick={() => setColorOpen((open) => !open)}><span className="sq-candy-face sq-squish-body" /></button>
+        <FrameButton className="sq-candy sq-squish sq-color-toggle" data-swatch={color} aria-label={`Choose color: ${OPTIONS[color].label}`} title={`Choose color: ${OPTIONS[color].label}`} aria-expanded={colorOpen} action={() => setColorOpen((open) => !open)}><span className="sq-candy-face sq-squish-body" /></FrameButton>
         <div className="sq-color-choices" data-open={colorOpen || undefined}>
-          {COLORS.filter(choice => !compact || choice !== color).map((choice) => <button key={choice} type="button" className="sq-candy sq-squish" data-swatch={choice} aria-label={OPTIONS[choice].label} title={OPTIONS[choice].label} aria-pressed={color === choice} onClick={() => { setColor(choice); persist(choice, sounds); setColorOpen(false); if (compact) colorRef.current?.querySelector<HTMLButtonElement>(".sq-color-toggle")?.focus(); }}><span className="sq-candy-face sq-squish-body" /></button>)}
+          {COLORS.filter(choice => !compact || choice !== color).map((choice) => <FrameButton key={choice} className="sq-candy sq-squish" data-swatch={choice} aria-label={OPTIONS[choice].label} title={OPTIONS[choice].label} aria-pressed={color === choice} action={() => { setColor(choice); persist(choice, sounds); setColorOpen(false); if (compact) colorRef.current?.querySelector<HTMLButtonElement>(".sq-color-toggle")?.focus(); }}><span className="sq-candy-face sq-squish-body" /></FrameButton>)}
         </div>
       </div>
       <div className="sq-frame-actions">
         {soundHint && !sounds && <span className="sq-sound-hint">Turn on squish sounds</span>}
         {sounds && soundBlocked && <span className="sq-sound-hint" role="status">Tap to enable sound</span>}
-        <button type="button" className="sq-candy sq-squish" aria-label="Reset Glaze" title="Reset Glaze" onClick={() => setLocalReset((n) => n + 1)}><span className="sq-candy-face sq-squish-body"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6a7 7 0 1 1-1 7M4 2v5h5" /></svg></span></button>
-        <button type="button" className="sq-candy sq-squish" aria-label={`Squish sounds ${sounds ? (soundBlocked ? "blocked, tap to enable" : "on") : "off"}`} title={sounds && soundBlocked ? "Tap to enable sound" : `Squish sounds ${sounds ? "on" : "off"}`} aria-pressed={sounds} onClick={() => { const next = !sounds; setSoundsEnabled(next); setSounds(next); persist(color, next); }}><span className="sq-candy-face sq-squish-body"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 3 1.8 4.2L13 9l-4.2 1.8L7 15l-1.8-4.2L1 9l4.2-1.8ZM14 6a5 5 0 0 1 0 8m3-10a8 8 0 0 1 0 12" />{!sounds && <path d="m2 18 16-16" />}</svg></span></button>
+        <FrameButton className="sq-candy sq-squish" aria-label="Reset Glaze" title="Reset Glaze" action={() => setLocalReset((n) => n + 1)}><span className="sq-candy-face sq-squish-body"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6a7 7 0 1 1-1 7M4 2v5h5" /></svg></span></FrameButton>
+        <FrameButton className="sq-candy sq-squish" aria-label={`Squish sounds ${sounds ? (soundBlocked ? "blocked, tap to enable" : "on") : "off"}`} title={sounds && soundBlocked ? "Tap to enable sound" : `Squish sounds ${sounds ? "on" : "off"}`} aria-pressed={sounds} action={() => { if(sounds && soundBlocked){unlockSounds();return;} const next = !sounds; setSoundsEnabled(next); setSounds(next); persist(color, next); }}><span className="sq-candy-face sq-squish-body"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 3 1.8 4.2L13 9l-4.2 1.8L7 15l-1.8-4.2L1 9l4.2-1.8ZM14 6a5 5 0 0 1 0 8m3-10a8 8 0 0 1 0 12" />{!sounds && <path d="m2 18 16-16" />}</svg></span></FrameButton>
       </div>
       <div className="sq-stage"
         onPointerMove={(e) => {
@@ -283,6 +289,19 @@ export function GlazeSkin({ children, resetKey, label, sounds: startSounds = fal
       <Hotkey keys="m" action="toggleMuted" />
     </Container>
   );
+}
+
+/** Bottom-band actions own release handling and feedback, including newly opened choices. */
+function FrameButton({ action, ...props }: Omit<React.ComponentPropsWithoutRef<"button">, "onClick"> & { action: () => void }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const latest = useRef(action); latest.current = action;
+  useEffect(() => {
+    const el=ref.current;if(!el)return;
+    const detachAction=attachFrameAction(el,()=>latest.current());
+    const detachSquish=attachSquish(el);
+    return ()=>{detachAction();detachSquish();};
+  }, []);
+  return <button {...props} ref={ref} type="button" data-glaze-control="" />;
 }
 
 /** Press feedback shared by the squishy controls. */

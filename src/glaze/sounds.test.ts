@@ -44,6 +44,13 @@ async function enable() {
   sources.length = 0;
 }
 describe("recorded Glaze sounds", () => {
+  it("sets the playback session and retries suspended audio on touchend, click and pageshow", async () => {
+    const session={type:"auto"};Object.defineProperty(navigator,"audioSession",{configurable:true,value:session});
+    contextState="suspended";sounds.setSoundsEnabled(true,false);
+    expect(session.type).toBe("playback");
+    for(const event of ["touchend","click","pageshow"]){const before=resume.mock.calls.length;window.dispatchEvent(new Event(event));expect(resume.mock.calls.length).toBeGreaterThan(before);expect(sources.at(-1).buffer.silent).toBe(true);}
+    delete (navigator as unknown as {audioSession?:unknown}).audioSession;
+  });
   it("preloads all ten recordings without resuming before a gesture", async () => {
     contextState = "suspended";
     sounds.setSoundsEnabled(true, false);
@@ -51,7 +58,7 @@ describe("recorded Glaze sounds", () => {
     expect(resume).not.toHaveBeenCalled(); expect(sources).toHaveLength(0);
     await vi.waitFor(() => expect(decode).toHaveBeenCalledTimes(10));
     sounds.unlockSounds(); sounds.playCrack();
-    expect(resume).toHaveBeenCalledOnce();
+    expect(resume).toHaveBeenCalledTimes(2);
     expect(sources[1].buffer.url).toMatch(/\/crack-[12]\.mp3$/);
     expect(sources[1].start).toHaveBeenCalledOnce();
   });

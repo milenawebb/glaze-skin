@@ -308,6 +308,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     const pending:PointerEvent[]=[];
     const processEvent=(e:PointerEvent)=>{if(e.type==="pointerdown")down(e);else if(e.type==="pointermove")move(e);else up(e);};
     const queue=(e:PointerEvent)=>{
+      if(e.target instanceof Element && e.target.closest('button, [data-glaze-control]'))return;
       if(e.type==="pointerdown"){
         const {x,y}=local(e);if(!isOnRing(x,y,size.w,size.h,frameInsets(size.w)))return;
         e.preventDefault();canvas.setPointerCapture?.(e.pointerId);
@@ -318,19 +319,11 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       }
       pending.push(e);schedule();
     };
-    // Native non-passive touch listeners keep iOS Safari from scrolling / bouncing.
-    const stopTouch = (e: TouchEvent) => {
-      if (e.cancelable) e.preventDefault();
-    };
-
     canvas.addEventListener("pointerdown", queue);
     canvas.addEventListener("pointermove", queue);
     canvas.addEventListener("pointerup", queue);
     canvas.addEventListener("pointercancel", queue);
     canvas.addEventListener("lostpointercapture", queue);
-    canvas.addEventListener("touchstart", stopTouch, { passive: false });
-    canvas.addEventListener("touchmove", stopTouch, { passive: false });
-    canvas.addEventListener("touchend", stopTouch, { passive: false });
     return () => {
       ro.disconnect();
       resizeJob.cancel();
@@ -340,9 +333,6 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       canvas.removeEventListener("pointerup", queue);
       canvas.removeEventListener("pointercancel", queue);
       canvas.removeEventListener("lostpointercapture", queue);
-      canvas.removeEventListener("touchstart", stopTouch);
-      canvas.removeEventListener("touchmove", stopTouch);
-      canvas.removeEventListener("touchend", stopTouch);
       r.destroy();
       rendererRef.current = null;
     };

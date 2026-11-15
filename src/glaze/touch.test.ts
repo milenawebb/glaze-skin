@@ -36,6 +36,12 @@ describe("phone and tablet frame rules", () => {
   });
 });
 describe("phone speed caps", () => {
+  it("uses phone limits below 768px or on any touch-capable device", async () => {
+    const { phoneRendering,canvasDpr,flyingLimit }=await import("./touch");
+    expect(canvasDpr(3,phoneRendering(false,767))).toBe(1.5);
+    expect(flyingLimit(phoneRendering(false,1024,5))).toBe(20);
+    expect(phoneRendering(false,768,0)).toBe(false);
+  });
   it("caps canvas resolution at 1.5 on touch devices and 2 on desktop", async () => {
     const { canvasDpr } = await import("./touch");
     expect(canvasDpr(3, true)).toBe(1.5);

@@ -117,6 +117,7 @@ export function peelShell(layer: HTMLElement,image:HTMLCanvasElement,shape:Shell
       const clip=(points:ShellPoint[])=>{ctx.beginPath();points.forEach((p,j)=>j===0?ctx.moveTo(p.x-left,p.y-top):ctx.lineTo(p.x-left,p.y-top));ctx.closePath();ctx.clip();};
       clip(poly);clip(fragment);ctx.drawImage(image,x-radius-left,y-radius-top,radius*2,radius*2);layer.appendChild(piece);
       const anim=piece.animate([{transform:"translate(0,0) rotateX(0deg) rotate(0deg)",opacity:1},{transform:`translate(${motion.dx*.25}px,${-motion.lift}px) rotateX(${motion.tilt}deg) rotate(${motion.spin*.2}deg)`,opacity:1,offset:.25},{transform:`translate(${motion.dx}px,${motion.dy}px) rotateX(${motion.tilt*2}deg) rotate(${motion.spin}deg)`,opacity:0}],{duration:motion.duration,easing:"cubic-bezier(.3,.15,.65,1)",fill:"forwards"});anim.onfinish=()=>recyclePiece(piece);
+      if(coarsePointer())trackPhonePiece(piece,layer,anim,left,top,w,h,motion);
       });
     }
   }
@@ -124,7 +125,25 @@ export function peelShell(layer: HTMLElement,image:HTMLCanvasElement,shape:Shell
   runDebris(4);scheduleDebris();
 }
 const canvasPool:HTMLCanvasElement[]=[];
-function recyclePiece(piece:HTMLCanvasElement){piece.remove();if(canvasPool.length<MAX_FLYING_PIECES)canvasPool.push(piece);}
+const phonePieces=new Map<HTMLCanvasElement,{layer:HTMLElement;anim:Animation;left:number;top:number;w:number;h:number;motion:ReturnType<typeof pieceMotion>}>();
+let cleanupFrame=0;
+function trackPhonePiece(piece:HTMLCanvasElement,layer:HTMLElement,anim:Animation,left:number,top:number,w:number,h:number,motion:ReturnType<typeof pieceMotion>){
+  phonePieces.set(piece,{layer,anim,left,top,w,h,motion});
+  if(!cleanupFrame)cleanupFrame=requestAnimationFrame(cleanPhonePieces);
+}
+function cleanPhonePieces(){
+  cleanupFrame=0;
+  for(const [piece,p] of phonePieces){
+    const progress=p.anim.effect?.getComputedTiming().progress;
+    if(typeof progress!=="number")continue;
+    const first=progress<.25,t=first?progress/.25:(progress-.25)/.75;
+    const dx=p.motion.dx*(first?t*.25:.25+t*.75),dy=first?-p.motion.lift*t:-p.motion.lift+(p.motion.dy+p.motion.lift)*t;
+    const margin=Math.hypot(p.w,p.h);
+    if(p.left+dx+margin<0||p.left+dx-margin>p.layer.clientWidth||p.top+dy+margin<0||p.top+dy-margin>p.layer.clientHeight){p.anim.cancel();recyclePiece(piece);}
+  }
+  if(phonePieces.size)cleanupFrame=requestAnimationFrame(cleanPhonePieces);
+}
+function recyclePiece(piece:HTMLCanvasElement){phonePieces.delete(piece);piece.remove();if(!canvasPool.includes(piece)&&canvasPool.length<MAX_FLYING_PIECES)canvasPool.push(piece);}
 function runDebris(max:number){const start=performance.now();let count=0;while(debrisJobs.length&&count<max&&performance.now()-start<5){debrisJobs.shift()?.();count++;}}
 const piecePool=Array.from({length:12},()=>[] as {shape:ShellPoint[];motion:ReturnType<typeof pieceMotion>}[]);
 let preparation=0;
@@ -132,7 +151,7 @@ export function prepareShellDebris(){if(preparation)return;preparation=requestAn
 let debrisGeneration=0,debrisFrame=0;
 const debrisJobs:(()=>void)[]=[];
 function scheduleDebris(){if(debrisFrame)return;debrisFrame=requestAnimationFrame(()=>{debrisFrame=0;runDebris(14);if(debrisJobs.length)scheduleDebris();});}
-export function cancelShellDebris(){debrisGeneration++;debrisJobs.length=0;cancelAnimationFrame(debrisFrame);debrisFrame=0;}
+export function cancelShellDebris(){debrisGeneration++;debrisJobs.length=0;cancelAnimationFrame(debrisFrame);debrisFrame=0;cancelAnimationFrame(cleanupFrame);cleanupFrame=0;for(const [piece,p] of phonePieces){p.anim.cancel();recyclePiece(piece);}}
 /** Red holes and green fissures, rasterized only when damage changes. */
 export function paintCoating(canvas:HTMLCanvasElement,width:number,shape:ShellBreak,hole:boolean,progress=1) {
  const ctx=canvas.getContext("2d");if(!ctx)return;ctx.save();ctx.scale(canvas.width/width,canvas.width/width);
