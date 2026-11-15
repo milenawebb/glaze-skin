@@ -30,8 +30,8 @@ use the editor.
 <!-- LOVABLE:END -->
 
 <!-- AGENT-MEMORY:BEGIN -->
-- Icons and manifest live in public, linked from root head; no service worker.
-- The Glaze skin lives self-contained in src/glaze/ (entry index.ts, own CSS vars, no app imports) so it can ship as its own package.
+- Icons/manifest in public, linked from root head; no service worker.
+- The Glaze skin lives self-contained in src/glaze/ (entry index.ts, own CSS vars, no app imports) to ship as its own package.
 - All skin sounds stay in src/glaze/sounds.ts, one function per sound, so recordings can replace synthesis.
 - Shell debris uses cached material, pooled shapes and one frame-batched queue capped at forty to avoid GPU readback and phone stalls.
 - Route skin audio through one master highpass; click sound selection stays tied to press-down material until the gesture becomes a drag, preventing squish plus fracture on jitter or recovery.
