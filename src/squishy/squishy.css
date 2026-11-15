@@ -228,6 +228,25 @@
   .sq-root:not([data-compact]) .sq-row { gap: 4px; }
   .sq-root:not([data-compact]) .sq-time { width: calc(var(--sq-time-chars, 11) * 1ch + 8px); padding-inline: 4px; font-size: 11px; }
 }
+/* One shared glass surface on wider players; phones keep their existing faces. */
+.sq-root:not([data-compact]) .sq-controls { padding: 0; inset: auto 12px 12px; }
+.sq-root:not([data-compact]) .sq-row {
+  height: 52px; padding: 4px; border-radius: 999px;
+  background: var(--sq-liquid-refraction), var(--sq-liquid-surface);
+  backdrop-filter: blur(10px) saturate(115%) contrast(105%);
+  box-shadow: var(--sq-liquid-shadow); color: var(--sq-liquid-ink);
+}
+.sq-root:not([data-compact]) .sq-row .sq-pill {
+  background: none; backdrop-filter: none; box-shadow: none; border-radius: 999px;
+}
+.sq-root:not([data-compact]) .sq-row .sq-btn { width: 44px; height: 44px; padding: 0; }
+.sq-root:not([data-compact]) .sq-row .sq-btn:hover,
+.sq-root:not([data-compact]) .sq-row .sq-btn[aria-pressed="true"] { background: var(--sq-liquid-bright); }
+.sq-root:not([data-compact]) .sq-bun { width: 48px; height: 48px; min-height: 48px; translate: 0 -4px; }
+.sq-root:not([data-compact]) .sq-bun-body { width: 44px; height: 44px; border-radius: 50%; }
+.sq-root:not([data-compact]) .sq-play-icon { width: 24px; height: 24px; }
+.sq-root:not([data-compact]) .sq-time { font-size: 12px; font-weight: 500; }
+.sq-root:not([data-compact]) .sq-time::after { display: none; }
 .sq-row-captions { position: absolute; z-index: 2; bottom: 12px; left: 8%; right: 8%; text-align: center; pointer-events: none; transition: bottom 200ms ease; }
 .sq-root[data-row-visible] .sq-row-captions { bottom: 82px; }
 .sq-row-captions span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; width: fit-content; max-width: 100%; margin: 2px auto; padding: 4px 8px; border-radius: 8px; background: var(--sq-caption-surface); color: var(--sq-video-text); white-space: pre-line; font: 16px/1.4 sans-serif; }
