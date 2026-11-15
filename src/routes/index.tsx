@@ -1,23 +1,60 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, ClientOnly } from "@tanstack/react-router";
+import { lazy, Suspense, useState } from "react";
+import { setSoundsEnabled } from "@/squishy/sounds";
 
-// The home route ships no og:image, so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
+const SquishyPlayer = lazy(() => import("@/squishy").then((m) => ({ default: m.SquishyPlayer })));
+
+const PLAYBACK_ID = "AAprZsIykh7T29gtsNk02YhBrQRHXTj14ZxbWdc498wA";
+
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "Squishy — a squishy-toy skin for Video.js" },
+      { name: "description", content: "Squishy: a soft, pressable, pastel squishy-toy skin for the Video.js v10 player." },
+      { property: "og:title", content: "Squishy — a squishy-toy skin for Video.js" },
+      { property: "og:description", content: "A soft, pressable, pastel squishy-toy skin for the Video.js v10 player." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
+function Placeholder() {
+  return <div className="demo-placeholder" aria-hidden="true" />;
+}
+
 function Index() {
+  const [resetKey, setResetKey] = useState(0);
+  const [sounds, setSounds] = useState(false);
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
+    <main className="demo">
+      <h1 className="demo-title">Squishy</h1>
+      <ClientOnly fallback={<Placeholder />}>
+        <Suspense fallback={<Placeholder />}>
+          <SquishyPlayer playbackId={PLAYBACK_ID} resetKey={resetKey} title="Squishy demo video" />
+        </Suspense>
+      </ClientOnly>
+      <div className="demo-actions">
+        <button type="button" className="demo-btn" onClick={() => setResetKey((k) => k + 1)}>
+          Reset
+        </button>
+        <button
+          type="button"
+          className="demo-btn"
+          aria-pressed={sounds}
+          onClick={() => {
+            setSoundsEnabled(!sounds);
+            setSounds(!sounds);
+          }}
+        >
+          <svg viewBox="0 0 20 20" aria-hidden="true" className="demo-icon">
+            <path d="M3 8h3l4-3v10l-4-3H3z" />
+            {sounds ? <path d="M13 7.5a3.5 3.5 0 0 1 0 5M15 5a7 7 0 0 1 0 10" /> : <path d="M13 8l4 4M17 8l-4 4" />}
+          </svg>
+          Sounds {sounds ? "on" : "off"}
+        </button>
+      </div>
+    </main>
   );
 }
