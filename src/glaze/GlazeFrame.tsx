@@ -15,7 +15,7 @@ import type { GlazeColor } from "./preferences";
 import { DEFAULT_GLAZE_STYLE, monoStyleAmount, type GlazeStyle } from "./glaze-style";
 const RESET_MS = 1500;
 
-interface Press { x: number; y: number; origin: {x:number;y:number}; dragging:boolean; pointerType:string; exposed:ShellBreak[]; start: number; radius: number; pressure: number | null; sound: ((depth: number) => void) | undefined; foam: boolean; spots: {x:number;y:number}[]; flakeDistance:number }
+interface Press { x: number; y: number; origin: {x:number;y:number}; dragging:boolean; pointerType:string; exposed:ShellBreak[]; initialFoam:boolean; start: number; radius: number; pressure: number | null; sound: ((depth: number) => void) | undefined; foam: boolean; spots: {x:number;y:number}[]; flakeDistance:number }
 
 /** WebGL squishy frame. Dents stay until `resetKey` changes. */
 export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_GLAZE_STYLE, onFallback }: { resetKey: number; color?: GlazeColor; glazeStyle?: GlazeStyle; onFallback: () => void }) {
@@ -87,10 +87,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       }
       for (const p of presses.values()) {
         const held = (now - p.start) / 1000;
-        const foam=safe(p.x,p.y)&&!intact(p.x,p.y);
-        if(foam&&!p.foam&&!p.dragging)p.sound=playSquelch(dentDepth(held,p.pressure));
-        if(!foam&&p.foam)p.sound=undefined;
-        p.foam=foam;
+        // A click keeps its press-down material choice; only actual drags switch voices.
         p.sound?.(dentDepth(held, p.pressure));
         const radius = p.radius + (p.pressure === null ? Math.min(held, 2) * 3 : 0);
         stampDent(r, p.x, p.y, radius, Math.max(immediateDepth(1), dentDepth(held, p.pressure)), 0.18);
@@ -195,7 +192,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       const foam=!intact(x,y);
       const radius=dentRadius(e.pointerType);
       stampDent(r,x,y,radius,immediateDepth(1),1);
-      presses.set(e.pointerId, { x, y, origin:{x,y},dragging:false,pointerType:e.pointerType,exposed:damage.filter(d=>d.hole).map(d=>d.shape),start: performance.now(), radius, pressure, sound: foam?playSquelch(immediateDepth(1)):undefined, foam, spots:[{x,y}],flakeDistance:20 });
+      presses.set(e.pointerId, { x, y, origin:{x,y},dragging:false,pointerType:e.pointerType,exposed:damage.filter(d=>d.hole).map(d=>d.shape),initialFoam:foam,start: performance.now(), radius, pressure, sound: foam?playSquelch(immediateDepth(1)):undefined, foam, spots:[{x,y}],flakeDistance:20 });
       resetRef.current = null;
 
       vibratePress();
@@ -255,7 +252,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     const up = (e: PointerEvent) => {
       const press=presses.get(e.pointerId);
       if (press && presses.delete(e.pointerId)) {
-        if(e.type==="pointerup"&&!press.dragging)crack(press.origin.x,press.origin.y);
+        if(e.type==="pointerup"&&!press.dragging&&!press.initialFoam)crack(press.origin.x,press.origin.y);
         const settings=recoverySettings();
         const cells:{i:number;depth:number}[]=[];
         const visited=new Set<number>();

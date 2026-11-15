@@ -19,6 +19,7 @@ const groups = {
 type Group = keyof typeof groups;
 let enabled = false;
 let ctx: AudioContext | null = null;
+let master: BiquadFilterNode | null = null;
 let loading: Promise<void> | null = null;
 const buffers = new Map<string, AudioBuffer>();
 const previous = new Map<Group, number>();
@@ -31,7 +32,13 @@ function getCtx(): AudioContext | null {
   if (!ctx) {
     const AC = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AC) return null;
-    try { ctx = new AC(); } catch { return null; }
+    try {
+      ctx = new AC();
+      master = ctx.createBiquadFilter();
+      master.type = "highpass";
+      master.frequency.value = 150;
+      master.connect(ctx.destination);
+    } catch { ctx = null; master = null; return null; }
   }
   return ctx;
 }
@@ -43,7 +50,8 @@ export function unlockSounds() {
   void c.resume().catch(() => {});
   const unlock = c.createBufferSource();
   unlock.buffer = c.createBuffer(1, 1, c.sampleRate);
-  unlock.connect(c.destination);
+  if (!master) return;
+  unlock.connect(master);
   unlock.onended = () => unlock.disconnect();
   unlock.start();
 }
@@ -77,7 +85,7 @@ export function getSoundsEnabled() { return enabled; }
 
 function recording(group: Group, depth = 0, volumeScale = 1) {
   // A source scheduled during resume starts as soon as Safari's context runs.
-  if (!enabled || !ctx || ctx.state === "closed") return;
+  if (!enabled || !ctx || !master || ctx.state === "closed") return;
   const c = ctx;
   const choices = groups[group].map((url, index) => ({ buffer: buffers.get(url), index }))
     .filter((item) => item.buffer && item.index !== previous.get(group));
@@ -86,14 +94,14 @@ function recording(group: Group, depth = 0, volumeScale = 1) {
   previous.set(group, choice.index);
   const source = c.createBufferSource();
   const gain = c.createGain();
-  const rate = 0.95 + Math.random() * 0.1;
+  const rate = (group === "squish" ? 0.96 : 0.95) + Math.random() * (group === "squish" ? 0.09 : 0.1);
   const volume = 0.65 * volumeScale * (0.9 + Math.random() * 0.2);
   source.buffer = choice.buffer;
-  source.connect(gain).connect(c.destination);
+  source.connect(gain).connect(master);
   const update = (amount: number) => {
     const d = Math.max(0, Math.min(1, amount));
-    source.playbackRate.setTargetAtTime(rate * (1 - d * 0.1), c.currentTime, 0.04);
-    gain.gain.setTargetAtTime(volume * (1 + d * 0.2), c.currentTime, 0.04);
+    source.playbackRate.setTargetAtTime(rate, c.currentTime, 0.04);
+    gain.gain.setTargetAtTime(volume * (1 + d * (group === "squish" ? 0.06 : 0.2)), c.currentTime, 0.04);
   };
   update(depth);
   active.add(source);

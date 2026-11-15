@@ -32,6 +32,7 @@ use the editor.
 <!-- AGENT-MEMORY:BEGIN -->
 - The Glaze skin lives self-contained in src/glaze/ (entry index.ts, own CSS vars, no app imports) so it can ship as its own package.
 - All skin sounds stay in src/glaze/sounds.ts, one function per sound, so recordings can replace synthesis.
+- Route skin audio through one master highpass; click sound selection stays tied to press-down material until the gesture becomes a drag, preventing squish plus fracture on jitter or recovery.
 - Decode recording assets on sound enable and keep press tracking, variation and shared drag voice limits in sounds.ts so audio remains package-local and unlocks on the enabling gesture.
 - Control audio observes press/release in window capture before React glaze changes; coating animations never trigger control audio, preventing duplicate clips and slider propagation issues.
 - Keep haptics in src/glaze/haptics.ts gated by the shared sound switch; touch.ts holds pressure and narrow-frame rules so exact device behavior can be tested without WebGL.

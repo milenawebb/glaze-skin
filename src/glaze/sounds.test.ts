@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const sources: any[] = [];
 const gains: any[] = [];
+const filters: any[] = [];
 let clock = 0;
 let contextState = "running";
 const resume = vi.fn(() => Promise.resolve());
@@ -13,6 +14,10 @@ class AudioContextMock {
   get currentTime() { return clock; }
   resume = resume;
   decodeAudioData = decode;
+  createBiquadFilter() {
+    const filter = { type: "", frequency: { value: 0 }, connect: vi.fn() };
+    filters.push(filter); return filter;
+  }
   createBuffer() { return { silent: true }; }
   createBufferSource() {
     const source = { buffer: null, playbackRate: { setTargetAtTime: vi.fn() }, connect: vi.fn((node) => node), disconnect: vi.fn(), start: vi.fn(), stop: vi.fn(), onended: null };
@@ -27,7 +32,7 @@ class AudioContextMock {
 }
 let sounds: typeof import("./sounds");
 beforeEach(async () => {
-  vi.resetModules(); sources.length = 0; gains.length = 0; clock = 0; contextState = "running";
+  vi.resetModules(); sources.length = 0; gains.length = 0; filters.length = 0; clock = 0; contextState = "running";
   vi.stubGlobal("AudioContext", AudioContextMock);
   vi.stubGlobal("fetch", vi.fn(async (url) => ({ ok: true, arrayBuffer: async () => url })));
   sounds = await import("./sounds");
@@ -82,15 +87,28 @@ describe("recorded Glaze sounds", () => {
     }
     expect(seen.size).toBeGreaterThanOrEqual(2);
   });
-  it("deepens a playing press voice by lowering pitch and raising volume", async () => {
+  it("deep squishes keep pitch unchanged and become only 6% louder", async () => {
     await enable(); const update = sounds.playSquelch(0);
     const source = sources[0], gain = gains[0];
     const initialRate = source.playbackRate.setTargetAtTime.mock.calls[0][0];
     const initialGain = gain.gain.setTargetAtTime.mock.calls[0][0];
     update?.(1);
-    expect(source.playbackRate.setTargetAtTime.mock.lastCall[0]).toBeCloseTo(initialRate * 0.9);
-    expect(gain.gain.setTargetAtTime.mock.lastCall[0]).toBeCloseTo(initialGain * 1.2);
+    expect(source.playbackRate.setTargetAtTime.mock.lastCall[0]).toBe(initialRate);
+    expect(gain.gain.setTargetAtTime.mock.lastCall[0]).toBeCloseTo(initialGain * 1.06);
     expect(sources).toHaveLength(1);
+  });
+  it("never lowers squish pitch more than 4%, even at maximum depth", async () => {
+    await enable(); vi.spyOn(Math,"random").mockReturnValue(0);
+    const update=sounds.playSquelch(1); update?.(100);
+    expect(sources[0].playbackRate.setTargetAtTime.mock.calls.every(([rate]:[number])=>rate>=0.96)).toBe(true);
+    expect(sources[0].playbackRate.setTargetAtTime.mock.lastCall[0]).toBe(0.96);
+  });
+  it("routes every recording through one master 150Hz highpass", async () => {
+    await enable();sounds.playSquelch();sounds.playCrack();sounds.playShatter();sounds.playCrunch();
+    expect(filters).toHaveLength(1);expect(filters[0].type).toBe("highpass");expect(filters[0].frequency.value).toBe(150);
+    expect(filters[0].connect).toHaveBeenCalledOnce();
+    expect(gains).toHaveLength(4);
+    for(const gain of gains)expect(gain.connect).toHaveBeenCalledWith(filters[0]);
   });
   it("throttles drag crunches to 150ms and replaces the oldest at two voices", async () => {
     await enable(); sounds.playCrunch(); clock = 0.149; sounds.playCrunch();
