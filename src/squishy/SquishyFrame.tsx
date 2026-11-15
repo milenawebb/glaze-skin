@@ -9,18 +9,20 @@ import { breakGlaze, hasGlaze } from "./glaze";
 import { createShellBreak, peelShell, SHELL_BREAK_MS, paintCoating, insideShellPolygon, framePressStage, type ShellBreak } from "./shell";
 
 import { recoverySettings, recoveryFactor, immediateDepth } from "./recovery";
+import type { SquishyColor } from "./preferences";
 const RESET_MS = 1500;
 
 interface Press { x: number; y: number; start: number; radius: number; pressure: number | null; sound: ((depth: number) => void) | undefined; spots: {x:number;y:number}[] }
 
 /** WebGL squishy frame. Dents stay until `resetKey` changes. */
-export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFallback: () => void }) {
+export function SquishyFrame({ resetKey, color = "Rainbow", onFallback }: { resetKey: number; color?: SquishyColor; onFallback: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<FrameRenderer | null>(null);
   const kick = useRef<() => void>(() => {});
   const clearTransient = useRef<() => void>(() => {});
   const resetRef = useRef<{ start: number; snap: Float32Array; glaze: Float32Array; coating: HTMLCanvasElement } | null>(null);
   const [ready, setReady] = useState(false);
+  useEffect(() => { rendererRef.current?.updatePalette(); kick.current(); }, [color, ready]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -86,7 +88,7 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
         if (t >= 1) resetRef.current = null;
       }
       r.render();
-      if (presses.size || breaks.length || recoveries.length || cracked.some(c=>!c.removed&&!c.drawn) || resetRef.current || r.face > 0) raf = requestAnimationFrame(loop);
+      if (presses.size || breaks.length || recoveries.length || cracked.some(c=>!c.removed&&!c.drawn) || resetRef.current || r.face > 0 || r.paletteAnimating()) raf = requestAnimationFrame(loop);
     };
     const schedule = () => {
       if (!raf) raf = requestAnimationFrame(loop);

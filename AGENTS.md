@@ -44,4 +44,5 @@ use the editor.
 - Store fissures and holes in a full-screen-resolution coating canvas uploaded as a texture, independent of the half-resolution dent map; reuse each first-press Voronoi fracture for second-press peeling so cracks and plates agree.
 - Frame dent recovery uses per-release local depth samples with random partial easing; Reset clears recovery and fracture state so the complete smoothing cannot be overwritten.
 - Phone controls reuse one bottom glass row and an absolutely positioned top pill without duplicate media or buttons; captions stay above the bottom row while visible and near the bottom when hidden.
+- Frame candy controls live above the canvas and fragments; viewer preferences use guarded localStorage in preferences.ts, while shader palette interpolation changes shell/foam without touching dent or coating maps and sprinkles use independent color uniforms.
 <!-- AGENT-MEMORY:END -->

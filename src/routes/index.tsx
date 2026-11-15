@@ -1,7 +1,5 @@
 import { createFileRoute, ClientOnly } from "@tanstack/react-router";
-import { lazy, Suspense, useRef, useState } from "react";
-import { useSquish } from "@/squishy/squish";
-import { setSoundsEnabled } from "@/squishy/sounds";
+import { lazy, Suspense } from "react";
 
 const SquishyPlayer = lazy(() => import("@/squishy").then((m) => ({ default: m.SquishyPlayer })));
 
@@ -26,41 +24,14 @@ function Placeholder() {
 }
 
 function Index() {
-  const [resetKey, setResetKey] = useState(0);
-  const [sounds, setSounds] = useState(false);
-  const resetRef = useRef<HTMLButtonElement>(null);
-  const soundRef = useRef<HTMLButtonElement>(null);
-  useSquish(resetRef);
-  useSquish(soundRef);
   return (
     <main className="demo">
       <h1 className="demo-title">Squishy</h1>
       <ClientOnly fallback={<Placeholder />}>
         <Suspense fallback={<Placeholder />}>
-          <SquishyPlayer playbackId={PLAYBACK_ID} resetKey={resetKey} title="Squishy demo video" />
+          <SquishyPlayer playbackId={PLAYBACK_ID} title="Squishy demo video" />
         </Suspense>
       </ClientOnly>
-      <div className="demo-actions">
-        <button ref={resetRef} type="button" className="demo-btn sq-squish sq-squish-body" onClick={() => setResetKey((k) => k + 1)}>
-          Reset
-        </button>
-        <button
-          ref={soundRef}
-          type="button"
-          className="demo-btn sq-squish sq-squish-body"
-          aria-pressed={sounds}
-          onClick={() => {
-            setSoundsEnabled(!sounds);
-            setSounds(!sounds);
-          }}
-        >
-          <svg viewBox="0 0 20 20" aria-hidden="true" className="demo-icon">
-            <path d="M3 8h3l4-3v10l-4-3H3z" />
-            {sounds ? <path d="M13 7.5a3.5 3.5 0 0 1 0 5M15 5a7 7 0 0 1 0 10" /> : <path d="M13 8l4 4M17 8l-4 4" />}
-          </svg>
-          Sounds {sounds ? "on" : "off"}
-        </button>
-      </div>
     </main>
   );
 }

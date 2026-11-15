@@ -3,6 +3,7 @@
  * half resolution) stores permanent dents; it is uploaded as a texture each
  * frame and lit in the fragment shader.
  */
+import { COLOR_FADE_MS } from "./preferences";
 export const FRAME = { side: 30, top: 30, bottom: 96, outerRadius: 46, innerRadius: 16 };
 
 const VS = `attribute vec2 aPos; varying vec2 vUv;
@@ -19,6 +20,7 @@ uniform sampler2D uDent; uniform sampler2D uGlaze; uniform float uFace;
 uniform vec3 uWaxBlue; uniform vec3 uWaxMilk; uniform vec3 uWaxYellow;
 uniform vec3 uFoam; uniform vec3 uPore; uniform vec3 uSprinklePink;
 uniform vec3 uSprinkleRed; uniform vec3 uSprinkleGreen;
+uniform vec3 uSprinkleBlue; uniform vec3 uSprinkleYellow;
 varying vec2 vUv;
 float sdRR(vec2 p, vec2 c, vec2 hs, float r){ vec2 q=abs(p-c)-hs+r; return length(max(q,0.))+min(max(q.x,q.y),0.)-r; }
 float sdO(vec2 p){ return sdRR(p, uRes*.5, uRes*.5, uRo); }
@@ -56,8 +58,8 @@ float pores(vec2 p){
 }
 vec3 sprinkleColor(float k){
   if(k<1.) return uSprinklePink;
-  if(k<2.) return uWaxYellow;
-  if(k<3.) return uWaxBlue;
+  if(k<2.) return uSprinkleYellow;
+  if(k<3.) return uSprinkleBlue;
   if(k<4.) return uSprinkleRed;
   return uSprinkleGreen;
 }
@@ -150,6 +152,8 @@ void main(){
 export interface FrameRenderer {
   resize(w: number, h: number, insets: { l: number; t: number; r: number; b: number }): void;
   render(): void;
+  updatePalette(): void;
+  paletteAnimating(): boolean;
   snapshot(x: number, y: number, radius: number): HTMLCanvasElement;
   dent: Float32Array;
   glaze: Float32Array;
@@ -219,7 +223,12 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
     ["uWaxBlue", "--sq-wax-blue"], ["uWaxMilk", "--sq-wax-milk"], ["uWaxYellow", "--sq-wax-yellow"],
     ["uFoam", "--sq-foam"], ["uPore", "--sq-foam-pore"], ["uSprinklePink", "--sq-sprinkle-pink"],
     ["uSprinkleRed", "--sq-sprinkle-red"], ["uSprinkleGreen", "--sq-sprinkle-green"],
+    ["uSprinkleBlue", "--sq-sprinkle-blue"], ["uSprinkleYellow", "--sq-sprinkle-yellow"],
   ];
+  let paletteStart = -Infinity;
+  let currentColors: number[][] = [];
+  let fromColors: number[][] = [];
+  let targetColors: number[][] = [];
   const coating = document.createElement("canvas");
   let bytes = new Uint8Array(0);
   const r: FrameRenderer = {
@@ -229,15 +238,22 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
     dw: 0,
     dh: 0,
     face: 0,
-    resize(w, h, ins) {
+    updatePalette() {
       const css = getComputedStyle(canvas);
-      for (const pair of palette) {
-        const name = pair[0], token = pair[1];
-        if (!name || !token) continue;
-        const value = css.getPropertyValue(token).trim().replace("#", "");
+      const next = palette.map((pair) => {
+        const value = css.getPropertyValue(pair[1] ?? "").trim().replace("#", "");
         const color = Number.parseInt(value, 16);
-        gl.uniform3f(u(name), ((color >> 16) & 255) / 255, ((color >> 8) & 255) / 255, (color & 255) / 255);
-      }
+        return [((color >> 16) & 255) / 255, ((color >> 8) & 255) / 255, (color & 255) / 255];
+      });
+      if (JSON.stringify(next) === JSON.stringify(targetColors)) return;
+      fromColors = currentColors.length ? currentColors.map((color) => [...color]) : next;
+      targetColors = next;
+      if (!currentColors.length) currentColors = next;
+      paletteStart = performance.now();
+    },
+    paletteAnimating() { return performance.now() - paletteStart < COLOR_FADE_MS; },
+    resize(w, h, ins) {
+      r.updatePalette();
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       canvas.width = Math.max(1, Math.round(w * dpr));
       canvas.height = Math.max(1, Math.round(h * dpr));
@@ -275,6 +291,9 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
       }
     },
     render() {
+      const t = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : Math.min(1, (performance.now() - paletteStart) / COLOR_FADE_MS);
+      currentColors = targetColors.map((color, i) => color.map((value, j) => (fromColors[i]?.[j] ?? value) + (value - (fromColors[i]?.[j] ?? value)) * t));
+      palette.forEach((pair, i) => { const color = currentColors[i]; if (pair[0] && color) gl.uniform3f(u(pair[0]), color[0] ?? 0, color[1] ?? 0, color[2] ?? 0); });
       gl.uniform1f(uFace, r.face);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, tex);

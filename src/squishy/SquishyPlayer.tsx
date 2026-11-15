@@ -7,6 +7,8 @@ import { crackCrust } from "./crust";
 import { useSquishAll } from "./squish";
 import { POPUP_SPEEDS, VOLUME_CLOSE_MS, CONTROLS_IDLE_MS, controlsVisible } from "./controls";
 import { CAPTIONS_DEFAULT_ON, observeCaptionCues, isCaptionEngine } from "./captions";
+import { COLORS, readPreferences, savePreferences, type SquishyColor } from "./preferences";
+import { setSoundsEnabled } from "./sounds";
 import "./squishy.css";
 
 export const squishy = createPlayer({ features: videoFeatures });
@@ -56,6 +58,15 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
   const [captionsOn, setCaptionsOn] = useState(CAPTIONS_DEFAULT_ON);
   const paused = usePlayer((s) => s.paused);
   const [crust, setCrust] = useState({ play: true, tube: true });
+  const [localReset, setLocalReset] = useState(0);
+  const [color, setColor] = useState<SquishyColor>("Rainbow");
+  const [sounds, setSounds] = useState(false);
+  useEffect(() => {
+    try { const prefs = readPreferences(window.localStorage); setColor(prefs.color); setSounds(prefs.sounds); setSoundsEnabled(prefs.sounds); } catch { /* Storage is optional. */ }
+  }, []);
+  const persist = (nextColor: SquishyColor, nextSounds: boolean) => {
+    try { savePreferences(window.localStorage, nextColor, nextSounds); } catch { /* Storage is optional. */ }
+  };
 
   useEffect(() => {
     const root = rootRef.current;
@@ -67,7 +78,7 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
 
   useEffect(() => {
     setCrust({ play: true, tube: true });
-  }, [resetKey]);
+  }, [resetKey, localReset]);
 
   // Keep the frame shaped around the video's real aspect ratio.
   useEffect(() => {
@@ -136,6 +147,7 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
       data-fallback={fallback || undefined}
       data-compact={compact || undefined}
       data-row-visible={visible || undefined}
+      data-color={color}
       style={{ ["--sq-ar" as string]: String(ar) }}
       aria-label={`${label} — Squishy player`}
       onPointerMove={poke}
@@ -149,7 +161,14 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
       onFocus={() => { setKeyboardFocus(!document.documentElement.hasAttribute("data-sq-pointer")); poke(); }}
       onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setKeyboardFocus(false); }}
     >
-      {!fallback && <SquishyFrame resetKey={resetKey} onFallback={() => setFallback(true)} />}
+      {!fallback && <SquishyFrame resetKey={resetKey + localReset} color={color} onFallback={() => setFallback(true)} />}
+      <div className="sq-frame-colors" role="group" aria-label="Squishy colors">
+        {COLORS.map((choice) => <button key={choice} type="button" className="sq-candy sq-squish" data-swatch={choice} aria-label={`Color: ${choice}`} title={`Color: ${choice}`} aria-pressed={color === choice} onClick={() => { setColor(choice); persist(choice, sounds); }}><span className="sq-candy-face sq-squish-body" /></button>)}
+      </div>
+      <div className="sq-frame-actions">
+        <button type="button" className="sq-candy sq-squish" aria-label="Reset squishy" title="Reset squishy" onClick={() => setLocalReset((n) => n + 1)}><span className="sq-candy-face sq-squish-body"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6a7 7 0 1 1-1 7M4 2v5h5" /></svg></span></button>
+        <button type="button" className="sq-candy sq-squish" aria-label={`Turn sounds ${sounds ? "off" : "on"}`} title={`Turn sounds ${sounds ? "off" : "on"}`} aria-pressed={sounds} onClick={() => { const next = !sounds; setSoundsEnabled(next); setSounds(next); persist(color, next); }}><span className="sq-candy-face sq-squish-body"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8h3l4-3v10l-4-3H3z" />{sounds ? <path d="M13 7a4 4 0 0 1 0 6m2-8a7 7 0 0 1 0 10" /> : <path d="m13 8 4 4m0-4-4 4" />}</svg></span></button>
+      </div>
       <div className="sq-stage" onClickCapture={(e) => {
         if (compact && !(e.target as Element).closest(".sq-controls button, .sq-seek")) {
           poke();
