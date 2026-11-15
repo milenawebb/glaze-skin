@@ -139,7 +139,7 @@ void main(){
   float nh=max(dot(N,normalize(L+V)),0.);
   // Broad satin reflection under a restrained clear-coat sheen, never foam shine.
   float wall=max(0.,dent(p+vec2(-.55,-.65)*5.)-signedDent);
-  float spec=coat*(pow(nh,8.)*.17+pow(nh,95.)*.2)+hole*(pow(nh,3.)*.045+wall*.08+bulge*.12);
+  float spec=coat*(pow(nh,8.)*.12+pow(nh,95.)*.06)+hole*(pow(nh,3.)*.045+wall*.08+bulge*.12);
   float rim=clamp(dot(N.xy,vec2(.55,.65)),0.,1.);
   sh=clamp(sh+rim*.18,0.,.6);
   float thin=1.-pr*amp;
@@ -151,12 +151,32 @@ void main(){
     vec3 base=mix(uMonoColor,velvet,hole);
     float monoDiffuse=clamp(dot(N,L)*.48+.57,0.,1.);
     float streak=pow(nh,150.);
-    float clearcoat=coat*(pow(nh,14.)*.22+streak*.62);
+    float clearcoat=coat*(pow(nh,14.)*.16+streak*.2);
     float lip=coat*smoothstep(.03,.3,(broken(p+vec2(1.5,0.))+broken(p-vec2(1.5,0.))+broken(p+vec2(0.,1.5))+broken(p-vec2(0.,1.5)))*.25);
     vec3 monoColor=base*(monoDiffuse*(1.-sh*.8)+.12)+vec3(1.)*(clearcoat+lip*.24+hole*(wall*.05+bulge*.08));
     c=mix(c,monoColor,uMono);
   }
   if(uSprinkles>0.) c=mix(c,sprinkles(p,c,coat),uSprinkles);
+  // Soft-toy light: follows the rounded outline and is sampled through the dent normal, so it bends into dents.
+  {
+    vec2 q=p+N.xy*10.;
+    float de=-sdO(q);
+    vec2 gn=normalize(vec2(sdO(p+vec2(1.,0.))-sdO(p-vec2(1.,0.)),sdO(p+vec2(0.,1.))-sdO(p-vec2(0.,1.)))+1e-4);
+    float soft=mix(1.,.7,uMono);
+    float up=smoothstep(-.15,.85,-gn.y);
+    float topLight=exp(-pow((de-6.)/5.,2.))*.26+exp(-pow((de-10.)/14.,2.))*.09;
+    float cornerY=uIns.y*.55+3.;
+    float spot=exp(-pow(length((q-vec2(uRo*.62,cornerY))/vec2(9.,3.6)),2.)*2.2)*.55
+      +exp(-pow(length((q-vec2(uRo*.62+17.,cornerY-1.))/vec2(4.,1.8)),2.)*2.2)*.4
+      +exp(-pow(length((q-vec2(uRes.x-uRo*.62,cornerY))/vec2(5.,2.2)),2.)*2.2)*.35;
+    float bounce=exp(-pow((de-9.)/7.,2.))*smoothstep(.3,.95,gn.y)*.07;
+    float falloff=clamp(gn.y*.9+abs(gn.x)*.6,0.,1.)*(1.-smoothstep(0.,24.,-so));
+    float cushion=(1.-smoothstep(0.,8.,si))*mix(.06,.13,smoothstep(0.,1.,(uIns.y+12.-p.y)/24.+.5));
+    c*=1.-(.1*falloff+cushion);
+    vec3 lightCol=mix(vec3(1.),uWaxMilk,.25);
+    c+=lightCol*coat*soft*(topLight*up+spot*mix(1.,.6,uMono)+bounce)*(1.-.6*clamp(d,0.,1.));
+    c=min(c,vec3(1.));
+  }
   c=face(p,c,hole);
   float crack=texture2D(uGlaze,p/uRes).g*coat*uReset;
   float crackShadow=texture2D(uGlaze,(p-vec2(.8,.9))/uRes).g*coat*uReset;
@@ -329,7 +349,7 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
       gl.uniform2f(u("uRes"), w, h);
       gl.uniform4f(u("uIns"), ins.l, ins.t, ins.r, ins.b);
       gl.uniform1f(u("uRo"), FRAME.outerRadius);
-      gl.uniform1f(u("uRi"), FRAME.innerRadius);
+      gl.uniform1f(u("uRi"), w < 480 ? FRAME.innerRadius + 4 : FRAME.innerRadius);
       fullUpload=true;
     },
     render() {

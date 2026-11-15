@@ -10,8 +10,8 @@ describe("phone and tablet frame rules", () => {
     expect(faceExpression(0, 1000, false)).toBe(0);
     expect(faceExpression(0, 0, true)).toBe(0);
   });
-  it("uses 12px sides and top and a 110px bottom below 480px", () => {
-    expect(frameInsets(479)).toEqual({ l: 12, t: 12, r: 12, b: 110 });
+  it("uses 16px sides, a 20px top and a 110px bottom below 480px", () => {
+    expect(frameInsets(479)).toEqual({ l: 16, t: 20, r: 16, b: 110 });
     expect(frameInsets(480)).toEqual({ l: 30, t: 30, r: 30, b: 96 });
   });
   it("maps real touch and pen pressure to 0.6x through 1.6x", () => {
