@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nextPlaybackRate, POPUP_SPEEDS, VOLUME_CLOSE_MS, CONTROLS_IDLE_MS, controlsVisible } from "./controls";
+import { nextPlaybackRate, POPUP_SPEEDS, VOLUME_CLOSE_MS, CONTROLS_IDLE_MS, controlsVisible, videoTapActivity } from "./controls";
 
 describe("playback speed", () => {
   it("cycles 1x, 1.5x, 2x, 0.5x and back to 1x", () => {
@@ -15,4 +15,18 @@ it("keeps controls visible when paused, active, in a popup, or keyboard focused"
   expect(controlsVisible(false, true, false, false)).toBe(true);
   expect(controlsVisible(false, false, true, false)).toBe(true);
   expect(controlsVisible(false, false, false, true)).toBe(true);
+});
+it("shows hidden playing phone controls on a touch or pen tap", () => {
+  expect(videoTapActivity(true, "touch", false, false)).toBe(true);
+  expect(videoTapActivity(true, "pen", false, false)).toBe(true);
+});
+it("hides visible playing phone controls on a second tap", () => {
+  expect(videoTapActivity(true, "touch", false, true)).toBe(false);
+});
+it("keeps paused phone controls visible after a tap", () => {
+  expect(videoTapActivity(true, "touch", true, true)).toBe(true);
+});
+it("leaves mouse and wider player interactions unchanged", () => {
+  expect(videoTapActivity(true, "mouse", false, true)).toBeUndefined();
+  expect(videoTapActivity(false, "touch", false, true)).toBeUndefined();
 });

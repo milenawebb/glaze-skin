@@ -7,6 +7,12 @@ export function controlsVisible(paused: boolean, active: boolean, popup: boolean
   return paused || active || popup || keyboardFocus;
 }
 
+/** Only a phone touch/pen tap on the video toggles control visibility. */
+export function videoTapActivity(compact: boolean, pointerType: string, paused: boolean, visible: boolean): boolean | undefined {
+  if (!compact || (pointerType !== "touch" && pointerType !== "pen")) return undefined;
+  return paused || !visible;
+}
+
 export function nextPlaybackRate(current: number): number {
   const index = SPEEDS.findIndex((speed) => speed === current);
   return SPEEDS[(index + 1) % SPEEDS.length] ?? 1;

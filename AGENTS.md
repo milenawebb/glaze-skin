@@ -49,4 +49,5 @@ use the editor.
 - The sounds prop is a startup fallback beneath saved viewer preferences; mount preloads recordings without resume, and player window-capture unlock runs before control/frame presses so suspended audio can schedule the first clip.
 - Demo preview sizes live outside the skin and resize one stable player instance; the skin's player-width observer selects compact controls so preview modes cannot reset playback or damage.
 - Control activity listeners belong on the video stage, never the frame container; player leave clears activity while paused state and stage keyboard focus retain visibility.
+- Phone video taps toggle controls on touch/pen pointerup, not click/down; ignore implicit touch leave so Safari cannot immediately undo the tap, and keep hidden rows non-interactive.
 <!-- AGENT-MEMORY:END -->

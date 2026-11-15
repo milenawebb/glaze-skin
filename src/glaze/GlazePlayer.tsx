@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent as RKeyboa
 import { GlazeFrame } from "./GlazeFrame";
 import { crackCrust } from "./crust";
 import { useSquishAll } from "./squish";
-import { POPUP_SPEEDS, VOLUME_CLOSE_MS, CONTROLS_IDLE_MS, controlsVisible } from "./controls";
+import { POPUP_SPEEDS, VOLUME_CLOSE_MS, CONTROLS_IDLE_MS, controlsVisible, videoTapActivity } from "./controls";
 import { CAPTIONS_DEFAULT_ON, observeCaptionCues, isCaptionEngine } from "./captions";
 import { COLORS, OPTIONS, readPreferences, savePreferences, type GlazeColor } from "./preferences";
 import { setSoundsEnabled, unlockSounds } from "./sounds";
@@ -143,6 +143,7 @@ export function GlazeSkin({ children, resetKey, label, sounds: startSounds = fal
 
   // Controls hide after 2s of no movement while playing.
   const timer = useRef<number | undefined>(undefined);
+  const videoPress = useRef<{ id: number; x: number; y: number } | null>(null);
   const poke = useCallback(() => {
     setActive(true);
     window.clearTimeout(timer.current);
@@ -186,7 +187,11 @@ export function GlazeSkin({ children, resetKey, label, sounds: startSounds = fal
       data-glaze-style={glazeStyle}
       style={{ ["--sq-ar" as string]: String(ar) }}
       aria-label={`${label} — Glaze player`}
-      onPointerLeave={() => { window.clearTimeout(timer.current); setActive(false); }}
+      onPointerLeave={(e) => {
+        // Touch ends with an implicit pointer leave, not a departure from the player.
+        if (e.pointerType === "touch" || e.pointerType === "pen") return;
+        window.clearTimeout(timer.current); setActive(false);
+      }}
       onKeyDown={(e) => {
         if (e.key.toLowerCase() === "c" && !e.altKey && !e.ctrlKey && !e.metaKey && !e.repeat) {
           e.preventDefault(); setCaptionsOn((on) => !on);
@@ -206,14 +211,33 @@ export function GlazeSkin({ children, resetKey, label, sounds: startSounds = fal
         <button type="button" className="sq-candy sq-squish" aria-label={`Squish sounds ${sounds ? "on" : "off"}`} title={`Squish sounds ${sounds ? "on" : "off"}`} aria-pressed={sounds} onClick={() => { const next = !sounds; setSoundsEnabled(next); setSounds(next); persist(color, next); }}><span className="sq-candy-face sq-squish-body"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 3 1.8 4.2L13 9l-4.2 1.8L7 15l-1.8-4.2L1 9l4.2-1.8ZM14 6a5 5 0 0 1 0 8m3-10a8 8 0 0 1 0 12" />{!sounds && <path d="m2 18 16-16" />}</svg></span></button>
       </div>
       <div className="sq-stage"
-        onPointerMove={poke}
-        onPointerDown={() => { setKeyboardFocus(false); poke(); }}
+        onPointerMove={(e) => {
+          if (e.pointerType === "mouse") poke();
+          const press = videoPress.current;
+          if (press?.id === e.pointerId && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 12) videoPress.current = null;
+        }}
+        onPointerDown={(e) => {
+          setKeyboardFocus(false);
+          if (compact && (e.pointerType === "touch" || e.pointerType === "pen") && !(e.target as Element).closest(".sq-controls")) {
+            videoPress.current = { id: e.pointerId, x: e.clientX, y: e.clientY };
+          } else poke();
+        }}
+        onPointerUp={(e) => {
+          const press = videoPress.current;
+          videoPress.current = null;
+          if (!press || press.id !== e.pointerId || (e.target as Element).closest(".sq-controls")) return;
+          const next = videoTapActivity(compact, e.pointerType, paused, visible);
+          if (next === undefined) return;
+          setKeyboardFocus(false); setSpeedOpen(false); setVolumeOpen(false);
+          if (next) poke();
+          else { window.clearTimeout(timer.current); setActive(false); }
+        }}
+        onPointerCancel={() => { videoPress.current = null; }}
         onFocus={() => { if (!document.documentElement.hasAttribute("data-sq-pointer")) { setKeyboardFocus(true); poke(); } }}
         onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setKeyboardFocus(false); }}
         onKeyDown={() => { setKeyboardFocus(true); poke(); }}
         onClickCapture={(e) => {
-        if (compact && !(e.target as Element).closest(".sq-controls button, .sq-seek")) {
-          poke();
+        if (compact && !(e.target as Element).closest(".sq-controls")) {
           e.stopPropagation();
         }
       }}>
