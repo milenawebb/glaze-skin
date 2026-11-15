@@ -7,7 +7,7 @@ import { dentDepth, dentRadius, faceExpression, frameInsets, pressureScale } fro
 
 import { breakGlaze, hasGlaze } from "./glaze";
 
-import { cancelShellDebris, createShellBreak, takeShellChips, peelShell, SHELL_BREAK_MS, paintCoating, insideShellPolygon, framePressStage, type ShellBreak } from "./shell";
+import { prepareShellDebris, cancelShellDebris, createShellBreak, takeShellChips, peelShell, SHELL_BREAK_MS, paintCoating, insideShellPolygon, framePressStage, type ShellBreak } from "./shell";
 import { createGlazeStrip, isGlazeDrag, stripWidth } from "./strip";
 
 import { recoverySettings, recoveryFactor, immediateDepth } from "./recovery";
@@ -25,7 +25,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
   const rendererRef = useRef<FrameRenderer | null>(null);
   const kick = useRef<() => void>(() => {});
   const clearTransient = useRef<() => void>(() => {});
-  const resetRef = useRef<{ start: number; snap: Float32Array; glaze: Float32Array; damage: { shape: ShellBreak; hole: boolean; progress: number }[] } | null>(null);
+  const resetRef = useRef<{ start: number } | null>(null);
   const damageRef = useRef<{ shape: ShellBreak; hole: boolean; progress: number }[]>([]);
   const [ready, setReady] = useState(false);
   useEffect(() => { const renderer = rendererRef.current; if (renderer) { renderer.mono = monoStyleAmount(glazeStyle); renderer.updatePalette(); kick.current(); } }, [color, glazeStyle, ready]);
@@ -39,6 +39,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       return;
     }
     rendererRef.current = r;
+    prepareShellDebris();
     setReady(true);
     const presses = new Map<number, Press>();
     let size = { w: 1, h: 1 };
@@ -87,7 +88,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       if(resizing)return;
       refreshProtected();
       const deadline=performance.now()+6;
-      while(pending.length&&performance.now()<deadline){const event=pending.shift();if(event)processEvent(event);}
+      while(pending.length&&performance.now()<deadline){const event=pending.shift();if(event)processEvent(event);if(event?.type==="pointermove")break;}
       const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       r.face = faceExpression(presses.size, now - released, reduce);
       for(let j=recoveries.length-1;j>=0;j--){
@@ -105,6 +106,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
         const held = (now - p.start) / 1000;
         // A click keeps its press-down material choice; only actual drags switch voices.
         p.sound?.(dentDepth(held, p.pressure));
+        if(now-p.start<25)continue;
         const radius = p.radius + (p.pressure === null ? Math.min(held, 2) * 3 : 0);
         if(p.foam)stampFingertip(r,p.x,p.y,p.pad,fingerDepth(held,p.pressure),.18,p.dragging?1.6:1);
         else stampDent(r, p.x, p.y, radius, Math.max(immediateDepth(1), dentDepth(held, p.pressure)), 0.18);
@@ -220,8 +222,8 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       const pad=fingerPad(e.pointerType);
       if(foam)stampFingertip(r,x,y,pad,fingerDepth(0,pressure),1);else stampDent(r,x,y,radius,immediateDepth(1),1);
       smoothDents(r,x-radius*2.2,y-radius*2.2,x+radius*2.2,y+radius*2.2);
-      presses.set(e.pointerId, { pad,before,x, y, origin:{x,y},dragging:false,pointerType:e.pointerType,exposed:damage.filter(d=>d.hole).map(d=>d.shape),initialFoam:foam,start: performance.now(), radius, pressure, sound: foam?playSquelch(immediateDepth(1)):undefined, foam, spots:[{x,y}],flakeDistance:20 });
-      resetRef.current = null;
+      presses.set(e.pointerId, { pad,before,x, y, origin:{x,y},dragging:false,pointerType:e.pointerType,exposed:damage.filter(d=>d.hole).map(d=>d.shape),initialFoam:foam,start: e.timeStamp, radius, pressure, sound: foam?playSquelch(immediateDepth(1)):undefined, foam, spots:[{x,y}],flakeDistance:20 });
+      resetRef.current = null;r.resetAmount=1;
 
       vibratePress();
       schedule();
@@ -229,7 +231,9 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     const move = (e: PointerEvent) => {
       const p = presses.get(e.pointerId);
       if (!p) return;
-      const { x, y } = local(e);
+      let { x, y } = local(e);
+      const remaining=Math.hypot(x-p.x,y-p.y);
+      if(remaining>9){const t=9/remaining;x=p.x+(x-p.x)*t;y=p.y+(y-p.y)*t;pending.unshift(e);}
       const held = (performance.now() - p.start) / 1000;
       p.pressure = pressureScale(e);
       const depth = dentDepth(held, p.pressure);
@@ -288,7 +292,8 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
         const cells:{i:number;depth:number}[]=[];
         // Recover the complete smooth contribution, including its tails, not a disc.
         let bounds:Region|null=null;
-        for(let i=0;i<r.dent.length;i++){const depth=(r.dent[i]??0)-(press.before[i]??0);if(depth!==0){cells.push({i,depth});const x=i%r.dw,y=Math.floor(i/r.dw);bounds=bounds?{x0:Math.min(bounds.x0,x),y0:Math.min(bounds.y0,y),x1:Math.max(bounds.x1,x),y1:Math.max(bounds.y1,y)}:{x0:x,y0:y,x1:x,y1:y};}}
+        const radius=press.pad.length*5;const area=region(r.dw,r.dh,(Math.min(...press.spots.map(p=>p.x))-radius)*r.dw/size.w,(Math.min(...press.spots.map(p=>p.y))-radius)*r.dh/size.h,(Math.max(...press.spots.map(p=>p.x))+radius)*r.dw/size.w,(Math.max(...press.spots.map(p=>p.y))+radius)*r.dh/size.h);
+        for(let y=area.y0;y<=area.y1;y++)for(let x=area.x0;x<=area.x1;x++){const i=y*r.dw+x;const depth=(r.dent[i]??0)-(press.before[i]??0);if(depth!==0){cells.push({i,depth});bounds=bounds?{x0:Math.min(bounds.x0,x),y0:Math.min(bounds.y0,y),x1:Math.max(bounds.x1,x),y1:Math.max(bounds.y1,y)}:{x0:x,y0:y,x1:x,y1:y};}}
         recoveries.push({start:performance.now(),...settings,lastFactor:1,bounds:bounds??undefined,cells});
         if (!presses.size) released = performance.now();
         schedule();
@@ -352,7 +357,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       resetRef.current = null;
     } else {
       clearTransient.current();
-      resetRef.current = { start: performance.now(), snap: r.dent.slice(), glaze: r.glaze.slice(),damage:damageRef.current.slice() };
+      resetRef.current = { start: performance.now() };
     }
     kick.current();
   }, [resetKey]);

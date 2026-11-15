@@ -33,7 +33,7 @@ use the editor.
 - Keep app icons and the web manifest in public with head links in the root; home-screen support is manifest-only to avoid caching the preview.
 - The Glaze skin lives self-contained in src/glaze/ (entry index.ts, own CSS vars, no app imports) so it can ship as its own package.
 - All skin sounds stay in src/glaze/sounds.ts, one function per sound, so recordings can replace synthesis.
-- Shell debris stays in shell.ts with small cropped textured chunks and cheap crumbs; randomized motion shares a forty-piece cap to bound phone work.
+- Shell debris uses cached material, pooled shapes and one frame-batched queue capped at forty to avoid GPU readback and phone stalls.
 - Route skin audio through one master highpass; click sound selection stays tied to press-down material until the gesture becomes a drag, preventing squish plus fracture on jitter or recovery.
 - Decode recording assets on sound enable and keep press tracking, variation and shared drag voice limits in sounds.ts so audio remains package-local and unlocks on the enabling gesture.
 - Control audio observes press/release in window capture before React glaze changes; coating animations never trigger control audio, preventing duplicate clips and slider propagation issues.
@@ -44,7 +44,7 @@ use the editor.
 - Speed uses the shared four-option popup on every size, upward on wider players and downward on phones; keep popup state local so media and control state survive resizes.
 - Native tracks stay hidden; captions.ts selects the exposed HLS engine subtitle loader directly because the library bridge only loads showing tracks, and owns cuechange/timeupdate/source-safe listeners for the single overlay and local CC state.
 - Reserve the time display width from the duration and keep seek glaze absolutely overlaid, so time changes and cracking cannot shift the progress track.
-- Retain damage as normalized vectors and a unit-frame height field; CSS stretches during resize, then resize.ts schedules one idle rebuild after 100ms quiet, reusing WebGL resources. Only video is masked; buttons remain above damage.
+- Queue frame inputs for RAF; use local height/coating texSubImage2D and indexed holes. Replay normalized vectors only after 100ms settled resize; retain WebGL resources. Reset uses one shader fade for both maps.
 - Foam fingertip lobes and signed bulges live in fingertip.ts; signed height encoding, Gaussian tails, CSS-space blur and contribution recovery preserve ring-free dents. Reset cancels recovery.
 - Clip all fracture paths against current glaze and retained holes before storage/replay; hole painting replaces fissure pixels, and pointer material transitions select foam squish versus glaze crunch so exposed areas only dent.
 - Classify frame gestures before fracture: release within the threshold uses two-step cracking, while drags retain overlapping jagged strip polygons without adding fissures; strip.ts owns threshold and widths for concrete tests.

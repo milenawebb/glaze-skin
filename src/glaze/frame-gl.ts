@@ -258,7 +258,7 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
   const coating = document.createElement("canvas");
   let heightDirty:Region|null=null, coatDirty:Region|null=null;
   let fullUpload=true;
-  const tile=document.createElement("canvas");
+
   const material=document.createElement("canvas");let materialJob=0;
   const r: FrameRenderer = {
     resetAmount:1,
@@ -335,9 +335,9 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
       gl.bindTexture(gl.TEXTURE_2D,glazeTex);
       if(fullUpload){gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,coating.width,coating.height,0,gl.RGBA,gl.UNSIGNED_BYTE,null);coatDirty=region(coating.width,coating.height,0,0,coating.width-1,coating.height-1);}
       if(coatDirty){
-        const b=coatDirty;tile.width=b.x1-b.x0+1;tile.height=b.y1-b.y0+1;
-        tile.getContext("2d",{willReadFrequently:true})?.drawImage(coating,b.x0,b.y0,tile.width,tile.height,0,0,tile.width,tile.height);
-        gl.texSubImage2D(gl.TEXTURE_2D,0,b.x0,b.y0,gl.RGBA,gl.UNSIGNED_BYTE,tile);coatDirty=null;
+        const b=coatDirty,w=b.x1-b.x0+1,h=b.y1-b.y0+1;
+        const pixels=coating.getContext("2d",{willReadFrequently:true})?.getImageData(b.x0,b.y0,w,h);
+        if(pixels)gl.texSubImage2D(gl.TEXTURE_2D,0,b.x0,b.y0,w,h,gl.RGBA,gl.UNSIGNED_BYTE,pixels.data);coatDirty=null;
       }
       const capture=fullUpload;fullUpload=false;
       gl.clearColor(0, 0, 0, 0);

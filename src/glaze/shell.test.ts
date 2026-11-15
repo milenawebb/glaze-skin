@@ -1,18 +1,19 @@
-import { describe, expect, it } from "vitest";
-import { createShellBreak, takeShellChips, createCrackTrail, SHELL_BREAK_MS, framePressStage, MAX_FLYING_PIECES, pieceMotion, debrisPolygon, peelShell } from "./shell";
+import { describe, expect, it, vi } from "vitest";
+import { createShellBreak, takeShellChips, createCrackTrail, SHELL_BREAK_MS, framePressStage, MAX_FLYING_PIECES, pieceMotion, debrisPolygon, peelShell, cancelShellDebris } from "./shell";
 import { breakGlaze, hasGlaze } from "./glaze";
 
 describe("wax shell", () => {
   it("limits flying pieces to forty even during overlapping breaks",()=>{
-    const layer=document.createElement("div");for(let i=0;i<45;i++){const el=document.createElement("canvas");el.className="sq-shell-plate";layer.append(el);}
+    vi.useFakeTimers();cancelShellDebris();
+    const layer=document.createElement("div");document.body.append(layer);for(let i=0;i<45;i++){const el=document.createElement("canvas");el.className="sq-shell-plate";layer.append(el);}
     const image=document.createElement("canvas");image.width=20;image.height=20;
     const animate=HTMLCanvasElement.prototype.animate;
     HTMLCanvasElement.prototype.animate=()=>({onfinish:null} as Animation);
     const get=HTMLCanvasElement.prototype.getContext;
     HTMLCanvasElement.prototype.getContext=(()=>({scale(){},beginPath(){},moveTo(){},lineTo(){},closePath(){},clip(){},drawImage(){}})) as unknown as typeof get;
     Element.prototype.getAnimations??=()=>[];
-    try{peelShell(layer,image,{boundary:[],plates:[[{x:0,y:0},{x:20,y:0},{x:0,y:20}]],cracks:[],arcs:[],removed:new Set()},10,10,10);expect(MAX_FLYING_PIECES).toBe(40);expect(layer.querySelectorAll(".sq-shell-plate")).toHaveLength(40);expect(layer.querySelectorAll('[data-debris="crumb"]')).toHaveLength(8);}
-    finally{HTMLCanvasElement.prototype.animate=animate;HTMLCanvasElement.prototype.getContext=get;}
+    try{peelShell(layer,image,{boundary:[],plates:[[{x:0,y:0},{x:20,y:0},{x:0,y:20}]],cracks:[],arcs:[],removed:new Set()},10,10,10);vi.advanceTimersByTime(300);expect(MAX_FLYING_PIECES).toBe(40);expect(layer.querySelectorAll(".sq-shell-plate")).toHaveLength(40);expect(layer.querySelectorAll('[data-debris="crumb"]')).toHaveLength(8);}
+    finally{layer.remove();cancelShellDebris();vi.useRealTimers();HTMLCanvasElement.prototype.animate=animate;HTMLCanvasElement.prototype.getContext=get;}
   });
   it("gives pieces individual 0.4–1.1 second falls and thin or thick edges",()=>{
     expect(pieceMotion(false,()=>0).duration).toBe(400);expect(pieceMotion(false,()=>1).duration).toBe(1100);

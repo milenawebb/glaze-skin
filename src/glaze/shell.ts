@@ -93,7 +93,7 @@ export function peelShell(layer: HTMLElement,image:HTMLCanvasElement,shape:Shell
   if(window.matchMedia("(prefers-reduced-motion: reduce)").matches)return;
   const polygons=shape.plates.filter(poly=>poly.length>2);
   const generation=debrisGeneration;
-  const jobs:(()=>void)[]=[];
+  const jobs=debrisJobs;
   for(const poly of polygons){
     const center={x:poly.reduce((n,p)=>n+p.x,0)/poly.length,y:poly.reduce((n,p)=>n+p.y,0)/poly.length};
     const span=Math.max(Math.max(...poly.map(p=>p.x))-Math.min(...poly.map(p=>p.x)),Math.max(...poly.map(p=>p.y))-Math.min(...poly.map(p=>p.y)));
@@ -104,7 +104,9 @@ export function peelShell(layer: HTMLElement,image:HTMLCanvasElement,shape:Shell
       const crumb=i>=4,size=i===0?span*.44:i<4?span*(.1+Math.random()*.12):.35+Math.random()*2;
       let origin=center;
       if(i>0){for(let attempt=0;attempt<20;attempt++){const candidate={x:center.x+(Math.random()-.5)*span,y:center.y+(Math.random()-.5)*span};if(insideShellPolygon(candidate.x,candidate.y,poly)){origin=candidate;break;}}}
-      const fragment=debrisPolygon(origin,size,i),motion=pieceMotion(crumb);
+      const prepared=piecePool[i]?.shift();
+      const fragment=prepared?prepared.shape.map(p=>({x:origin.x+p.x*size,y:origin.y+p.y*size})):debrisPolygon(origin,size,i),motion=prepared?.motion??pieceMotion(crumb);
+      prepareShellDebris();
       const left=Math.min(...fragment.map(p=>p.x))-1,top=Math.min(...fragment.map(p=>p.y))-1;
       const w=Math.max(2,Math.max(...fragment.map(p=>p.x))-left+1),h=Math.max(2,Math.max(...fragment.map(p=>p.y))-top+1);
       const piece=document.createElement("canvas");piece.className="sq-shell-plate";piece.dataset['debris']=crumb?"crumb":i===0?"chunk":"flake";
@@ -117,10 +119,15 @@ export function peelShell(layer: HTMLElement,image:HTMLCanvasElement,shape:Shell
       });
     }
   }
-  const batch=()=>{const start=performance.now();let count=0;while(jobs.length&&count<3&&performance.now()-start<2){jobs.shift()?.();count++;}if(jobs.length&&generation===debrisGeneration)requestAnimationFrame(batch);};requestAnimationFrame(batch);
+  scheduleDebris();
 }
-let debrisGeneration=0;
-export function cancelShellDebris(){debrisGeneration++;}
+const piecePool=Array.from({length:12},()=>[] as {shape:ShellPoint[];motion:ReturnType<typeof pieceMotion>}[]);
+let preparation=0;
+export function prepareShellDebris(){if(preparation)return;preparation=requestAnimationFrame(()=>{preparation=0;const start=performance.now();for(let i=0;i<12;i++){const pool=piecePool[i];if(pool&&pool.length<8)pool.push({shape:debrisPolygon({x:0,y:0},1,i),motion:pieceMotion(i>=4)});if(performance.now()-start>1)break;}if(piecePool.some(p=>p.length<8))prepareShellDebris();});}
+let debrisGeneration=0,debrisFrame=0;
+const debrisJobs:(()=>void)[]=[];
+function scheduleDebris(){if(debrisFrame)return;debrisFrame=requestAnimationFrame(()=>{debrisFrame=0;const start=performance.now();let count=0;while(debrisJobs.length&&count<3&&performance.now()-start<2){debrisJobs.shift()?.();count++;}if(debrisJobs.length)scheduleDebris();});}
+export function cancelShellDebris(){debrisGeneration++;debrisJobs.length=0;cancelAnimationFrame(debrisFrame);debrisFrame=0;}
 /** Red holes and green fissures, rasterized only when damage changes. */
 export function paintCoating(canvas:HTMLCanvasElement,width:number,shape:ShellBreak,hole:boolean,progress=1) {
  const ctx=canvas.getContext("2d",{willReadFrequently:true});if(!ctx)return;ctx.save();ctx.scale(canvas.width/width,canvas.width/width);
