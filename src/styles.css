@@ -179,6 +179,7 @@
   .demo-tagline:has(+ .demo-intro) { margin-bottom: 8px; }
   .demo-intro { text-align: center; font-size: 16px; line-height: 1.6; color: var(--demo-text); margin: 0 auto 24px; max-width: 560px; padding-inline: 16px; }
   .demo-keys { text-align: center; font-size: 13px; color: var(--demo-text); opacity: .8; margin: 16px 0 0; }
+  .demo-credit { text-align: center; font-size: 13px; color: var(--demo-text); opacity: .7; margin: 20px auto 0; max-width: 560px; padding-inline: 16px; }
   .demo-eyebrow { text-align: center; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .14em; color: var(--demo-text); opacity: .7; margin: 0 0 6px; }
   .demo-content { max-width: 880px; margin: 96px auto 0; color: var(--demo-text); font-family: "Nunito", var(--font-display); font-weight: 400; display: grid; grid-template-columns: minmax(0, 1fr); gap: 88px; }
   .demo-content h2 { font-family: var(--font-display); font-weight: 600; font-size: 30px; margin-bottom: 24px; text-align: center; }

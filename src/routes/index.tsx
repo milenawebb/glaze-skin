@@ -76,6 +76,7 @@ function Index() {
         </Suspense>
       </ClientOnly>
       </div>
+      <p className="demo-credit">The demo video, whispers and squish sounds were all custom made for Glaze.</p>
       <DemoSections />
     </main>
   );
