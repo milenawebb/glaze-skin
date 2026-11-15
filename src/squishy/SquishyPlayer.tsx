@@ -141,7 +141,12 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
       onFocus={poke}
     >
       {!fallback && <SquishyFrame resetKey={resetKey} onFallback={() => setFallback(true)} />}
-      <div className="sq-stage">
+      <div className="sq-stage" onClickCapture={(e) => {
+        if (compact && !(e.target as Element).closest(".sq-controls button, .sq-seek")) {
+          poke();
+          e.stopPropagation();
+        }
+      }}>
         {children}
         <div className="sq-controls" data-visible={visible || undefined}>
           <JellySeek
@@ -432,7 +437,7 @@ function CaptionsPill() {
       {...handlers}
       onClick={() => store.toggleSubtitles()}
     >
-      CC
+      <span className="sq-phone-face">CC</span>
     </button>
   );
 }
@@ -489,7 +494,7 @@ function SpeedMenu() {
         {...handlers}
         onClick={() => setOpen((o) => !o)}
       >
-        {rate}×
+        <span className="sq-phone-face">{rate}×</span>
       </button>
       {open && (
         <div className="sq-menu" role="menu" aria-label="Playback speed" onKeyDown={onMenuKey}>
@@ -531,13 +536,13 @@ function FullscreenPill() {
       {...handlers}
       onClick={() => (fs ? store.exitFullscreen() : store.requestFullscreen())}
     >
-      <svg viewBox="0 0 20 20" aria-hidden="true">
+      <span className="sq-phone-face"><svg viewBox="0 0 20 20" aria-hidden="true">
         {fs ? (
           <path d="M8 3v5H3M12 3v5h5M8 17v-5H3M12 17v-5h5" />
         ) : (
           <path d="M3 8V3h5M17 8V3h-5M3 12v5h5M17 12v5h-5" />
         )}
-      </svg>
+      </svg></span>
     </button>
   );
 }

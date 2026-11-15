@@ -2,7 +2,7 @@ import { FRAME } from "./frame-gl";
 
 export function frameInsets(width: number) {
   const small = width < 480;
-  return { l: small ? 22 : FRAME.side, t: small ? 22 : FRAME.top, r: small ? 22 : FRAME.side, b: small ? 120 : FRAME.bottom };
+  return { l: small ? 14 : FRAME.side, t: small ? 14 : FRAME.top, r: small ? 14 : FRAME.side, b: small ? 110 : FRAME.bottom };
 }
 
 export function pressureScale(event: Pick<PointerEvent, "pointerType" | "pressure">): number | null {

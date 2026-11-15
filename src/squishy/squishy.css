@@ -19,6 +19,10 @@
   --sq-rise: 1.5s cubic-bezier(0.22, 0.7, 0.25, 1);
   --sq-press: 0.12s cubic-bezier(0.3, 0, 0.4, 1);
   --sq-font: "Fredoka", ui-rounded, "Nunito", system-ui, sans-serif;
+  --sq-pill-surface: radial-gradient(120% 90% at 30% 20%, #fff 0, var(--sq-cream) 45%, #ffe3ef 100%);
+  --sq-pill-shadow: inset 0 2px 3px #fff, inset 0 -3px 5px rgb(220 140 180 / 0.35), 0 2px 5px rgb(60 20 40 / 0.25);
+  --sq-video-text: #fff7fb;
+  --sq-video-text-shadow: 0 1px 3px #1d1220;
 
   position: relative;
   display: block;
@@ -39,7 +43,7 @@
 .sq-root *::before,
 .sq-root *::after { box-sizing: border-box; }
 
-.sq-root[data-compact] { padding: 22px 22px 120px; }
+.sq-root[data-compact] { padding: 14px 14px 110px; }
 
 .sq-canvas {
   position: absolute;
@@ -129,9 +133,10 @@
   font-weight: 600;
   font-size: 14px;
   color: var(--sq-ink);
-  background: radial-gradient(120% 90% at 30% 20%, #fff 0, var(--sq-cream) 45%, #ffe3ef 100%);
-  box-shadow: inset 0 2px 3px #fff, inset 0 -3px 5px rgb(220 140 180 / 0.35), 0 2px 5px rgb(60 20 40 / 0.25);
+  background: var(--sq-pill-surface);
+  box-shadow: var(--sq-pill-shadow);
 }
+.sq-phone-face { display: contents; }
 .sq-btn[aria-pressed="true"] { background: radial-gradient(120% 90% at 30% 20%, #fff 0, var(--sq-mint) 70%); }
 .sq-time { font-variant-numeric: tabular-nums; font-size: 13px; }
 .sq-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
@@ -217,11 +222,13 @@
 .sq-menu-item[aria-checked="true"] { background: var(--sq-mint); }
 
 /* Squish press: dent + squash, driven by --sq-s from squish.ts */
-.sq-squish-body {
+.sq-squish-body,
+.sq-root[data-compact] .sq-phone-face {
   transform-origin: 50% 100%;
   transform: scale(calc(var(--lx) * (1 + 0.06 * var(--sq-s))), calc(var(--ly) * (1 - 0.08 * var(--sq-s))));
 }
-.sq-squish-body::after {
+.sq-squish-body::after,
+.sq-root[data-compact] .sq-phone-face::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -270,14 +277,35 @@
   .sq-row { gap: 4px; }
 }
 
-/* Two stable rows leave the narrow video free of overlapping controls. */
-.sq-root[data-compact] .sq-controls { padding: 0 6px 2px; gap: 0; }
-.sq-root[data-compact] .sq-tube { height: 44px; }
-.sq-root[data-compact] .sq-row { display: grid; grid-template-columns: 60px minmax(44px, 1fr) minmax(44px, 1fr) 52px; gap: 0; }
+/* Phone-only positions reuse the same controls and their press/crust state. */
+.sq-root[data-compact] .sq-controls { inset: 0; padding: 0; display: block; pointer-events: none; }
+.sq-root[data-compact] .sq-controls button,
+.sq-root[data-compact] .sq-controls .sq-seek { pointer-events: auto; }
+.sq-root[data-compact] .sq-controls:not([data-visible]):not(:focus-within) button,
+.sq-root[data-compact] .sq-controls:not([data-visible]):not(:focus-within) .sq-seek { pointer-events: none; }
+:root[data-sq-pointer] .sq-root[data-compact] .sq-controls:not([data-visible]) { opacity: 0; pointer-events: none; }
+:root[data-sq-pointer] .sq-root[data-compact] .sq-controls:not([data-visible]) button,
+:root[data-sq-pointer] .sq-root[data-compact] .sq-controls:not([data-visible]) .sq-seek { pointer-events: none; }
+.sq-root[data-compact] .sq-row { display: contents; }
 .sq-root[data-compact] .sq-spacer { display: none; }
-.sq-root[data-compact] .sq-time { grid-column: span 2; padding-inline: 4px; white-space: nowrap; }
-.sq-root[data-compact] .sq-row > .sq-btn:nth-last-child(3) { grid-column: 2; }
-.sq-root[data-compact] .sq-pill { min-height: 44px; min-width: 44px; }
+.sq-root[data-compact] .sq-bun { position: absolute; left: 50%; top: 50%; translate: -50% -50%; width: 56px; height: 56px; min-height: 56px; place-items: center; }
+.sq-root[data-compact] .sq-speed { position: absolute; right: 94px; top: 0; width: 44px; height: 44px; }
+.sq-root[data-compact] .sq-row > .sq-btn:not(.sq-icon) { position: absolute; right: 50px; top: 0; }
+.sq-root[data-compact] .sq-ball { position: absolute; right: 6px; top: 0; width: 44px; height: 44px; }
+.sq-root[data-compact] .sq-ball-body { width: 32px; height: 32px; }
+.sq-root[data-compact] .sq-ball-num { font-size: 13px; }
+.sq-root[data-compact] .sq-pill.sq-btn { width: 44px; height: 44px; min-height: 44px; min-width: 44px; padding: 6px; background: none; box-shadow: none; transform: none; }
+.sq-root[data-compact] .sq-pill.sq-btn::after { display: none; }
+.sq-root[data-compact] .sq-phone-face { display: grid; place-items: center; position: relative; width: 32px; height: 32px; border-radius: inherit; background: var(--sq-pill-surface); box-shadow: var(--sq-pill-shadow); font-size: 12px; }
+.sq-root[data-compact] .sq-btn[aria-pressed="true"] .sq-phone-face { background: var(--sq-mint); }
+.sq-root[data-compact] .sq-time { position: absolute; left: 8px; bottom: 0; width: 68px; height: 44px; min-height: 44px; min-width: 0; padding: 0; font-size: 10px; white-space: nowrap; background: none; box-shadow: none; color: var(--sq-video-text); text-shadow: var(--sq-video-text-shadow); }
+.sq-root[data-compact] .sq-seek { position: absolute; left: 84px; right: 56px; bottom: 0; }
+.sq-root[data-compact] .sq-tube { height: 44px; }
+.sq-root[data-compact] .sq-tube-track { height: 8px; }
+.sq-root[data-compact] .sq-bead { width: 16px; height: 16px; }
+.sq-root[data-compact] .sq-row > .sq-icon { position: absolute; right: 6px; bottom: 0; }
+.sq-root[data-compact] .sq-menu { top: 44px; bottom: auto; right: -88px; width: 204px; display: grid; grid-template-columns: repeat(4, 1fr); padding: 2px; gap: 2px; }
+.sq-root[data-compact] .sq-menu-item { padding-inline: 2px; font-size: 12px; }
 .sq-root[data-compact] .sq-menu-item { min-height: 44px; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -294,6 +322,7 @@
   .sq-eye, .sq-ball-num { background: ButtonText; color: ButtonText; }
   .sq-ball-num { background: none; }
   .sq-btn[aria-pressed="true"], .sq-menu-item[aria-checked="true"] { background: Highlight; color: HighlightText; }
+  .sq-root[data-compact] .sq-phone-face { background: ButtonFace; color: ButtonText; border: 2px solid ButtonText; box-shadow: none; }
   :root:not([data-sq-pointer]) .sq-root :focus-visible,
   :root:not([data-sq-pointer]) .sq-root:focus-visible { outline-color: Highlight; }
 }

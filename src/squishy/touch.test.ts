@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { dentDepth, dentRadius, frameInsets, pressureScale } from "./touch";
 
 describe("phone and tablet frame rules", () => {
-  it("uses 22px sides and top and a 120px bottom below 480px", () => {
-    expect(frameInsets(479)).toEqual({ l: 22, t: 22, r: 22, b: 120 });
+  it("uses 14px sides and top and a 110px bottom below 480px", () => {
+    expect(frameInsets(479)).toEqual({ l: 14, t: 14, r: 14, b: 110 });
     expect(frameInsets(480)).toEqual({ l: 30, t: 30, r: 30, b: 96 });
   });
   it("maps real touch and pen pressure to 0.6x through 1.6x", () => {
