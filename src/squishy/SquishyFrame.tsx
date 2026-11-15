@@ -6,6 +6,7 @@ import { dentDepth, dentRadius, faceExpression, frameInsets, pressureScale } fro
 
 import { breakGlaze, hasGlaze } from "./glaze";
 import { crackFrameGlaze } from "./crust";
+import { createShellBreak, peelShell, SHELL_BREAK_MS, type ShellPoint } from "./shell";
 
 const RESET_MS = 1500;
 
@@ -33,7 +34,7 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
     let size = { w: 1, h: 1 };
     let raf = 0;
     let released = -1000;
-    const breaks: { x: number; y: number; radius: number; start: number; duration: number }[] = [];
+    const breaks: { x: number; y: number; radius: number; start: number; duration: number; boundary: ShellPoint[] }[] = [];
 
     const loop = (now: number) => {
       raf = 0;
@@ -51,11 +52,13 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
         const b = breaks[i];
         if (!b) continue;
         const t = Math.min(1, (now - b.start) / b.duration);
-        breakGlaze(r, b.x, b.y, b.radius, t);
+        breakGlaze(r, b.x, b.y, b.radius, Math.min(1, t / .35), b.boundary);
         if (t === 1) breaks.splice(i, 1);
       }
       const rs = resetRef.current;
       if (rs) {
+        breaks.length = 0;
+        canvas.parentElement?.querySelectorAll(".sq-shell-plate").forEach(piece => piece.remove());
         const t = Math.min(1, (now - rs.start) / RESET_MS);
         const k = 1 - (1 - Math.pow(1 - t, 3));
         for (let i = 0; i < r.dent.length; i++) {
@@ -95,7 +98,13 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
       if (!hasGlaze(r, x, y) || breaks.some(b => Math.hypot(x - b.x, y - b.y) < b.radius * .8)) return;
       const radius = dentRadius(pointerType) * 2.1;
       const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      breaks.push({ x, y, radius, start: performance.now(), duration: reduce ? 200 : 400 });
+      const shape = createShellBreak(x, y, radius);
+      if (reduce) breakGlaze(r, x, y, radius, 1, shape.boundary);
+      else {
+        const layer = canvas.parentElement?.querySelector<HTMLElement>(".sq-flakes");
+        if (layer) peelShell(layer, r.snapshot(x, y, radius), shape, x, y, radius);
+        breaks.push({ x, y, radius, start: performance.now(), duration: SHELL_BREAK_MS, boundary: shape.boundary });
+      }
       if (dragging) playCrunch();
       crackFrameGlaze(canvas, x, y, radius, !dragging);
     };

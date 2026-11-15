@@ -15,7 +15,11 @@ precision highp float;
 precision mediump float;
 #endif
 uniform vec2 uRes; uniform vec4 uIns; uniform float uRo; uniform float uRi;
-uniform sampler2D uDent; uniform sampler2D uGlaze; uniform float uFace; varying vec2 vUv;
+uniform sampler2D uDent; uniform sampler2D uGlaze; uniform float uFace;
+uniform vec3 uWaxBlue; uniform vec3 uWaxMilk; uniform vec3 uWaxYellow;
+uniform vec3 uFoam; uniform vec3 uPore; uniform vec3 uSprinklePink;
+uniform vec3 uSprinkleRed; uniform vec3 uSprinkleGreen;
+varying vec2 vUv;
 float sdRR(vec2 p, vec2 c, vec2 hs, float r){ vec2 q=abs(p-c)-hs+r; return length(max(q,0.))+min(max(q.x,q.y),0.)-r; }
 float sdO(vec2 p){ return sdRR(p, uRes*.5, uRes*.5, uRo); }
 float sdI(vec2 p){ vec2 a=uIns.xy; vec2 b=uRes-uIns.zw; return sdRR(p,(a+b)*.5,(b-a)*.5,uRi); }
@@ -30,29 +34,49 @@ float dent(vec2 p){
   s+=(dent0(p+vec2(2.5,2.5))+dent0(p-vec2(2.5,2.5))+dent0(p+vec2(2.5,-2.5))+dent0(p-vec2(2.5,-2.5)))*.0625;
   return s;
 }
-float H(vec2 p){ float amp; float pr=prof(p,amp); return 24.*amp*pr*(1.-0.8*dent(p)); }
+float broken(vec2 p){ return texture2D(uGlaze,p/uRes).r; }
+float H(vec2 p){ float amp; float pr=prof(p,amp); return 24.*amp*pr*(1.-0.8*dent(p))-3.5*broken(p); }
 float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
 float noise(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.-2.*f);
   return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),mix(hash(i+vec2(0.,1.)),hash(i+1.),f.x),f.y); }
-float fbm(vec2 p){ float v=0.,a=.5; for(int i=0;i<5;i++){ v+=a*noise(p); p=p*2.03+17.; a*=.5; } return v; }
-vec3 pick(float k){
-  if(k<.5) return vec3(1.,.93,.62);      // yellow
-  if(k<1.5) return vec3(1.,.74,.84);     // pink
-  if(k<2.5) return vec3(.70,.95,.84);    // mint
-  if(k<3.5) return vec3(.82,.76,1.);     // lilac
-  if(k<4.5) return vec3(1.,.80,.66);     // peach
-  return vec3(1.,.98,.97);               // white
+// Broad clouds blend without turbulent marble streaks.
+vec3 wax(vec2 p){
+  float blue=smoothstep(.18,.85,noise(p/155.+vec2(3.,7.)));
+  float yellow=smoothstep(.3,.85,noise(p/190.+vec2(11.,2.)));
+  return mix(mix(uWaxMilk,uWaxBlue,blue*.78),uWaxYellow,yellow*.68);
 }
-vec3 marble(vec2 p){
-  vec2 q=p/170.; vec2 w=vec2(fbm(q),fbm(q+5.2));
-  float m=fbm(q+2.6*w+vec2(1.7,9.2));
-  float x=mod(m*4.5+w.x*2.,6.); float k=floor(x); float t=fract(x);
-  t=t*t*(3.-2.*t);
-  vec3 c=mix(pick(k),pick(mod(k+1.,6.)),t);
-  float cloud=fbm(q*1.7+w*1.3);
-  c=mix(c,vec3(1.,.99,.98),smoothstep(.45,.8,cloud)*.45);
-  c+=(hash(floor(p))-.5)*.018;
-  return c;
+float pores(vec2 p){
+  vec2 cell=floor(p), f=fract(p); float nearest=2.;
+  for(int y=-1;y<=1;y++) for(int x=-1;x<=1;x++){
+    vec2 g=vec2(float(x),float(y));
+    vec2 seed=vec2(hash(cell+g),hash(cell+g+19.3));
+    nearest=min(nearest,length(g+seed-f));
+  }
+  return 1.-smoothstep(.07,.28,nearest);
+}
+vec3 sprinkleColor(float k){
+  if(k<1.) return uSprinklePink;
+  if(k<2.) return uWaxYellow;
+  if(k<3.) return uWaxBlue;
+  if(k<4.) return uSprinkleRed;
+  return uSprinkleGreen;
+}
+vec3 sprinkles(vec2 p,vec3 col,float coat){
+  vec2 cell=floor(p/24.); float seed=hash(cell);
+  vec2 center=(cell+.25+.5*vec2(hash(cell+8.2),hash(cell+21.7)))*24.;
+  vec2 q=p-center; float angle=seed*6.283;
+  vec2 axis=vec2(cos(angle),sin(angle));
+  float rod=length(q-axis*clamp(dot(q,axis),-3.,3.));
+  vec2 shadowQ=q-vec2(1.1,1.5);
+  float shadow=length(shadowQ-axis*clamp(dot(shadowQ,axis),-3.,3.));
+  float show=step(.35,seed)*coat;
+  vec2 faceCenter=vec2(uRes.x*.5,uRes.y-uIns.w*.5);
+  show*=smoothstep(32.,43.,length((p-faceCenter)/vec2(1.,.55)));
+  col*=1.-(1.-smoothstep(1.,3.,shadow))*.18*show;
+  float coverage=(1.-smoothstep(1.1,1.7,rod))*show;
+  vec3 color=sprinkleColor(floor(hash(cell+2.1)*5.));
+  color=mix(color,uWaxMilk,.24*(1.-smoothstep(0.,1.5,rod)));
+  return mix(col,color,coverage);
 }
 float segment(vec2 p, vec2 a, vec2 b){
   vec2 v=b-a; return length(p-a-v*clamp(dot(p-a,v)/dot(v,v),0.,1.));
@@ -87,31 +111,34 @@ void main(){
   vec3 V=vec3(0.,0.,1.);
   float d=dent(p);
   float amp; float pr=prof(p,amp);
-  vec3 col=face(p,marble(p));
-  // pressed material: darker and more saturated
+  float hole=broken(p); float coat=1.-hole;
+  float neighboring=(broken(p+vec2(4.,0.))+broken(p-vec2(4.,0.))+broken(p+vec2(0.,4.))+broken(p-vec2(0.,4.)))*.25;
+  float cut=coat*smoothstep(.02,.32,neighboring);
+  float under=hole*smoothstep(.02,.5,1.-neighboring);
+  float pore=pores(p/2.2);
+  float fiber=noise(p*vec2(1.8,.5));
+  vec3 foam=mix(uFoam,uPore,pore*.38)+(fiber-.5)*.035;
+  vec3 shell=wax(p);
+  // Pale 3–4px cut edges glow softly and cast a shadow on exposed foam.
+  shell=mix(shell,uWaxMilk,cut*.65);
+  vec3 col=mix(shell,foam,hole);
   float lum=dot(col,vec3(.299,.587,.114));
-  col=mix(vec3(lum),col,1.+.45*d)*(1.-.08*d);
-  float diff=clamp(dot(N,L)*.5+.55,0.,1.);
-  // soft shadow inside dents (rim toward the light occludes)
+  col=mix(vec3(lum),col,1.+.3*d)*(1.-.07*d);
+  float diff=clamp(dot(N,L)*.38+.67,0.,1.);
   float dl=dent(p+vec2(-.55,-.65)*9.);
-  float sh=clamp((d-dl)*1.4,0.,1.)*.28 + d*.04;
-  float inner=1.-smoothstep(0.,10.,si);
-  sh=clamp(sh+inner*.22,0.,.6);
-  vec3 Hh=normalize(L+V);
-  float nh=max(dot(N,Hh),0.);
-  float coat=1.-texture2D(uGlaze,p/uRes).r;
-  float spec=pow(nh,10.)*.12;
-  // Sharp sugar-glass reflections follow the dented surface normal.
-  spec+=coat*(pow(nh,180.)*.85+pow(nh,45.)*.22);
-  float streak=pow(max(0.,1.-abs(N.x*.65+N.y*.76+.24)*14.),12.);
-  spec+=coat*streak*.32;
+  float sh=clamp((d-dl)*1.4,0.,1.)*.24+d*.04;
+  sh+=(1.-smoothstep(0.,10.,si))*.2+under*.2;
+  float nh=max(dot(N,normalize(L+V)),0.);
+  // Broad satin reflection under a restrained clear-coat sheen, never foam shine.
+  float spec=coat*(pow(nh,8.)*.17+pow(nh,95.)*.2);
   float rim=clamp(dot(N.xy,vec2(.55,.65)),0.,1.);
-  sh=clamp(sh+rim*.22,0.,.6);
-  // translucent jelly glow: thinner areas let more light through
+  sh=clamp(sh+rim*.18,0.,.6);
   float thin=1.-pr*amp;
-  vec3 glow=col*vec3(1.05,1.,.95)*(.16*thin+.1*pow(1.-max(dot(N,V),0.),2.));
-  vec3 c=col*diff*(1.-sh)+glow+vec3(1.)*spec;
-  c+=col*.06;
+  vec3 glow=mix(shell,uWaxYellow,.15)*coat*(.11*thin+.065*cut);
+  vec3 c=col*diff*(1.-sh)+glow+uWaxMilk*spec+col*.065;
+  c=sprinkles(p,c,coat);
+  // Face paint is carried by whichever layer remains, so peeling cannot erase it.
+  c=face(p,c);
   float alpha=a*(.9+.08*pr);
   gl_FragColor=vec4(c*alpha,alpha);
 }`;
@@ -119,6 +146,7 @@ void main(){
 export interface FrameRenderer {
   resize(w: number, h: number, insets: { l: number; t: number; r: number; b: number }): void;
   render(): void;
+  snapshot(x: number, y: number, radius: number): HTMLCanvasElement;
   dent: Float32Array;
   glaze: Float32Array;
   dw: number;
@@ -182,6 +210,11 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const palette = [
+    ["uWaxBlue", "--sq-wax-blue"], ["uWaxMilk", "--sq-wax-milk"], ["uWaxYellow", "--sq-wax-yellow"],
+    ["uFoam", "--sq-foam"], ["uPore", "--sq-foam-pore"], ["uSprinklePink", "--sq-sprinkle-pink"],
+    ["uSprinkleRed", "--sq-sprinkle-red"], ["uSprinkleGreen", "--sq-sprinkle-green"],
+  ];
   let glazeBytes = new Uint8Array(0);
   let bytes = new Uint8Array(0);
   const r: FrameRenderer = {
@@ -191,6 +224,14 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
     dh: 0,
     face: 0,
     resize(w, h, ins) {
+      const css = getComputedStyle(canvas);
+      for (const pair of palette) {
+        const name = pair[0], token = pair[1];
+        if (!name || !token) continue;
+        const value = css.getPropertyValue(token).trim().replace("#", "");
+        const color = Number.parseInt(value, 16);
+        gl.uniform3f(u(name), ((color >> 16) & 255) / 255, ((color >> 8) & 255) / 255, (color & 255) / 255);
+      }
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       canvas.width = Math.max(1, Math.round(w * dpr));
       canvas.height = Math.max(1, Math.round(h * dpr));
@@ -239,6 +280,16 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    },
+    snapshot(x, y, radius) {
+      r.render();
+      const image = document.createElement("canvas");
+      // Local fragments are tiny textured quads; avoid full-frame canvas clones.
+      image.width = Math.ceil(radius * 4); image.height = image.width;
+      const context = image.getContext("2d");
+      const scale = canvas.width / canvas.getBoundingClientRect().width;
+      context?.drawImage(canvas, (x - radius) * scale, (y - radius) * scale, radius * 2 * scale, radius * 2 * scale, 0, 0, image.width, image.height);
+      return image;
     },
     destroy() {
       gl.deleteTexture(tex);

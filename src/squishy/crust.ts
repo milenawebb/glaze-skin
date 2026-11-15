@@ -113,50 +113,10 @@ function glassShards(layer: HTMLElement, x: number, y: number, radius: number, c
   }
 }
 
-/** One local glass crack on the ring; coating removal is driven by its independent map. */
-export function crackFrameGlaze(canvas: HTMLCanvasElement, x: number, y: number, radius: number, sound = true) {
+/** Frame visuals are textured wax plates; retain the existing sound/haptic timing. */
+export function crackFrameGlaze(_canvas: HTMLCanvasElement, _x: number, _y: number, _radius: number, sound = true) {
   if (sound) playCrack();
   vibrateCrack();
   if (prefersReducedMotion()) return;
-  const parent = canvas.parentElement;
-  const layer = parent?.querySelector<HTMLElement>(".sq-flakes");
-  if (!parent || !layer) return;
-  const svg = document.createElementNS(SVG, "svg");
-  svg.setAttribute("class", "sq-cracks sq-frame-cracks");
-  svg.setAttribute("viewBox", `0 0 ${canvas.clientWidth} ${canvas.clientHeight}`);
-  // Clip to the same rounded ring so a crack never crosses the video or outer edge.
-  const css = getComputedStyle(parent);
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  const l = parseFloat(css.paddingLeft), t = parseFloat(css.paddingTop);
-  const iw = w - l - parseFloat(css.paddingRight), ih = h - t - parseFloat(css.paddingBottom);
-  const id = `sq-glass-${Math.random().toString(36).slice(2)}`;
-  const defs = document.createElementNS(SVG, "defs");
-  const mask = document.createElementNS(SVG, "mask");
-  mask.id = id;
-  const outer = document.createElementNS(SVG, "rect");
-  for (const [key, value] of Object.entries({ width: w, height: h, rx: 46, fill: "white" })) outer.setAttribute(key, String(value));
-  const inner = document.createElementNS(SVG, "rect");
-  for (const [key, value] of Object.entries({ x: l, y: t, width: iw, height: ih, rx: 16, fill: "black" })) inner.setAttribute(key, String(value));
-  mask.append(outer, inner); defs.appendChild(mask); svg.appendChild(defs);
-  const group = document.createElementNS(SVG, "g"); group.setAttribute("mask", `url(#${id})`); svg.appendChild(group);
-  const count = 6 + Math.floor(Math.random() * 5);
-  for (let i = 0; i < count; i++) {
-    const angle = i * Math.PI * 2 / count + (Math.random() - .5) * .3;
-    const line = document.createElementNS(SVG, "polyline");
-    const points = [`${x},${y}`];
-    for (let j = 1; j <= 4; j++) {
-      const a = angle + (Math.random() - .5) * .24;
-      points.push(`${x + Math.cos(a) * radius * j / 4},${y + Math.sin(a) * radius * j / 4}`);
-    }
-    line.setAttribute("points", points.join(" ")); line.setAttribute("pathLength", "1");
-    group.appendChild(line);
-    line.animate([{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: 280, fill: "forwards" });
-  }
-  layer.appendChild(svg);
-  window.setTimeout(() => {
-    vibrateBreak();
-    glassShards(layer, x, y, radius * .35, 18, 280);
-    const anim = svg.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: "forwards" });
-    anim.onfinish = () => svg.remove();
-  }, 280);
+  window.setTimeout(() => vibrateBreak(), 280);
 }

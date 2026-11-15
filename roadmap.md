@@ -1,3 +1,5 @@
+- [x] Replace frame material with satin pastel wax, raised sprinkles and porous pink foam.
+- [x] Add thick Voronoi shell plates, persistent broken edges and gradual re-coating; verify dents, Reset, playback, phone layout and reduced motion in Chromium with 30 passing tests. Physical-phone frame rate remains unverified.
 - [x] Rework wider controls into one row with upward glass volume/speed popups; preserve phones.
 - [x] Verify popup dismissal, 300ms delay, idle/focus visibility, injected caption placement, playback/volume/glaze/Reset and phone layout in Chromium; physical tablet and native caption styling remain unverified.
 - [x] Replace synthesized press/glaze sounds with the ten recordings and keep the generated release pop.

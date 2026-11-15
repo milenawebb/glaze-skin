@@ -40,5 +40,5 @@ use the editor.
 - Render the bottom-band face in the frame shader using the same dent map and lighting, so permanent dents deform rather than erase it; animate its expression independently of the dent reset.
 - Keep the playback-speed tap cycle in controls.ts with a concrete behavior test so the button and its sequence stay aligned.
 - Wider controls use one shared row and local upward popup state; phones retain tap-cycling speed and native captions, while wider captions mirror active native cues for animated row clearance.
-- Store broken frame glaze in its own height-map-sized texture, independent of dents, so local matte patches and Reset never erase the face or alter squishing.
+- Store broken frame shell in its own height-map-sized texture, independent of dents; shade wax, foam and sprinkles in the frame shader and peel local Voronoi polygons as snapshot-textured canvas quads so Reset and face paint remain independent.
 <!-- AGENT-MEMORY:END -->
