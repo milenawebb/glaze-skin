@@ -57,4 +57,6 @@ use the editor.
 - Control activity listeners belong on the video stage, never the frame container; player leave clears activity while paused state and stage keyboard focus retain visibility.
 - Phone video taps toggle controls on touch/pen pointerup, not click/down; ignore implicit touch leave so Safari cannot immediately undo the tap, and keep hidden rows non-interactive.
 - Compact flavor choices open horizontally beside the existing toggle in the bottom band above other player layers; demo-only preview tabs use viewport visibility independently of the skin's width.
+- Dent rise-back is shader-driven (rise map plus riseK uniform, baked once per press/finish); phones use half-size height and coating maps and restore from retained maps after WebGL context loss.
+- Phone frame tools sit in one glass row below the frame via .sq-frame-tools (display: contents on wider players), keeping the squishy band free.
 <!-- AGENT-MEMORY:END -->
