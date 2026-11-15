@@ -61,6 +61,16 @@ it("renders only one caption language from active cues", () => {
     { mode: "hidden", kind: "subtitles", activeCues: [{ text: "Bonjour" }] },
   ], true)).toBe("Hello");
 });
+it("prefers the real captions track over a generated subtitles track", () => {
+  expect(overlayCaptionText([
+    { mode: "hidden", kind: "subtitles", activeCues: [{ text: "Generated" }] },
+    { mode: "hidden", kind: "captions", activeCues: [{ text: "Real" }] },
+  ], true)).toBe("Real");
+  expect(overlayCaptionText([
+    { mode: "hidden", kind: "subtitles", activeCues: [{ text: "Generated" }] },
+    { mode: "hidden", kind: "captions", activeCues: [] },
+  ], true)).toBe("Generated");
+});
 it("CC off hides the overlay while native tracks remain hidden", () => {
   const track = { mode: "showing" as TextTrackMode, kind: "captions", activeCues: [{ text: "Hello" }] };
   expect(overlayCaptionText([track], false)).toBe("");

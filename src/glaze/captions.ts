@@ -23,7 +23,7 @@ export function observeCaptionCues(video: HTMLVideoElement, engine: () => Captio
   let signature = "";
   const update = () => {
     const tracks = Array.from(video.textTracks);
-    const active = tracks.find((track) => track.kind === "captions" || track.kind === "subtitles");
+    const active = tracks.find((track) => track.kind === "captions") ?? tracks.find((track) => track.kind === "subtitles");
     loadHiddenCaptionTrack(active, engine());
     render(overlayCaptionText(video.textTracks, enabled));
     const next = JSON.stringify(tracks.map((track) => ({ kind: track.kind, label: track.label, language: track.language, mode: track.mode })));
