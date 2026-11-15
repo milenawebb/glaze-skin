@@ -15,7 +15,7 @@ import { settledResize } from "./resize";
 import { fingerPad, fingerDepth, stampFingertip, type FingerPad } from "./fingertip";
 import type { GlazeColor } from "./preferences";
 import { DEFAULT_GLAZE_STYLE, monoStyleAmount, type GlazeStyle } from "./glaze-style";
-import { region, resetAmount, RESET_MS, union, type Region } from "./regions";
+import { region, resetAmount, resetDuration, REDUCED_FADE_MS, union, type Region } from "./regions";
 
 interface Press { crackedOnDown:boolean; pad:FingerPad; before:Float32Array; x: number; y: number; origin: {x:number;y:number}; dragging:boolean; pointerType:string; exposed:ShellBreak[]; initialFoam:boolean; start: number; radius: number; pressure: number | null; sound: ((depth: number) => void) | undefined; foam: boolean; spots: {x:number;y:number}[]; flakeDistance:number }
 
@@ -26,7 +26,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
   const rendererRef = useRef<FrameRenderer | null>(null);
   const kick = useRef<() => void>(() => {});
   const clearTransient = useRef<() => void>(() => {});
-  const resetRef = useRef<{ start: number } | null>(null);
+  const resetRef = useRef<{ start: number; reduced: boolean } | null>(null);
   const damageRef = useRef<{ shape: ShellBreak; hole: boolean; progress: number }[]>([]);
   const [ready, setReady] = useState(false);
   useEffect(() => { const renderer = rendererRef.current; if (renderer) { renderer.mono = monoStyleAmount(glazeStyle); renderer.updatePalette(); kick.current(); } }, [color, glazeStyle, ready]);
@@ -49,6 +49,11 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     let released = -1000;
     const breaks: { x: number; y: number; radius: number; start: number; duration: number; shape: ShellBreak }[] = [];
 
+    // Live reduced-motion setting; updates without reload.
+    const motion=window.matchMedia("(prefers-reduced-motion: reduce)");
+    let reduced=motion.matches;
+    const onMotion=()=>{reduced=motion.matches;};
+    motion.addEventListener("change",onMotion);
     const cracked: { x:number; y:number; radius:number; shape:ShellBreak; removed:boolean; start:number; drawn:boolean }[]=[];
     let protectedCache:{x:number;y:number;w:number;h:number}[]=[];
     const refreshProtected = () => {
@@ -103,8 +108,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       refreshProtected();
       const deadline=performance.now()+6;
       while(pending.length&&performance.now()<deadline){const event=pending.shift();if(event)processEvent(event);if(event?.type==="pointermove")break;}
-      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      r.face = faceExpression(presses.size, now - released, reduce);
+      r.face = faceExpression(presses.size, now - released, reduced);
       // Only a uniform changes while dents rise; the maps are baked once at the end.
       if(rise){if(now-rise.start>=rise.duration)bakeRise(now,true);else r.riseK=riseK(now);}
       for(const c of cracked) if(!c.removed && !c.drawn){
@@ -133,8 +137,8 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       const rs = resetRef.current;
       if (rs) {
         breaks.length = 0; cracked.length=0;
-        r.resetAmount=resetAmount(now-rs.start);
-        if(now-rs.start>=RESET_MS){
+        r.resetAmount=resetAmount(now-rs.start,rs.reduced);
+        if(now-rs.start>=resetDuration(rs.reduced)){
           r.dent.fill(0);r.rise.fill(0);r.dirtyRise(region(r.dw,r.dh,0,0,r.dw-1,r.dh-1));r.glaze.fill(0);r.coating.getContext("2d")?.clearRect(0,0,r.coating.width,r.coating.height);
           r.dirtyHeight(region(r.dw,r.dh,0,0,r.dw-1,r.dh-1));r.dirtyCoating(0,0,size.w,size.h);
           resetRef.current=null;damage.length=0;holeBins.clear();r.resetAmount=1;
@@ -205,10 +209,10 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
           return false;
         });
         if(!plates.length)return "cracked";
-        const reduce=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         for(const poly of plates){
           const shape={...pixelShape,boundary:poly,plates:[poly]};
-          if(reduce){breakGlaze(r,existing.x*size.w,existing.y*size.h,existing.radius*size.w,1,poly);paint(shape,true);}
+          // Reduced motion: the piece fades away in place over ~200ms (the fade spans the first 35% of a break).
+          if(reduced)breaks.push({x:existing.x,y:existing.y,radius:existing.radius,start:performance.now(),duration:REDUCED_FADE_MS/.35,shape:mapShell(shape,1/size.w,1/size.h)});
           else {
           const layer=canvas.parentElement?.querySelector<HTMLElement>(".sq-flakes");
           if(layer)peelShell(layer,r.snapshot(existing.x*size.w,existing.y*size.h,existing.radius*size.w),shape,existing.x*size.w,existing.y*size.h,existing.radius*size.w);
@@ -274,7 +278,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
           const glazed=!p.exposed.some(shape=>insideShellPolygon(point.x/size.w,point.y/size.h,shape.boundary));
           if(glazed){
             p.sound=undefined;playCrunch();p.flakeDistance+=distance/samples;
-            if(p.flakeDistance>=(coarsePointer()?30:12)&&!window.matchMedia("(prefers-reduced-motion: reduce)").matches){
+            if(p.flakeDistance>=(coarsePointer()?30:12)&&!reduced){
               const layer=canvas.parentElement?.querySelector<HTMLElement>(".sq-flakes");
               const chips=shape.boundary.filter(v=>intact(v.x,v.y)).slice(0,3).map(v=>{
                 const dx=v.x-point.x,dy=v.y-point.y,length=Math.hypot(dx,dy)||1;
@@ -356,6 +360,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       ro.disconnect();
       resizeJob.cancel();
       cancelAnimationFrame(raf);
+      motion.removeEventListener("change", onMotion);
       canvas.removeEventListener("keydown", key);
       canvas.removeEventListener("pointerdown", queue);
       canvas.removeEventListener("pointermove", queue);
@@ -371,19 +376,8 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
   useEffect(() => {
     const r = rendererRef.current;
     if (!r || resetKey === 0) return;
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) {
-      clearTransient.current();
-      r.dent.fill(0);
-      r.rise.fill(0);r.dirtyRise(region(r.dw,r.dh,0,0,r.dw-1,r.dh-1));
-      r.glaze.fill(0);
-      r.coating.getContext("2d")?.clearRect(0,0,r.coating.width,r.coating.height);
-      r.dirtyHeight(region(r.dw,r.dh,0,0,r.dw-1,r.dh-1));r.dirtyCoating(0,0,r.width,r.height);r.resetAmount=1;
-      resetRef.current = null;
-    } else {
-      clearTransient.current();
-      resetRef.current = { start: performance.now() };
-    }
+    clearTransient.current();
+    resetRef.current = { start: performance.now(), reduced: window.matchMedia("(prefers-reduced-motion: reduce)").matches };
     kick.current();
   }, [resetKey]);
 
