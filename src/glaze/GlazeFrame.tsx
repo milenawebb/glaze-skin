@@ -17,6 +17,9 @@ import type { GlazeColor } from "./preferences";
 import { DEFAULT_GLAZE_STYLE, monoStyleAmount, type GlazeStyle } from "./glaze-style";
 import { region, resetAmount, resetDuration, REDUCED_FADE_MS, union, type Region } from "./regions";
 
+/** Same rounded corners as the video stage, so no layer gets a square box. */
+function insideRounded(x:number,y:number,b:{x:number;y:number;w:number;h:number;r:number}){const qx=Math.abs(x-(b.x+b.w/2))-b.w/2+b.r,qy=Math.abs(y-(b.y+b.h/2))-b.h/2+b.r;return Math.hypot(Math.max(qx,0),Math.max(qy,0))+Math.min(Math.max(qx,qy),0)-b.r<=0;}
+
 interface Press { crackedOnDown:boolean; pad:FingerPad; before:Float32Array; x: number; y: number; origin: {x:number;y:number}; dragging:boolean; pointerType:string; exposed:ShellBreak[]; initialFoam:boolean; start: number; radius: number; pressure: number | null; sound: ((depth: number) => void) | undefined; foam: boolean; spots: {x:number;y:number}[]; flakeDistance:number }
 
 /** WebGL squishy frame. Dents stay until `resetKey` changes. */
@@ -55,14 +58,14 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     const onMotion=()=>{reduced=motion.matches;};
     motion.addEventListener("change",onMotion);
     const cracked: { x:number; y:number; radius:number; shape:ShellBreak; removed:boolean; start:number; drawn:boolean }[]=[];
-    let protectedCache:{x:number;y:number;w:number;h:number}[]=[];
+    let protectedCache:{x:number;y:number;w:number;h:number;r:number}[]=[];
     const refreshProtected = () => {
       const bounds=canvas.getBoundingClientRect();
-      protectedCache=Array.from(canvas.parentElement?.querySelectorAll<HTMLElement>(".sq-stage")??[]).map(el=>{const b=el.getBoundingClientRect();return {x:b.left-bounds.left-3,y:b.top-bounds.top-3,w:b.width+6,h:b.height+6};});
+      protectedCache=Array.from(canvas.parentElement?.querySelectorAll<HTMLElement>(".sq-stage")??[]).map(el=>{const b=el.getBoundingClientRect();return {x:b.left-bounds.left-3,y:b.top-bounds.top-3,w:b.width+6,h:b.height+6,r:(parseFloat(getComputedStyle(el).borderTopLeftRadius)||0)+3};});
     };
     const safe = (x:number,y:number) => {
       const insets=frameInsets(size.w);
-      return isOnRing(x,y,size.w,size.h,insets) && !protectedCache.some(b=>x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h);
+      return isOnRing(x,y,size.w,size.h,insets) && !protectedCache.some(b=>insideRounded(x,y,b));
     };
     const damage=damageRef.current;
     const holeBins=new Map<string,ShellBreak[]>();
@@ -81,7 +84,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       const ctx=r.coating.getContext("2d");if(!ctx)return;
       const scale=r.coating.width/size.w;
       ctx.save();ctx.scale(scale,scale);ctx.beginPath();if(ctx.roundRect)ctx.roundRect(0,0,size.w,size.h,46);else ctx.rect(0,0,size.w,size.h);
-      for(const b of protectedCache)ctx.rect(b.x,b.y,b.w,b.h);
+      for(const b of protectedCache){if(ctx.roundRect)ctx.roundRect(b.x,b.y,b.w,b.h,b.r);else ctx.rect(b.x,b.y,b.w,b.h);}
       ctx.clip("evenodd");ctx.scale(1/scale,1/scale);paintCoating(r.coating,size.w,shape,hole,progress);ctx.restore();
       const points=hole?shape.boundary:[...shape.cracks,...shape.arcs].flat();
       if(points.length)r.dirtyCoating(Math.min(...points.map(p=>p.x))-2,Math.min(...points.map(p=>p.y))-2,Math.max(...points.map(p=>p.x))+2,Math.max(...points.map(p=>p.y))+2);
@@ -353,6 +356,9 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       } else if (e.key.toLowerCase() === "r") { e.preventDefault(); e.stopPropagation(); onResetRef.current?.(); }
     };
     canvas.addEventListener("keydown", key);
+    const noMenu=(e:Event)=>e.preventDefault();
+    const frameEl=canvas.parentElement;
+    canvas.addEventListener("contextmenu", noMenu);frameEl?.addEventListener("contextmenu", noMenu);
     canvas.addEventListener("pointerdown", queue);
     canvas.addEventListener("pointermove", queue);
     canvas.addEventListener("pointerup", queue);
@@ -364,6 +370,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       cancelAnimationFrame(raf);
       motion.removeEventListener("change", onMotion);
       canvas.removeEventListener("keydown", key);
+      canvas.removeEventListener("contextmenu", noMenu);frameEl?.removeEventListener("contextmenu", noMenu);
       canvas.removeEventListener("pointerdown", queue);
       canvas.removeEventListener("pointermove", queue);
       canvas.removeEventListener("pointerup", queue);

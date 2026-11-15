@@ -158,9 +158,19 @@ export function cancelShellDebris(){debrisGeneration++;debrisJobs.length=0;cance
 /** Red holes and green fissures, rasterized only when damage changes. */
 export function paintCoating(canvas:HTMLCanvasElement,width:number,shape:ShellBreak,hole:boolean,progress=1) {
  const ctx=canvas.getContext("2d");if(!ctx)return;ctx.save();ctx.scale(canvas.width/width,canvas.width/width);
- if(hole){ctx.globalCompositeOperation="source-over";ctx.fillStyle=`rgb(${Math.round(255*progress)},0,0)`;ctx.beginPath();shape.boundary.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));ctx.closePath();ctx.fill();
+ if(hole){ctx.globalCompositeOperation="source-over";ctx.fillStyle=`rgb(${Math.round(255*progress)},0,0)`;ctx.beginPath();tornOutline(shape.boundary).forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));ctx.closePath();ctx.fill();
    // A thin same-colour edge stroke covers antialiased fissure pixels: no readback needed.
    ctx.strokeStyle=ctx.fillStyle;ctx.lineWidth=width/canvas.width;ctx.lineJoin="round";ctx.stroke();}
  else {ctx.strokeStyle="rgb(0,255,0)";ctx.lineJoin="round";ctx.lineCap="round";for(const path of [...shape.cracks,...shape.arcs])for(let i=1;i<path.length;i++){const a=path[i-1],b=path[i];if(!a||!b)continue;ctx.lineWidth=.14+.65*(1-i/path.length);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}}
  ctx.restore();
+}
+
+const tornHash=(x:number,y:number)=>{const v=Math.sin(x*12.9898+y*78.233)*43758.5453;return v-Math.floor(v);};
+/** Breaks long straight edges into small notches; seeded by position so resize replay draws the same tear. */
+export function tornOutline(points:ShellPoint[],step=4,depth=1.6):ShellPoint[]{
+  if(points.length<3)return points;const out:ShellPoint[]=[];
+  for(let i=0;i<points.length;i++){const a=points[i]!,b=points[(i+1)%points.length]!,dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy);out.push(a);if(len<step*1.5)continue;
+    const n=Math.floor(len/step),nx=-dy/len,ny=dx/len;
+    for(let k=1;k<n;k++){const t=k/n,px=a.x+dx*t,py=a.y+dy*t,h=tornHash(Math.round(px*2)/2,Math.round(py*2)/2),o=(h-.5)*2*depth*(h>.85?1.8:1);out.push({x:px+nx*o,y:py+ny*o});}}
+  return out;
 }

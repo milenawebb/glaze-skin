@@ -60,3 +60,14 @@ describe("wax shell", () => {
     expect(hasGlaze(r, 50, 50)).toBe(true);
   });
 });
+import { tornOutline } from "./shell";
+import { describe as d2, it as i2, expect as e2 } from "vitest";
+d2("tornOutline", () => {
+  i2("breaks a long straight edge into notches and repeats exactly", () => {
+    const sq = [{ x: 0, y: 0 }, { x: 40, y: 0 }, { x: 40, y: 40 }, { x: 0, y: 40 }];
+    const a = tornOutline(sq), b = tornOutline(sq);
+    e2(a.length).toBeGreaterThan(20);
+    e2(a).toEqual(b);
+    e2(a.slice(1, 9).some(p => Math.abs(p.y) > 0.2)).toBe(true);
+  });
+});

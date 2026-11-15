@@ -458,3 +458,4 @@
 
 .sq-root[data-compact] .sq-stage { border-radius: 16px; }
 .sq-canvas, .sq-flakes { clip-path: inset(0 round 46px); }
+.sq-root, .sq-root * { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
