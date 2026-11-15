@@ -33,7 +33,7 @@ function Index() {
       <h1 className="demo-title">Glaze</h1>
       <p className="demo-subtitle">An ASMR squishy skin for Video.js</p>
       <div ref={tabs} className="demo-preview-tabs" role="tablist" aria-label="Player preview size">
-        {PREVIEW_MODES.map(mode => <Button key={mode} variant="ghost" role="tab" id={`preview-tab-${mode}`} aria-controls="player-preview" aria-selected={preview === mode} tabIndex={preview === mode ? 0 : -1} className={`demo-preview-tab ${preview === mode ? "bg-secondary hover:bg-secondary" : "hover:bg-secondary"}`} onClick={() => setPreview(mode)} onKeyDown={e => {
+        {PREVIEW_MODES.map(mode => <Button key={mode} variant="ghost" role="tab" id={`preview-tab-${mode}`} aria-controls="player-preview" aria-selected={preview === mode} tabIndex={preview === mode ? 0 : -1} className="demo-preview-tab" onClick={() => setPreview(mode)} onKeyDown={e => {
           if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
           e.preventDefault(); const next = nextPreview(mode, e.key); setPreview(next); tabs.current?.querySelector<HTMLButtonElement>(`#preview-tab-${next}`)?.focus();
         }}>{mode}</Button>)}
