@@ -44,7 +44,7 @@ use the editor.
 - Speed uses the shared four-option popup on every size, upward on wider players and downward on phones; keep popup state local so media and control state survive resizes.
 - Native tracks stay hidden; captions.ts selects the exposed HLS engine subtitle loader directly because the library bridge only loads showing tracks, and owns cuechange/timeupdate/source-safe listeners for the single overlay and local CC state.
 - Reserve the time display width from the duration and keep seek glaze absolutely overlaid, so time changes and cracking cannot shift the progress track.
-- Retain cracks/chips/strips as normalized vectors and dents/recovery as a fixed unit-frame height field; rebuild device-resolution textures on resize. Only the video stage is masked; frame buttons stay above damage and receive their own presses.
+- Retain damage as normalized vectors and a unit-frame height field; CSS stretches during resize, then resize.ts schedules one idle rebuild after 100ms quiet, reusing WebGL resources. Only video is masked; buttons remain above damage.
 - Dent stamps and recovery contributions retain Gaussian tails without disc cutoffs; softly weighted CSS-space blur and incremental partial recovery prevent rings and preserve unrelated dents; Reset cancels recovery.
 - Clip all fracture paths against current glaze and retained holes before storage/replay; hole painting replaces fissure pixels, and pointer material transitions select foam squish versus glaze crunch so exposed areas only dent.
 - Classify frame gestures before fracture: release within the threshold uses two-step cracking, while drags retain overlapping jagged strip polygons without adding fissures; strip.ts owns threshold and widths for concrete tests.

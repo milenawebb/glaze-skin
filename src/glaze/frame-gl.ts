@@ -216,7 +216,8 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
   const loc = gl.getAttribLocation(prog, "aPos");
   gl.enableVertexAttribArray(loc);
   gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-  const u = (n: string) => gl.getUniformLocation(prog, n);
+  const uniforms=new Map<string,WebGLUniformLocation|null>();
+  const u = (n: string) => {if(!uniforms.has(n))uniforms.set(n,gl.getUniformLocation(prog,n));return uniforms.get(n)??null;};
   const uRes = u("uRes"), uIns = u("uIns"), uRo = u("uRo"), uRi = u("uRi"), uFace = u("uFace");
   gl.uniform1i(u("uDent"), 0);
   gl.uniform1i(u("uGlaze"), 1);
@@ -282,8 +283,9 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
       r.updatePalette();
       r.width=w; r.height=h;
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.max(1, Math.round(w * dpr));
-      canvas.height = Math.max(1, Math.round(h * dpr));
+      const bw=Math.max(1,Math.round(w*dpr)),bh=Math.max(1,Math.round(h*dpr));
+      if(canvas.width!==bw)canvas.width=bw;
+      if(canvas.height!==bh)canvas.height=bh;
       if (coating.width !== canvas.width || coating.height !== canvas.height) {
         coating.width=canvas.width; coating.height=canvas.height;
       }

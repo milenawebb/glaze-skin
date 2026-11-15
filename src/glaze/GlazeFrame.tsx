@@ -11,6 +11,7 @@ import { createShellBreak, takeShellChips, peelShell, SHELL_BREAK_MS, paintCoati
 import { createGlazeStrip, isGlazeDrag, stripWidth } from "./strip";
 
 import { recoverySettings, recoveryFactor, immediateDepth } from "./recovery";
+import { settledResize } from "./resize";
 import type { GlazeColor } from "./preferences";
 import { DEFAULT_GLAZE_STYLE, monoStyleAmount, type GlazeStyle } from "./glaze-style";
 const RESET_MS = 1500;
@@ -41,6 +42,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     const presses = new Map<number, Press>();
     let size = { w: 1, h: 1 };
     let raf = 0;
+    let resizing = false;
     let released = -1000;
     const breaks: { x: number; y: number; radius: number; start: number; duration: number; shape: ShellBreak }[] = [];
 
@@ -74,6 +76,8 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     clearTransient.current=()=>{breaks.length=0;cracked.length=0;recoveries.length=0;damage.length=0;canvas.parentElement?.querySelectorAll(".sq-shell-plate").forEach(p=>p.remove());};
     const loop = (now: number) => {
       raf = 0;
+      // CSS stretches the last rendered bitmap; no mask replay or upload mid-resize.
+      if(resizing)return;
       const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       r.face = faceExpression(presses.size, now - released, reduce);
       for(let j=recoveries.length-1;j>=0;j--){
@@ -126,7 +130,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     };
     kick.current = schedule;
 
-    const ro = new ResizeObserver(() => {
+    const rebuild = () => {
       const rect = canvas.getBoundingClientRect();
       const old=size;
       size = { w: rect.width, h: rect.height };
@@ -135,8 +139,18 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
         r.coating.getContext("2d")?.clearRect(0,0,r.coating.width,r.coating.height);
         replaying=true;
         for(const d of damage) paint(mapShell(d.shape,size.w,size.h),d.hole,d.progress);
-        replaying=false; schedule();
+        replaying=false;
+        // Upload the freshly replayed normalized maps in this idle task, not RAF.
+        r.render();
       }
+      resizing=false;schedule();
+    };
+    const resizeJob=settledResize(rebuild);
+    const ro = new ResizeObserver(() => {
+      if(size.w===1){rebuild();return;}
+      resizing=true;
+      cancelAnimationFrame(raf);raf=0;
+      resizeJob.schedule();
     });
     const snapSize = (rr: FrameRenderer, s: { w: number; h: number }) => {
       if (s.w < 2 || s.h < 2) return false;
@@ -183,6 +197,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       return "crack";
     };
     const down = (e: PointerEvent) => {
+      if(resizing){resizeJob.cancel();rebuild();}
       const { x, y } = local(e);
       if (!isOnRing(x, y, size.w, size.h, frameInsets(size.w))) return;
       e.preventDefault();
@@ -280,6 +295,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     canvas.addEventListener("touchend", stopTouch, { passive: false });
     return () => {
       ro.disconnect();
+      resizeJob.cancel();
       cancelAnimationFrame(raf);
       canvas.removeEventListener("pointerdown", down);
       canvas.removeEventListener("pointermove", move);
