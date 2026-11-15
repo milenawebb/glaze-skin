@@ -23,8 +23,7 @@ export function SquishyFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT
   const clearTransient = useRef<() => void>(() => {});
   const resetRef = useRef<{ start: number; snap: Float32Array; glaze: Float32Array; coating: HTMLCanvasElement } | null>(null);
   const [ready, setReady] = useState(false);
-  useEffect(() => { rendererRef.current?.updatePalette(); kick.current(); }, [color, ready]);
-  useEffect(() => { const renderer = rendererRef.current; if (renderer) { renderer.mono = monoStyleAmount(glazeStyle); kick.current(); } }, [glazeStyle, ready]);
+  useEffect(() => { const renderer = rendererRef.current; if (renderer) { renderer.mono = monoStyleAmount(glazeStyle); renderer.updatePalette(); kick.current(); } }, [color, glazeStyle, ready]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

@@ -7,9 +7,8 @@ import { crackCrust } from "./crust";
 import { useSquishAll } from "./squish";
 import { POPUP_SPEEDS, VOLUME_CLOSE_MS, CONTROLS_IDLE_MS, controlsVisible } from "./controls";
 import { CAPTIONS_DEFAULT_ON, observeCaptionCues, isCaptionEngine } from "./captions";
-import { COLORS, readPreferences, savePreferences, type SquishyColor } from "./preferences";
+import { COLORS, OPTIONS, readPreferences, savePreferences, type SquishyColor } from "./preferences";
 import { setSoundsEnabled } from "./sounds";
-import { DEFAULT_GLAZE_STYLE, type GlazeStyle } from "./glaze-style";
 import "./squishy.css";
 
 export const squishy = createPlayer({ features: videoFeatures });
@@ -22,13 +21,12 @@ export interface SquishyPlayerProps {
   /** Changing this number puffs the frame back to smooth and re-bakes the crust. */
   resetKey?: number;
   title?: string;
-  glazeStyle?: GlazeStyle;
 }
 
-export function SquishyPlayer({ playbackId, resetKey = 0, title = "Video", glazeStyle = DEFAULT_GLAZE_STYLE }: SquishyPlayerProps) {
+export function SquishyPlayer({ playbackId, resetKey = 0, title = "Video" }: SquishyPlayerProps) {
   return (
     <Player>
-      <SquishySkin resetKey={resetKey} label={title} glazeStyle={glazeStyle}>
+      <SquishySkin resetKey={resetKey} label={title}>
         <MuxVideo
           source={{ playbackId }}
           poster={`https://image.mux.com/${playbackId}/thumbnail.webp?time=1`}
@@ -47,7 +45,7 @@ const fmt = (s: number) => {
   return `${h ? h + ":" : ""}${mm}:${String(sec).padStart(2, "0")}`;
 };
 
-export function SquishySkin({ children, resetKey, label, glazeStyle = DEFAULT_GLAZE_STYLE }: { children: ReactNode; resetKey: number; label: string; glazeStyle?: GlazeStyle }) {
+export function SquishySkin({ children, resetKey, label }: { children: ReactNode; resetKey: number; label: string }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const flakeRef = useRef<HTMLDivElement>(null);
   const [fallback, setFallback] = useState(false);
@@ -62,6 +60,7 @@ export function SquishySkin({ children, resetKey, label, glazeStyle = DEFAULT_GL
   const [crust, setCrust] = useState({ play: true, tube: true });
   const [localReset, setLocalReset] = useState(0);
   const [color, setColor] = useState<SquishyColor>("Rainbow");
+  const glazeStyle = OPTIONS[color].glazeStyle;
   const [sounds, setSounds] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
   const colorRef = useRef<HTMLDivElement>(null);
@@ -181,9 +180,9 @@ export function SquishySkin({ children, resetKey, label, glazeStyle = DEFAULT_GL
     >
       {!fallback && <SquishyFrame resetKey={resetKey + localReset} color={color} glazeStyle={glazeStyle} onFallback={() => setFallback(true)} />}
       <div ref={colorRef} className="sq-frame-colors" role="group" aria-label="Squishy colors">
-        <button type="button" className="sq-candy sq-squish sq-color-toggle" data-swatch={color} aria-label={`Choose color: ${color}`} title={`Choose color: ${color}`} aria-expanded={colorOpen} onClick={() => setColorOpen((open) => !open)}><span className="sq-candy-face sq-squish-body" /></button>
+        <button type="button" className="sq-candy sq-squish sq-color-toggle" data-swatch={color} aria-label={`Choose color: ${OPTIONS[color].label}`} title={`Choose color: ${OPTIONS[color].label}`} aria-expanded={colorOpen} onClick={() => setColorOpen((open) => !open)}><span className="sq-candy-face sq-squish-body" /></button>
         <div className="sq-color-choices" data-open={colorOpen || undefined}>
-          {COLORS.map((choice) => <button key={choice} type="button" className="sq-candy sq-squish" data-swatch={choice} aria-label={`Color: ${choice}`} title={`Color: ${choice}`} aria-pressed={color === choice} onClick={() => { setColor(choice); persist(choice, sounds); setColorOpen(false); if (compact) colorRef.current?.querySelector<HTMLButtonElement>(".sq-color-toggle")?.focus(); }}><span className="sq-candy-face sq-squish-body" /></button>)}
+          {COLORS.map((choice) => <button key={choice} type="button" className="sq-candy sq-squish" data-swatch={choice} aria-label={OPTIONS[choice].label} title={OPTIONS[choice].label} aria-pressed={color === choice} onClick={() => { setColor(choice); persist(choice, sounds); setColorOpen(false); if (compact) colorRef.current?.querySelector<HTMLButtonElement>(".sq-color-toggle")?.focus(); }}><span className="sq-candy-face sq-squish-body" /></button>)}
         </div>
       </div>
       <div className="sq-frame-actions">

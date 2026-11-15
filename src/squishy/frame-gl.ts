@@ -4,7 +4,6 @@
  * frame and lit in the fragment shader.
  */
 import { COLOR_FADE_MS } from "./preferences";
-import { sprinklesEnabled } from "./glaze-style";
 export const FRAME = { side: 30, top: 30, bottom: 96, outerRadius: 46, innerRadius: 16 };
 
 const VS = `attribute vec2 aPos; varying vec2 vUv;
@@ -141,7 +140,7 @@ void main(){
   float thin=1.-pr*amp;
   vec3 glow=mix(shell,uWaxYellow,.15)*coat*(.11*thin+.065*cut);
   vec3 c=col*diff*(1.-sh)+glow+uWaxMilk*spec+col*.065;
-  if(uMono>.5){
+  {
     float monoLum=dot(uMonoColor,vec3(.299,.587,.114));
     vec3 velvet=mix(mix(vec3(monoLum),uMonoColor,.92),vec3(1.),.07)+(noise(p*2.)-.5)*.006;
     vec3 base=mix(uMonoColor,velvet,hole);
@@ -149,9 +148,10 @@ void main(){
     float streak=pow(nh,150.);
     float clearcoat=coat*(pow(nh,14.)*.22+streak*.62);
     float lip=coat*smoothstep(.03,.3,(broken(p+vec2(1.5,0.))+broken(p-vec2(1.5,0.))+broken(p+vec2(0.,1.5))+broken(p-vec2(0.,1.5)))*.25);
-    c=base*(monoDiffuse*(1.-sh*.8)+.12)+vec3(1.)*(clearcoat+lip*.24);
+    vec3 monoColor=base*(monoDiffuse*(1.-sh*.8)+.12)+vec3(1.)*(clearcoat+lip*.24);
+    c=mix(c,monoColor,uMono);
   }
-  if(uSprinkles>.5) c=sprinkles(p,c,coat);
+  if(uSprinkles>0.) c=mix(c,sprinkles(p,c,coat),uSprinkles);
   float crack=texture2D(uGlaze,p/uRes).g*coat;
   float crackShadow=texture2D(uGlaze,(p-vec2(.8,.9))/uRes).g*coat;
   c*=1.-crackShadow*.35;
@@ -244,6 +244,7 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
   let currentColors: number[][] = [];
   let fromColors: number[][] = [];
   let targetColors: number[][] = [];
+  let currentMono = 0, fromMono = 0, targetMono = 0;
   const coating = document.createElement("canvas");
   let bytes = new Uint8Array(0);
   const r: FrameRenderer = {
@@ -261,7 +262,9 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
         const color = Number.parseInt(value, 16);
         return [((color >> 16) & 255) / 255, ((color >> 8) & 255) / 255, (color & 255) / 255];
       });
-      if (JSON.stringify(next) === JSON.stringify(targetColors)) return;
+      if (JSON.stringify(next) === JSON.stringify(targetColors) && r.mono === targetMono) return;
+      fromMono = currentMono;
+      targetMono = r.mono;
       fromColors = currentColors.length ? currentColors.map((color) => [...color]) : next;
       targetColors = next;
       if (!currentColors.length) currentColors = next;
@@ -307,9 +310,10 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
       }
     },
     render() {
-      gl.uniform1f(u("uMono"), r.mono);
-      gl.uniform1f(u("uSprinkles"), sprinklesEnabled(r.mono) ? 1 : 0);
       const t = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : Math.min(1, (performance.now() - paletteStart) / COLOR_FADE_MS);
+      currentMono = fromMono + (targetMono - fromMono) * t;
+      gl.uniform1f(u("uMono"), currentMono);
+      gl.uniform1f(u("uSprinkles"), 1 - currentMono);
       currentColors = targetColors.map((color, i) => color.map((value, j) => (fromColors[i]?.[j] ?? value) + (value - (fromColors[i]?.[j] ?? value)) * t));
       palette.forEach((pair, i) => { const color = currentColors[i]; if (pair[0] && color) gl.uniform3f(u(pair[0]), color[0] ?? 0, color[1] ?? 0, color[2] ?? 0); });
       gl.uniform1f(uFace, r.face);

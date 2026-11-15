@@ -61,7 +61,7 @@
   --sq-candy-surface: #ffe4ef;
   --sq-color-strawberry: #f6b9cf;
   --sq-color-matcha: #cbe6bc;
-  --sq-color-blueberry: #c8c6ef;
+  --sq-color-lilac: #c9b9e9;
   --sq-color-ring: #fff;
 
   position: relative;
@@ -86,11 +86,7 @@
 
 .sq-root[data-compact] { padding: 12px 12px 110px; }
 .sq-root[data-color="Strawberry"] { --sq-wax-blue: #f6b9cf; --sq-wax-milk: #ffe5ef; --sq-wax-yellow: #f4c5d6; --sq-foam: #fff6df; --sq-foam-pore: #d3bca0; }
-.sq-root[data-color="Matcha"] { --sq-wax-blue: #cbe6bc; --sq-wax-milk: #eef5df; --sq-wax-yellow: #dceabe; --sq-foam: #fff6df; --sq-foam-pore: #d3bca0; }
-.sq-root[data-color="Blueberry"] { --sq-wax-blue: #c8c6ef; --sq-wax-milk: #eae8fa; --sq-wax-yellow: #c6d6f2; }
-.sq-root[data-color="Strawberry"] { --sq-mono-color: #f6b9cf; }
 .sq-root[data-color="Matcha"] { --sq-mono-color: #cbe6bc; }
-.sq-root[data-color="Blueberry"] { --sq-mono-color: #c8c6ef; }
 .sq-root[data-glaze-style="mono"][data-fallback] { background: var(--sq-mono-color); }
 .sq-frame-colors, .sq-frame-actions { position: absolute; z-index: 6; bottom: 48px; translate: 0 50%; display: flex; gap: 8px; }
 .sq-frame-colors { left: 24px; }
@@ -105,7 +101,9 @@
 .sq-candy[data-swatch="Rainbow"] .sq-candy-face { background: conic-gradient(var(--sq-sprinkle-blue), var(--sq-sprinkle-yellow), var(--sq-color-strawberry), var(--sq-color-matcha), var(--sq-sprinkle-blue)); }
 .sq-candy[data-swatch="Strawberry"] .sq-candy-face { background-color: var(--sq-color-strawberry); }
 .sq-candy[data-swatch="Matcha"] .sq-candy-face { background-color: var(--sq-color-matcha); }
-.sq-candy[data-swatch="Blueberry"] .sq-candy-face { background-color: var(--sq-color-blueberry); }
+.sq-candy[data-swatch="Lilac"] .sq-candy-face { background-color: var(--sq-color-lilac); }
+.sq-candy[data-swatch="Rainbow"] .sq-candy-face::before,
+.sq-candy[data-swatch="Strawberry"] .sq-candy-face::before { content: ""; position: absolute; top: 7px; left: 7px; width: 5px; height: 2px; border-radius: 2px; rotate: -25deg; background: var(--sq-sprinkle-blue); box-shadow: 6px 6px 0 var(--sq-sprinkle-yellow), -1px 11px 0 var(--sq-sprinkle-green); }
 .sq-candy[data-swatch][aria-pressed="true"] .sq-candy-face { outline: 2px solid var(--sq-color-ring); outline-offset: 2px; }
 .sq-root[data-compact] .sq-frame-colors, .sq-root[data-compact] .sq-frame-actions { bottom: 55px; }
 .sq-root[data-compact] .sq-color-toggle { display: grid; }
