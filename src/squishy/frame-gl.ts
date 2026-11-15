@@ -21,10 +21,16 @@ float sdO(vec2 p){ return sdRR(p, uRes*.5, uRes*.5, uRo); }
 float sdI(vec2 p){ vec2 a=uIns.xy; vec2 b=uRes-uIns.zw; return sdRR(p,(a+b)*.5,(b-a)*.5,uRi); }
 float prof(vec2 p, out float amp){
   float a=max(-sdO(p),0.); float b=max(sdI(p),0.); float w=a+b+1e-3; float t=a/w;
-  amp=min(w,64.)/64.; return sqrt(clamp(4.*t*(1.-t),0.,1.));
+  amp=min(w,64.)/64.; float x=clamp(4.*t*(1.-t),0.,1.); return pow(x,.55);
 }
-float dent(vec2 p){ return texture2D(uDent, p/uRes).r; }
-float H(vec2 p){ float amp; float pr=prof(p,amp); return 22.*amp*pr*(1.-0.82*dent(p)); }
+float dent0(vec2 p){ return texture2D(uDent, p/uRes).r; }
+float dent(vec2 p){
+  float s=dent0(p)*.25;
+  s+=(dent0(p+vec2(3.,0.))+dent0(p-vec2(3.,0.))+dent0(p+vec2(0.,3.))+dent0(p-vec2(0.,3.)))*.125;
+  s+=(dent0(p+vec2(2.5,2.5))+dent0(p-vec2(2.5,2.5))+dent0(p+vec2(2.5,-2.5))+dent0(p-vec2(2.5,-2.5)))*.0625;
+  return s;
+}
+float H(vec2 p){ float amp; float pr=prof(p,amp); return 24.*amp*pr*(1.-0.8*dent(p)); }
 float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
 float noise(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.-2.*f);
   return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),mix(hash(i+vec2(0.,1.)),hash(i+1.),f.x),f.y); }
@@ -40,17 +46,20 @@ vec3 pick(float k){
 vec3 marble(vec2 p){
   vec2 q=p/170.; vec2 w=vec2(fbm(q),fbm(q+5.2));
   float m=fbm(q+2.6*w+vec2(1.7,9.2));
-  float x=mod(m*9.+w.x*3.,6.); float k=floor(x); float t=fract(x);
-  vec3 c=mix(pick(k),pick(mod(k+1.,6.)),smoothstep(.3,.7,t));
-  float vein=smoothstep(.06,0.,abs(fract(m*14.)-.5)-.44);
-  return mix(c,vec3(1.),vein*.55);
+  float x=mod(m*4.5+w.x*2.,6.); float k=floor(x); float t=fract(x);
+  t=t*t*(3.-2.*t);
+  vec3 c=mix(pick(k),pick(mod(k+1.,6.)),t);
+  float cloud=fbm(q*1.7+w*1.3);
+  c=mix(c,vec3(1.,.99,.98),smoothstep(.45,.8,cloud)*.45);
+  c+=(hash(floor(p))-.5)*.018;
+  return c;
 }
 void main(){
   vec2 p=vec2(vUv.x,1.-vUv.y)*uRes;
   float so=sdO(p), si=sdI(p);
   float a=clamp(.5-so,0.,1.)*clamp(si+.5,0.,1.);
   if(a<=0.) discard;
-  float e=1.2;
+  float e=2.;
   float hx=H(p+vec2(e,0.))-H(p-vec2(e,0.));
   float hy=H(p+vec2(0.,e))-H(p-vec2(0.,e));
   vec3 N=normalize(vec3(-hx/(2.*e),-hy/(2.*e),1.));
@@ -64,11 +73,15 @@ void main(){
   col=mix(vec3(lum),col,1.+.45*d)*(1.-.08*d);
   float diff=clamp(dot(N,L)*.5+.55,0.,1.);
   // soft shadow inside dents (rim toward the light occludes)
-  float dl=dent(p+vec2(-.55,-.65)*7.);
-  float sh=clamp((d-dl)*1.6,0.,1.)*.3 + d*.05;
+  float dl=dent(p+vec2(-.55,-.65)*9.);
+  float sh=clamp((d-dl)*1.4,0.,1.)*.28 + d*.04;
+  float inner=1.-smoothstep(0.,10.,si);
+  sh=clamp(sh+inner*.22,0.,.6);
   vec3 Hh=normalize(L+V);
   float nh=max(dot(N,Hh),0.);
-  float spec=pow(nh,90.)*.85+pow(nh,14.)*.12;
+  float spec=pow(nh,70.)*.6+pow(nh,10.)*.22;
+  float rim=clamp(dot(N.xy,vec2(.55,.65)),0.,1.);
+  sh=clamp(sh+rim*.22,0.,.6);
   // translucent jelly glow: thinner areas let more light through
   float thin=1.-pr*amp;
   vec3 glow=col*vec3(1.05,1.,.95)*(.16*thin+.1*pow(1.-max(dot(N,V),0.),2.));
@@ -212,4 +225,21 @@ export function stampDent(r: FrameRenderer, cssX: number, cssY: number, radiusCs
       if (target > cur) r.dent[i] = cur + (target - cur) * rate;
     }
   }
+}
+
+/** Lightly blur a region of the height map so overlapping dents and grooves blend smoothly. */
+export function smoothDents(r: FrameRenderer, cssX0: number, cssY0: number, cssX1: number, cssY1: number) {
+  const x0 = Math.max(1, Math.floor(Math.min(cssX0, cssX1) / 2) - 2), x1 = Math.min(r.dw - 2, Math.ceil(Math.max(cssX0, cssX1) / 2) + 2);
+  const y0 = Math.max(1, Math.floor(Math.min(cssY0, cssY1) / 2) - 2), y1 = Math.min(r.dh - 2, Math.ceil(Math.max(cssY0, cssY1) / 2) + 2);
+  if (x1 <= x0 || y1 <= y0) return;
+  const w = r.dw, src = r.dent;
+  const tmp = new Float32Array((x1 - x0 + 1) * (y1 - y0 + 1));
+  let k = 0;
+  for (let y = y0; y <= y1; y++)
+    for (let x = x0; x <= x1; x++) {
+      const i = y * w + x;
+      tmp[k++] = src[i]! * 0.4 + (src[i - 1]! + src[i + 1]! + src[i - w]! + src[i + w]!) * 0.1 + (src[i - w - 1]! + src[i - w + 1]! + src[i + w - 1]! + src[i + w + 1]!) * 0.05;
+    }
+  k = 0;
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) src[y * w + x] = tmp[k++]!;
 }

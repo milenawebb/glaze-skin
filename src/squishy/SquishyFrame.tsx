@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { FRAME, createFrameRenderer, isOnRing, stampDent, type FrameRenderer } from "./frame-gl";
+import { FRAME, createFrameRenderer, isOnRing, smoothDents, stampDent, type FrameRenderer } from "./frame-gl";
 import { playPop, playSquelch } from "./sounds";
 
 const INSETS = { l: FRAME.side, t: FRAME.top, r: FRAME.side, b: FRAME.bottom };
@@ -32,7 +32,8 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
       raf = 0;
       for (const p of presses.values()) {
         const held = (now - p.start) / 1000;
-        stampDent(r, p.x, p.y, 13 + Math.min(held, 2) * 3, Math.min(1, 0.32 + held * 0.45), 0.18);
+        stampDent(r, p.x, p.y, 16 + Math.min(held, 2) * 3, Math.min(1, 0.32 + held * 0.45), 0.18);
+        smoothDents(r, p.x - 40, p.y - 40, p.x + 40, p.y + 40);
       }
       const rs = resetRef.current;
       if (rs) {
@@ -85,8 +86,10 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
       const steps = Math.max(1, Math.ceil(dist / 3));
       for (let s = 1; s <= steps; s++) {
         const t = s / steps;
-        stampDent(r, p.x + (x - p.x) * t, p.y + (y - p.y) * t, 12, depth * 0.85, 0.35);
+        stampDent(r, p.x + (x - p.x) * t, p.y + (y - p.y) * t, 15, depth * 0.85, 1);
       }
+      smoothDents(r, p.x - 36, p.y - 36, x + 36, y + 36);
+      smoothDents(r, p.x - 36, p.y - 36, x + 36, y + 36);
       p.x = x;
       p.y = y;
       schedule();
