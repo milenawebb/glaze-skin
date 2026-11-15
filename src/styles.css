@@ -165,6 +165,7 @@
   .demo-placeholder { margin-inline: auto; aspect-ratio: 900 / 632; width: 100%; }
   .demo-actions { display: flex; justify-content: center; gap: 12px; margin-top: 24px; }
   .demo-btn {
+    position: relative;
     display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 22px;
     border-radius: 999px; font-weight: 600; color: var(--color-foreground); background: var(--color-secondary);
     border: 2px solid var(--color-border); cursor: pointer;

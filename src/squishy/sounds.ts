@@ -76,10 +76,14 @@ export function playPop() {
   sinePop(520, 900, 0.09, 0.14);
 }
 
-/** Crunch when baked crust breaks. */
-export function playCrunch() {
+/** Crunch when baked crust breaks: a few small cracks, then the main crunch. `duration` in seconds. */
+export function playCrunch(duration = 0.9) {
+  const ms = duration * 1000;
+  for (let i = 0; i < 3; i++) {
+    setTimeout(() => noiseBurst({ dur: 0.025, type: "highpass", freq: 3500 + Math.random() * 2500, q: 1, gain: 0.12, attack: 0.002 }), (ms * 0.28 * i) / 3 + Math.random() * 20);
+  }
   for (let i = 0; i < 5; i++) {
-    setTimeout(() => noiseBurst({ dur: 0.05 + Math.random() * 0.05, type: "highpass", freq: 1800 + Math.random() * 2500, q: 0.8, gain: 0.3, attack: 0.002 }), i * (18 + Math.random() * 30));
+    setTimeout(() => noiseBurst({ dur: 0.05 + Math.random() * 0.05, type: "highpass", freq: 1800 + Math.random() * 2500, q: 0.8, gain: 0.3, attack: 0.002 }), ms * 0.3 + i * (ms * 0.3) / 5);
   }
 }
 

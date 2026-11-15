@@ -1,3 +1,6 @@
+@property --sq-s { syntax: "<number>"; inherits: true; initial-value: 0; }
+@property --lx { syntax: "<number>"; inherits: false; initial-value: 1; }
+@property --ly { syntax: "<number>"; inherits: false; initial-value: 1; }
 /* Squishy — a soft squishy-toy skin for Video.js v10 */
 .sq-root {
   --sq-ink: #4a2338;
@@ -125,6 +128,7 @@
 .sq-root :focus-visible { outline: 3px solid var(--sq-focus); outline-offset: 3px; box-shadow: 0 0 0 3px #fff; border-radius: 999px; }
 
 .sq-root .sq-pill {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -137,9 +141,7 @@
   color: var(--sq-ink);
   background: radial-gradient(120% 90% at 30% 20%, #fff 0, var(--sq-cream) 45%, #ffe3ef 100%);
   box-shadow: inset 0 2px 3px #fff, inset 0 -3px 5px rgb(220 140 180 / 0.35), 0 2px 5px rgb(60 20 40 / 0.25);
-  transition: transform var(--sq-rise);
 }
-.sq-btn[data-pressed] { transform: scale(1.12, 0.8); transition: transform var(--sq-press); }
 .sq-btn[aria-pressed="true"] { background: radial-gradient(120% 90% at 30% 20%, #fff 0, var(--sq-mint) 70%); }
 .sq-time { font-variant-numeric: tabular-nums; font-size: 13px; }
 .sq-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
@@ -153,15 +155,12 @@
   border-radius: 50% 50% 44% 44% / 62% 62% 38% 38%;
   background: radial-gradient(70% 60% at 35% 25%, #fff 0, #fff4e2 40%, #ffd9b8 100%);
   box-shadow: inset 0 3px 5px #fff, inset 0 -5px 8px rgb(230 150 110 / 0.45), 0 3px 6px rgb(60 20 40 / 0.3);
-  transform-origin: 50% 100%;
-  transition: transform var(--sq-rise);
 }
-.sq-bun[data-pressed] .sq-bun-body { transform: scale(1.22, 0.6); transition: transform var(--sq-press); }
 .sq-face { position: absolute; inset: 0; }
-.sq-eye { position: absolute; top: 46%; width: 5px; height: 6px; border-radius: 50%; background: var(--sq-ink); transition: height 0.1s, border-radius 0.1s; }
+.sq-eye { position: absolute; top: 46%; width: 5px; height: 6px; border-radius: 50%; background: var(--sq-ink); height: max(2px, calc(6px - 4px * min(var(--sq-s), 1))); width: calc(5px + 2px * min(var(--sq-s), 1)); }
 .sq-eye:first-child { left: 34%; }
 .sq-eye:nth-child(2) { right: 34%; }
-.sq-bun[data-pressed] .sq-eye { height: 2px; border-radius: 2px; width: 7px; }
+.sq-bun[data-squish-pressed] .sq-eye { height: 2px; border-radius: 2px; width: 7px; }
 .sq-cheek { position: absolute; top: 58%; width: 8px; height: 5px; border-radius: 50%; background: var(--sq-cheek); opacity: 0.8; }
 .sq-cheek-l { left: 20%; }
 .sq-cheek-r { right: 20%; }
@@ -204,15 +203,15 @@
   position: relative; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
   background: radial-gradient(60% 60% at 35% 28%, #fff 0, var(--sq-lilac) 50%, #b9a6f2 100%);
   box-shadow: inset 0 3px 4px #fff, inset 0 -4px 6px rgb(110 80 180 / 0.35), 0 3px 6px rgb(40 10 30 / 0.3);
-  transition: transform var(--sq-rise), border-radius var(--sq-rise);
+  transition: --lx var(--sq-rise), --ly var(--sq-rise), border-radius var(--sq-rise);
 }
 .sq-ball-num { font-weight: 700; font-size: 16px; color: var(--sq-ink); }
-.sq-ball[data-squeeze="1"] .sq-ball-body { transform: scale(1.08, 0.9); }
-.sq-ball[data-squeeze="2"] .sq-ball-body { transform: scale(1.14, 0.82); }
-.sq-ball[data-squeeze="3"] .sq-ball-body { transform: scale(1.2, 0.74); }
-.sq-ball[data-squeeze="4"] .sq-ball-body { transform: scale(1.26, 0.66); }
-.sq-ball[data-squeeze="5"] .sq-ball-body { transform: scale(1.32, 0.58); border-radius: 46%; }
-.sq-ball:not([data-squeeze="0"]) .sq-ball-body { transition: transform 0.2s ease-out, border-radius 0.2s; }
+.sq-ball[data-squeeze="1"] .sq-ball-body { --lx: 1.08; --ly: 0.9; }
+.sq-ball[data-squeeze="2"] .sq-ball-body { --lx: 1.14; --ly: 0.82; }
+.sq-ball[data-squeeze="3"] .sq-ball-body { --lx: 1.2; --ly: 0.74; }
+.sq-ball[data-squeeze="4"] .sq-ball-body { --lx: 1.26; --ly: 0.66; }
+.sq-ball[data-squeeze="5"] .sq-ball-body { --lx: 1.32; --ly: 0.58; border-radius: 46%; }
+.sq-ball:not([data-squeeze="0"]) .sq-ball-body { transition: --lx 0.2s ease-out, --ly 0.2s ease-out, border-radius 0.2s; }
 .sq-ball[data-muted] .sq-ball-body { filter: saturate(0.4); }
 
 /* Speed menu */
@@ -227,6 +226,25 @@
 .sq-menu-item:hover { background: #ffe3ef; }
 .sq-menu-item[aria-checked="true"] { background: var(--sq-mint); }
 
+/* Squish press: dent + squash, driven by --sq-s from squish.ts */
+.sq-squish-body {
+  transform-origin: 50% 100%;
+  transform: scale(calc(var(--lx) * (1 + 0.06 * var(--sq-s))), calc(var(--ly) * (1 - 0.08 * var(--sq-s))));
+}
+.sq-squish-body::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(circle 13px at calc(var(--sq-px, 50%) - 3px) calc(var(--sq-py, 50%) - 3px), rgb(110 40 70 / calc(0.24 * var(--sq-s))), transparent),
+    radial-gradient(circle 16px at calc(var(--sq-px, 50%) + 3px) calc(var(--sq-py, 50%) + 3px), transparent 55%, rgb(255 255 255 / calc(0.4 * var(--sq-s))) 78%, transparent);
+}
+[data-squish-pressed].sq-squish-body,
+[data-squish-pressed] .sq-squish-body { filter: brightness(0.9); }
+
 /* Baked crust */
 .sq-crust-wrap { position: absolute; inset: -2px; border-radius: inherit; pointer-events: none; }
 .sq-crust {
@@ -240,6 +258,10 @@
 }
 .sq-seg .sq-crust { border-radius: 6px; }
 
+.sq-cracks { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.sq-cracks polyline { fill: none; stroke: rgb(90 40 8 / 0.85); stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 1; }
+.sq-piece { position: absolute; pointer-events: none; will-change: transform, opacity; }
+.sq-piece > .sq-crust { inset: 0; }
 .sq-flakes { position: absolute; inset: 0; z-index: 5; pointer-events: none; overflow: visible; }
 .sq-flake {
   position: absolute; border-radius: 2px 5px 3px 6px;

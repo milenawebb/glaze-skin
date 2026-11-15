@@ -4,6 +4,7 @@ import { MuxVideo } from "@videojs/react/media/mux-video";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent as RKeyboardEvent, type ReactNode } from "react";
 import { SquishyFrame } from "./SquishyFrame";
 import { crackCrust } from "./crust";
+import { useSquishAll } from "./squish";
 import { playPop, playSqueeze, playSquelch } from "./sounds";
 import "./squishy.css";
 
@@ -95,6 +96,7 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
   }, [poke]);
 
   const visible = paused || active;
+  useSquishAll(rootRef);
 
   return (
     <Container
@@ -114,27 +116,29 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
         <div className="sq-controls" data-visible={visible || undefined}>
           <JellySeek
             crust={crust.tube}
-            onCrack={(i, el) => {
-              setCrust((c) => (c.tube[i] ? { ...c, tube: c.tube.map((v, j) => (j === i ? false : v)) } : c));
-              crackCrust(el, flakeRef.current, 6);
-            }}
+            onCrack={(i, el, pt) =>
+              crackCrust(el, flakeRef.current, {
+                duration: 0.5,
+                pieces: 3 + Math.floor(Math.random() * 2),
+                ...pt,
+                onRemove: () => setCrust((c) => ({ ...c, tube: c.tube.map((v, j) => (j === i ? false : v)) })),
+              })
+            }
           />
           <div className="sq-row">
             <BunPlay
               crusted={crust.play}
-              onCrack={(el) => {
-                setCrust((c) => ({ ...c, play: false }));
-                crackCrust(el, flakeRef.current, 16);
-              }}
+              onCrack={(el, pt) =>
+                crackCrust(el, flakeRef.current, { ...pt, onRemove: () => setCrust((c) => ({ ...c, play: false })) })
+              }
             />
             <TimePill />
             <span className="sq-spacer" />
             <StressBall
               crusted={crust.ball}
-              onCrack={(el) => {
-                setCrust((c) => ({ ...c, ball: false }));
-                crackCrust(el, flakeRef.current, 14);
-              }}
+              onCrack={(el, pt) =>
+                crackCrust(el, flakeRef.current, { ...pt, onRemove: () => setCrust((c) => ({ ...c, ball: false })) })
+              }
             />
             <CaptionsPill />
             <SpeedMenu />
@@ -157,6 +161,10 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
 }
 
 /** Press feedback shared by the squishy controls. */
+type Point = { x?: number | undefined; y?: number | undefined };
+type CrackFn = (el: HTMLElement | null, pt: Point) => void;
+const crustOf = (wrap: HTMLElement | null) => (wrap?.querySelector(".sq-crust") as HTMLElement | null) ?? null;
+
 function usePress() {
   const [pressed, setPressed] = useState(false);
   return {
@@ -180,7 +188,7 @@ function Crust({ className = "" }: { className?: string }) {
   return <span className={`sq-crust ${className}`} aria-hidden="true" />;
 }
 
-function BunPlay({ crusted, onCrack }: { crusted: boolean; onCrack: (el: Element | null) => void }) {
+function BunPlay({ crusted, onCrack }: { crusted: boolean; onCrack: CrackFn }) {
   const store = usePlayer();
   const paused = usePlayer((s) => s.paused);
   const { pressed, handlers } = usePress();
@@ -188,18 +196,22 @@ function BunPlay({ crusted, onCrack }: { crusted: boolean; onCrack: (el: Element
   return (
     <button
       type="button"
-      className="sq-bun"
+      className="sq-bun sq-squish"
       data-pressed={pressed || undefined}
       aria-label={paused ? "Play" : "Pause"}
       aria-keyshortcuts="Space k"
       {...handlers}
+      onPointerDown={(e) => {
+        handlers.onPointerDown();
+        if (crusted) onCrack(crustOf(crustRef.current), { x: e.clientX, y: e.clientY });
+      }}
       onClick={() => {
-        if (crusted) onCrack(crustRef.current);
+        if (crusted) onCrack(crustOf(crustRef.current), {});
         if (store.paused) store.play();
         else store.pause();
       }}
     >
-      <span className="sq-bun-body">
+      <span className="sq-bun-body sq-squish-body">
         <span className="sq-face" aria-hidden="true">
           <span className="sq-eye" />
           <span className="sq-eye" />
@@ -224,14 +236,14 @@ function BunPlay({ crusted, onCrack }: { crusted: boolean; onCrack: (el: Element
   );
 }
 
-function JellySeek({ crust, onCrack }: { crust: boolean[]; onCrack: (i: number, el: Element | null) => void }) {
+function JellySeek({ crust, onCrack }: { crust: boolean[]; onCrack: (i: number, el: HTMLElement | null, pt: Point) => void }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const down = useRef(false);
   const time = usePlayer((s) => ({ t: s.currentTime, d: s.duration }));
-  const crackAt = (frac: number) => {
+  const crackAt = (frac: number, x?: number) => {
     const i = Math.min(SEGMENTS - 1, Math.max(0, Math.floor(frac * SEGMENTS)));
     if (!crust[i]) return;
-    onCrack(i, wrapRef.current?.querySelector(`[data-seg="${i}"]`) ?? null);
+    onCrack(i, wrapRef.current?.querySelector<HTMLElement>(`[data-seg="${i}"] .sq-crust`) ?? null, { x });
   };
   const fracFrom = (clientX: number) => {
     const r = wrapRef.current!.getBoundingClientRect();
@@ -240,14 +252,14 @@ function JellySeek({ crust, onCrack }: { crust: boolean[]; onCrack: (i: number, 
   return (
     <div
       ref={wrapRef}
-      className="sq-seek"
+      className="sq-seek sq-squish"
       onPointerDownCapture={(e) => {
         down.current = true;
         playSquelch();
-        crackAt(fracFrom(e.clientX));
+        crackAt(fracFrom(e.clientX), e.clientX);
       }}
       onPointerMoveCapture={(e) => {
-        if (down.current) crackAt(fracFrom(e.clientX));
+        if (down.current) crackAt(fracFrom(e.clientX), e.clientX);
       }}
       onPointerUpCapture={() => {
         if (down.current) playPop();
@@ -259,7 +271,7 @@ function JellySeek({ crust, onCrack }: { crust: boolean[]; onCrack: (i: number, 
       }}
     >
       <TimeSlider.Root className="sq-tube" label="Seek">
-        <TimeSlider.Track className="sq-tube-track">
+        <TimeSlider.Track className="sq-tube-track sq-squish-body">
           <TimeSlider.Buffer className="sq-tube-buffer" />
           <TimeSlider.Fill className="sq-tube-fill" />
           <span className="sq-tube-crust" aria-hidden="true">
@@ -279,7 +291,7 @@ function JellySeek({ crust, onCrack }: { crust: boolean[]; onCrack: (i: number, 
 function TimePill() {
   const t = usePlayer((s) => ({ c: s.currentTime, d: s.duration }));
   return (
-    <span className="sq-pill sq-time">
+    <span className="sq-pill sq-time sq-squish sq-squish-body">
       <span className="sq-sr">Current time </span>
       {fmt(t.c)}
       <span aria-hidden="true"> / </span>
@@ -289,7 +301,7 @@ function TimePill() {
   );
 }
 
-function StressBall({ crusted, onCrack }: { crusted: boolean; onCrack: (el: Element | null) => void }) {
+function StressBall({ crusted, onCrack }: { crusted: boolean; onCrack: CrackFn }) {
   const store = usePlayer();
   const v = usePlayer((s) => ({ volume: s.volume, muted: s.muted }));
   const level = Math.max(1, Math.min(5, Math.round(v.volume * 5)));
@@ -311,7 +323,7 @@ function StressBall({ crusted, onCrack }: { crusted: boolean; onCrack: (el: Elem
   return (
     <button
       type="button"
-      className="sq-ball"
+      className="sq-ball sq-squish"
       data-squeeze={squeeze}
       data-muted={v.muted || undefined}
       aria-label={`Volume ${level} of 5${v.muted ? ", muted" : ""}. Tap to ${v.muted ? "unmute" : "mute"}, hold to turn up`}
@@ -320,7 +332,7 @@ function StressBall({ crusted, onCrack }: { crusted: boolean; onCrack: (el: Elem
         e.currentTarget.setPointerCapture?.(e.pointerId);
         playSquelch();
         if (crusted) {
-          onCrack(crustRef.current);
+          onCrack(crustOf(crustRef.current), { x: e.clientX, y: e.clientY });
           hold.current = { stepped: false, crack: true };
           setSqueeze(1);
           return;
@@ -349,7 +361,9 @@ function StressBall({ crusted, onCrack }: { crusted: boolean; onCrack: (el: Elem
       onPointerCancel={() => end(false)}
       onClick={(e) => {
         // Keyboard activation (Enter / Space) toggles mute.
-        if (e.detail === 0) store.setMuted(!store.muted);
+        if (e.detail !== 0) return;
+        if (crusted) onCrack(crustOf(crustRef.current), {});
+        else store.setMuted(!store.muted);
       }}
       onKeyDown={(e) => {
         if (e.key === "ArrowUp" || e.key === "ArrowDown") {
@@ -361,7 +375,7 @@ function StressBall({ crusted, onCrack }: { crusted: boolean; onCrack: (el: Elem
         }
       }}
     >
-      <span className="sq-ball-body">
+      <span className="sq-ball-body sq-squish-body">
         <span className="sq-ball-num" aria-hidden="true">{v.muted ? "×" : level}</span>
         {crusted && (
           <span ref={crustRef} className="sq-crust-wrap">
@@ -380,7 +394,7 @@ function CaptionsPill() {
   return (
     <button
       type="button"
-      className="sq-pill sq-btn"
+      className="sq-pill sq-btn sq-squish sq-squish-body"
       data-pressed={pressed || undefined}
       aria-label="Captions"
       aria-pressed={on}
@@ -437,7 +451,7 @@ function SpeedMenu() {
       <button
         ref={btn}
         type="button"
-        className="sq-pill sq-btn"
+        className="sq-pill sq-btn sq-squish sq-squish-body"
         data-pressed={pressed || undefined}
         aria-label={`Playback speed, ${rate}x`}
         aria-haspopup="menu"
@@ -479,7 +493,7 @@ function FullscreenPill() {
   return (
     <button
       type="button"
-      className="sq-pill sq-btn sq-icon"
+      className="sq-pill sq-btn sq-icon sq-squish sq-squish-body"
       data-pressed={pressed || undefined}
       aria-label={fs ? "Exit fullscreen" : "Fullscreen"}
       aria-keyshortcuts="f"
