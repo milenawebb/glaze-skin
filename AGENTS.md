@@ -48,7 +48,7 @@ use the editor.
 - Foam fingertip lobes and signed bulges live in fingertip.ts; signed height encoding, Gaussian tails, CSS-space blur and contribution recovery preserve ring-free dents. Reset cancels recovery.
 - Clip all fracture paths against current glaze and retained holes before storage/replay; hole painting replaces fissure pixels, and pointer material transitions select foam squish versus glaze crunch so exposed areas only dent.
 - Classify frame gestures before fracture: release within the threshold uses two-step cracking, while drags retain overlapping jagged strip polygons without adding fissures; strip.ts owns threshold and widths for concrete tests.
-- Phone controls reuse one bottom glass row and an absolutely positioned top pill without duplicate media or buttons; captions stay above the bottom row while visible and near the bottom when hidden.
+- Phone controls (and .sq-frame-tools, display: contents when wide) reuse one bottom glass row and an absolutely positioned top pill without duplicate media or buttons; captions stay above the bottom row while visible and near the bottom when hidden.
 - Frame candy controls live above the canvas and fragments; viewer preferences use guarded localStorage in preferences.ts, while shader palette interpolation changes shell/foam without touching dent or coating maps and sprinkles use independent color uniforms.
 - Bottom-band buttons own deduplicated pointerup/click actions and per-instance squish listeners; capture-dismiss the compact picker to prevent outside taps damaging the frame.
 - Each fixed option in preferences.ts derives its internal glaze style; color and material interpolate together without modifying shared coating, dent or recovery maps, so selection never resets damage or playback.
@@ -57,6 +57,5 @@ use the editor.
 - Phone video taps toggle controls on touch/pen pointerup, not click/down; ignore implicit touch leave so Safari cannot immediately undo the tap, and keep hidden rows non-interactive.
 - Compact flavor choices open horizontally beside the existing toggle in the bottom band above other player layers; demo-only preview tabs use viewport visibility independently of the skin's width.
 - Dent rise-back is a shader uniform over a rise map, baked once per press; phones halve map sizes and restore maps after GPU context loss.
-- Phone frame tools use one .sq-frame-tools row below the frame (display: contents when wide).
 - chip.ts owns tap snapping, finger-sized break-offs, island and crumb rules; no cracks or pieces without glaze near the tap.
 <!-- AGENT-MEMORY:END -->
