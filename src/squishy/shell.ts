@@ -2,6 +2,9 @@
 export interface ShellPoint { x: number; y: number }
 export interface ShellBreak { boundary: ShellPoint[]; plates: ShellPoint[][] }
 export const SHELL_BREAK_MS = 600;
+export function framePressStage(glazed: boolean, cracked: boolean) {
+  return !glazed ? "foam" : cracked ? "shatter" : "crack";
+}
 
 function clip(poly: ShellPoint[], nx: number, ny: number, limit: number) {
   const out: ShellPoint[] = [];
@@ -22,9 +25,9 @@ export function createShellBreak(x: number, y: number, radius: number, random = 
   const count = 3 + Math.min(3, Math.floor(random() * 4));
   const offset = random() * Math.PI * 2;
   // A mildly irregular convex boundary leaves a substantial jagged cut edge.
-  const boundary = Array.from({ length: 18 }, (_, i) => {
-    const a = i * Math.PI * 2 / 18;
-    const r = radius * (0.9 + random() * 0.1);
+  const boundary = Array.from({ length: 8 }, (_, i) => {
+    const a = i * Math.PI * 2 / 8;
+    const r = radius * (0.63 + random() * 0.35);
     return { x: x + Math.cos(a) * r, y: y + Math.sin(a) * r };
   });
   const seeds = Array.from({ length: count }, (_, i) => {
@@ -73,4 +76,28 @@ export function peelShell(layer: HTMLElement, image: HTMLCanvasElement, shape: S
     ], { duration: SHELL_BREAK_MS, easing: "cubic-bezier(.3,.15,.65,1)", fill: "forwards" });
     anim.onfinish = () => piece.remove();
   }
+}
+/** Full screen-resolution antialiased coating mask: red holes, green fissures. */
+export function paintCoating(canvas: HTMLCanvasElement, width: number, shape: ShellBreak, hole: boolean, progress = 1) {
+  const ctx=canvas.getContext("2d"); if (!ctx) return;
+  const scale=canvas.width/width;
+  ctx.save(); ctx.scale(scale,scale);
+  if(hole){
+    ctx.globalCompositeOperation="lighter";
+    ctx.fillStyle=`rgba(255,0,0,${progress})`;
+    ctx.beginPath(); shape.boundary.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y)); ctx.closePath(); ctx.fill();
+  } else {
+    ctx.strokeStyle="rgb(0,255,0)"; ctx.lineWidth=.85; ctx.lineJoin="round"; ctx.lineCap="round";
+    for(const poly of shape.plates){
+      ctx.beginPath();
+      poly.forEach((p,i)=>{
+        const next=poly[(i+1)%poly.length]; if(!next)return;
+        const mid={x:(p.x+next.x)/2+Math.sin(p.x*3)*1.1,y:(p.y+next.y)/2+Math.cos(p.y*2)*1.1};
+        const end={x:p.x+(next.x-p.x)*progress,y:p.y+(next.y-p.y)*progress};
+        ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+(mid.x-p.x)*Math.min(1,progress*2),p.y+(mid.y-p.y)*Math.min(1,progress*2));ctx.lineTo(end.x,end.y);
+        if(i%2===0){ctx.moveTo(mid.x,mid.y);ctx.lineTo(mid.x+Math.sin(i+mid.y)*4*progress,mid.y+Math.cos(i+mid.x)*6*progress);}
+      });ctx.stroke();
+    }
+  }
+  ctx.restore();
 }

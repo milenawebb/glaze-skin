@@ -1,3 +1,5 @@
+- [x] Implement two-step frame cracking/peeling with smooth full-resolution holes and satin foam.
+- [x] Add immediate dents and uneven partial slow rise; verify individual crack/shatter/squish clips, Reset, playback, phone/reduced-motion behavior and keyboard-only focus in Chromium. Physical-device performance remains unverified.
 - [x] Restyle video controls as neutral liquid glass with compact popups and keyboard-only demo focus rings.
 - [x] Verify identical progress length/position through cracking/seeking, 36×90px volume popup, 28px speed rows, light/dark contrast, playback, volume, speed and phone layout in Chromium; 26 tests passed. Physical-device glass rendering remains unverified.
 - [x] Replace frame material with satin pastel wax, raised sprinkles and porous pink foam.

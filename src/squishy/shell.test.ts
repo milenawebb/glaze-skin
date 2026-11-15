@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { createShellBreak, SHELL_BREAK_MS } from "./shell";
+import { createShellBreak, SHELL_BREAK_MS, framePressStage } from "./shell";
 import { breakGlaze, hasGlaze } from "./glaze";
 
 describe("wax shell", () => {
+  it("first press cracks without exposing foam", () => { expect(framePressStage(true,false)).toBe("crack"); });
+  it("second press shatters an already cracked shell", () => { expect(framePressStage(true,true)).toBe("shatter"); });
+  it("exposed foam only squishes", () => { expect(framePressStage(false,true)).toBe("foam"); });
   it("makes three to six Voronoi plates", () => {
     expect(createShellBreak(50, 50, 20, () => 0).plates).toHaveLength(3);
     expect(createShellBreak(50, 50, 20, () => .999).plates).toHaveLength(6);

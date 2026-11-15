@@ -117,7 +117,7 @@ void main(){
   float under=hole*smoothstep(.02,.5,1.-neighboring);
   float pore=pores(p/2.2);
   float fiber=noise(p*vec2(1.8,.5));
-  vec3 foam=mix(uFoam,uPore,pore*.38)+(fiber-.5)*.035;
+  vec3 foam=mix(uFoam,uPore,pore*.18)+(fiber-.5)*.012;
   vec3 shell=wax(p);
   // Pale 3–4px cut edges glow softly and cast a shadow on exposed foam.
   shell=mix(shell,uWaxMilk,cut*.65);
@@ -130,13 +130,17 @@ void main(){
   sh+=(1.-smoothstep(0.,10.,si))*.2+under*.2;
   float nh=max(dot(N,normalize(L+V)),0.);
   // Broad satin reflection under a restrained clear-coat sheen, never foam shine.
-  float spec=coat*(pow(nh,8.)*.17+pow(nh,95.)*.2);
+  float spec=coat*(pow(nh,8.)*.17+pow(nh,95.)*.2)+hole*pow(nh,7.)*.115;
   float rim=clamp(dot(N.xy,vec2(.55,.65)),0.,1.);
   sh=clamp(sh+rim*.18,0.,.6);
   float thin=1.-pr*amp;
   vec3 glow=mix(shell,uWaxYellow,.15)*coat*(.11*thin+.065*cut);
   vec3 c=col*diff*(1.-sh)+glow+uWaxMilk*spec+col*.065;
   c=sprinkles(p,c,coat);
+  float crack=texture2D(uGlaze,p/uRes).g*coat;
+  float crackShadow=texture2D(uGlaze,(p-vec2(.8,.9))/uRes).g*coat;
+  c*=1.-crackShadow*.35;
+  c=mix(c,uWaxMilk,crack*.85);
   // Face paint is carried by whichever layer remains, so peeling cannot erase it.
   c=face(p,c);
   float alpha=a*(.9+.08*pr);
@@ -149,6 +153,7 @@ export interface FrameRenderer {
   snapshot(x: number, y: number, radius: number): HTMLCanvasElement;
   dent: Float32Array;
   glaze: Float32Array;
+  coating: HTMLCanvasElement;
   dw: number;
   dh: number;
   face: number;
@@ -215,11 +220,12 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
     ["uFoam", "--sq-foam"], ["uPore", "--sq-foam-pore"], ["uSprinklePink", "--sq-sprinkle-pink"],
     ["uSprinkleRed", "--sq-sprinkle-red"], ["uSprinkleGreen", "--sq-sprinkle-green"],
   ];
-  let glazeBytes = new Uint8Array(0);
+  const coating = document.createElement("canvas");
   let bytes = new Uint8Array(0);
   const r: FrameRenderer = {
     dent: new Float32Array(0),
     glaze: new Float32Array(0),
+    coating,
     dw: 0,
     dh: 0,
     face: 0,
@@ -235,6 +241,12 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       canvas.width = Math.max(1, Math.round(w * dpr));
       canvas.height = Math.max(1, Math.round(h * dpr));
+      if (coating.width !== canvas.width || coating.height !== canvas.height) {
+        const previous = document.createElement("canvas"); previous.width=coating.width; previous.height=coating.height;
+        previous.getContext("2d")?.drawImage(coating,0,0);
+        coating.width=canvas.width; coating.height=canvas.height;
+        coating.getContext("2d")?.drawImage(previous,0,0,coating.width,coating.height);
+      }
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.uniform2f(uRes, w, h);
       gl.uniform4f(uIns, ins.l, ins.t, ins.r, ins.b);
@@ -256,7 +268,7 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
         }
         r.dent = next;
         r.glaze = nextGlaze;
-        glazeBytes = new Uint8Array(nw * nh);
+
         r.dw = nw;
         r.dh = nh;
         bytes = new Uint8Array(nw * nh);
@@ -274,9 +286,7 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
       }
       gl.activeTexture(gl.TEXTURE1);
       gl.bindTexture(gl.TEXTURE_2D, glazeTex);
-      for (let i = 0; i < r.glaze.length; i++) glazeBytes[i] = Math.round((r.glaze[i] ?? 0) * 255);
-      if (gl2) gl2.texImage2D(gl2.TEXTURE_2D, 0, gl2.R8, r.dw, r.dh, 0, gl2.RED, gl2.UNSIGNED_BYTE, glazeBytes);
-      else gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, r.dw, r.dh, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, glazeBytes);
+      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,coating);
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
