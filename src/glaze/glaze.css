@@ -456,5 +456,5 @@
   .sq-root .sq-center { animation: sq-center-in 200ms ease-out !important; }
 }
 
-.sq-root[data-compact] .sq-stage { border-radius: 20px; }
+.sq-root[data-compact] .sq-stage { border-radius: 16px; }
 .sq-canvas, .sq-flakes { clip-path: inset(0 round 46px); }

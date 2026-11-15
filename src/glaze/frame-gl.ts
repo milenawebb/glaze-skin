@@ -173,8 +173,8 @@ void main(){
       +exp(-pow(length((q-vec2(uRo*.62+17.,cornerY-1.))/vec2(4.,1.8)),2.)*2.2)*.4
       +exp(-pow(length((q-vec2(uRes.x-uRo*.62,cornerY))/vec2(5.,2.2)),2.)*2.2)*.35;
     float bounce=exp(-pow((de-9.)/7.,2.))*smoothstep(.3,.95,gn.y)*.07;
-    float falloff=clamp(gn.y*.9+abs(gn.x)*.6,0.,1.)*(1.-smoothstep(0.,24.,-so));
-    float cushion=(1.-smoothstep(0.,8.,si))*mix(.06,.13,smoothstep(0.,1.,(uIns.y+12.-p.y)/24.+.5));
+    float falloff=clamp(gn.y*.9+abs(gn.x)*.6*smoothstep(18.,30.,uIns.x),0.,1.)*(1.-smoothstep(0.,24.,-so));
+    float cushion=pow(1.-smoothstep(0.,12.,si),2.)*mix(.06,.13,smoothstep(0.,1.,(uIns.y+12.-p.y)/24.+.5));
     c*=1.-(.1*falloff+cushion);
     vec3 lightCol=mix(vec3(1.),uWaxMilk,.25);
     c+=lightCol*coat*soft*(topLight*up+spot*mix(1.,.6,uMono)+bounce)*(1.-.6*clamp(d,0.,1.));
@@ -352,7 +352,7 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
       gl.uniform2f(u("uRes"), w, h);
       gl.uniform4f(u("uIns"), ins.l, ins.t, ins.r, ins.b);
       gl.uniform1f(u("uRo"), FRAME.outerRadius);
-      gl.uniform1f(u("uRi"), w < 480 ? FRAME.innerRadius + 4 : FRAME.innerRadius);
+      gl.uniform1f(u("uRi"), FRAME.innerRadius);
       fullUpload=true;
     },
     render() {
