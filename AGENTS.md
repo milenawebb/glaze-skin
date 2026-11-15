@@ -38,10 +38,10 @@ use the editor.
 - Read frame renderer insets from the player’s computed padding so touch hit testing and the rendered ring stay aligned with narrow layouts.
 - Phone layout positions the existing controls through data-compact rather than mounting duplicates, preserving media, squish, and crust state across resizes; compact pill faces separate 32px artwork from 44px buttons.
 - Render the bottom-band face in the frame shader using the same dent map and lighting, so permanent dents deform rather than erase it; animate its expression independently of the dent reset.
-- Keep the playback-speed tap cycle in controls.ts with a concrete behavior test so the button and its sequence stay aligned.
-- Wider controls use one shared row and local upward popup state; phones retain tap-cycling speed. Native tracks stay hidden; captions.ts selects the exposed HLS engine subtitle loader directly because the library bridge only loads showing tracks, and owns cuechange/timeupdate/source-safe listeners for the single overlay and local CC state.
+- Speed uses the shared four-option popup on every size, upward on wider players and downward on phones; keep popup state local so media and control state survive resizes.
+- Native tracks stay hidden; captions.ts selects the exposed HLS engine subtitle loader directly because the library bridge only loads showing tracks, and owns cuechange/timeupdate/source-safe listeners for the single overlay and local CC state.
 - Reserve the time display width from the duration and keep seek glaze absolutely overlaid, so time changes and cracking cannot shift the progress track.
 - Store fissures and holes in a full-screen-resolution coating canvas uploaded as a texture, independent of the half-resolution dent map; reuse each first-press Voronoi fracture for second-press peeling so cracks and plates agree.
 - Frame dent recovery uses per-release local depth samples with random partial easing; Reset clears recovery and fracture state so the complete smoothing cannot be overwritten.
-- Measure caption height against the centered phone play button; move overflowing two-line cues above it only while controls are visible, and keep hidden-control cues near the bottom without moving play.
+- Phone controls reuse one bottom glass row and an absolutely positioned top pill without duplicate media or buttons; captions stay above the bottom row while visible and near the bottom when hidden.
 <!-- AGENT-MEMORY:END -->

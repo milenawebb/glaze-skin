@@ -1,8 +1,5 @@
 type CaptionTrack = { mode: TextTrackMode; kind: string; activeCues: ArrayLike<object> | null };
 export const CAPTIONS_DEFAULT_ON = true;
-export function captionsAbovePlay(compact: boolean, controlsVisible: boolean, twoLines: boolean, captionHeight: number, stageHeight: number) {
-  return compact && controlsVisible && twoLines && captionHeight > stageHeight / 2 - 28 - 44 - 8;
-}
 
 export interface CaptionEngine {
   subtitleTrack: number;
