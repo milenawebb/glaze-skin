@@ -5,13 +5,13 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent as RKeyboa
 import { SquishyFrame } from "./SquishyFrame";
 import { crackCrust } from "./crust";
 import { useSquishAll } from "./squish";
-import { nextPlaybackRate } from "./controls";
+import { nextPlaybackRate, POPUP_SPEEDS, VOLUME_CLOSE_MS, CONTROLS_IDLE_MS, controlsVisible } from "./controls";
 import "./squishy.css";
 
 export const squishy = createPlayer({ features: videoFeatures });
 const { Player, usePlayer } = squishy;
 
-const IDLE_MS = 2000;
+const IDLE_MS = CONTROLS_IDLE_MS;
 
 export interface SquishyPlayerProps {
   playbackId: string;
@@ -49,6 +49,9 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
   const [compact, setCompact] = useState(false);
   const [ar, setAr] = useState(16 / 9);
   const [active, setActive] = useState(true);
+  const [volumeOpen, setVolumeOpen] = useState(false);
+  const [speedOpen, setSpeedOpen] = useState(false);
+  const [keyboardFocus, setKeyboardFocus] = useState(false);
   const paused = usePlayer((s) => s.paused);
   const [crust, setCrust] = useState({ play: true, tube: true });
 
@@ -102,7 +105,7 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
     return () => window.clearTimeout(timer.current);
   }, [poke]);
 
-  const visible = paused || active;
+  const visible = compact ? paused || active : controlsVisible(paused, active, volumeOpen || speedOpen, keyboardFocus);
   useSquishAll(rootRef);
 
   // Focus rings are for keyboard navigation only: any pointer use marks <html>
@@ -130,12 +133,14 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
       className="sq-root"
       data-fallback={fallback || undefined}
       data-compact={compact || undefined}
+      data-row-visible={visible || undefined}
       style={{ ["--sq-ar" as string]: String(ar) }}
       aria-label={`${label} — Squishy player`}
       onPointerMove={poke}
-      onPointerDown={poke}
-      onKeyDown={poke}
-      onFocus={poke}
+      onPointerDown={() => { setKeyboardFocus(false); poke(); }}
+      onKeyDown={() => { setKeyboardFocus(true); poke(); }}
+      onFocus={() => { setKeyboardFocus(!document.documentElement.hasAttribute("data-sq-pointer")); poke(); }}
+      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setKeyboardFocus(false); }}
     >
       {!fallback && <SquishyFrame resetKey={resetKey} onFallback={() => setFallback(true)} />}
       <div className="sq-stage" onClickCapture={(e) => {
@@ -145,8 +150,17 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
         }
       }}>
         {children}
+        {!compact && <RowCaptions rootRef={rootRef} />}
         <div className="sq-controls" data-visible={visible || undefined}>
-          <JellySeek
+          <div className="sq-row">
+            <BunPlay
+              crusted={crust.play}
+              onCrack={(el, pt) =>
+                crackCrust(el, flakeRef.current, { duration: 0.8, ...pt, onRemove: () => setCrust((c) => ({ ...c, play: false })) })
+              }
+            />
+            <TimePill />
+            <JellySeek
             crust={crust.tube}
             onCrack={(el, pt) =>
               crackCrust(el, flakeRef.current, {
@@ -156,18 +170,9 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
               })
             }
           />
-          <div className="sq-row">
-            <BunPlay
-              crusted={crust.play}
-              onCrack={(el, pt) =>
-                crackCrust(el, flakeRef.current, { duration: 0.8, ...pt, onRemove: () => setCrust((c) => ({ ...c, play: false })) })
-              }
-            />
-            <TimePill />
-            <span className="sq-spacer" />
-            <VolumeButton />
+            <VolumeButton compact={compact} open={volumeOpen && !compact} setOpen={setVolumeOpen} />
             <CaptionsPill />
-            <SpeedButton />
+            <SpeedButton compact={compact} open={speedOpen && !compact} setOpen={setSpeedOpen} />
             <FullscreenPill />
           </div>
         </div>
@@ -295,12 +300,17 @@ function TimePill() {
   );
 }
 
-function VolumeButton() {
+function VolumeButton({ compact, open, setOpen }: { compact: boolean; open: boolean; setOpen: (open: boolean) => void }) {
   const store = usePlayer();
   const v = usePlayer((s) => ({ volume: s.volume, muted: s.muted }));
   const { handlers } = usePress();
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const show = () => { clearTimeout(closeTimer.current); if (!compact) setOpen(true); };
+  const close = () => { clearTimeout(closeTimer.current); closeTimer.current = setTimeout(() => setOpen(false), VOLUME_CLOSE_MS); };
+  useEffect(() => () => clearTimeout(closeTimer.current), []);
   return (
-    <div className="sq-volume">
+    <div className="sq-volume" onPointerEnter={(e) => { if (e.pointerType !== "touch") show(); }} onPointerLeave={close}
+      onFocus={() => { if (!document.documentElement.hasAttribute("data-sq-pointer")) show(); }} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) close(); }}>
       <button type="button" className="sq-pill sq-btn sq-icon sq-squish sq-squish-body"
         aria-label={v.muted ? "Unmute" : "Mute"} aria-pressed={v.muted}
         aria-keyshortcuts="m ArrowUp ArrowDown" {...handlers}
@@ -310,14 +320,15 @@ function VolumeButton() {
           {v.muted ? <path d="m13 8 4 4m0-4-4 4" /> : <path d="M13 7a4 4 0 0 1 0 6m2-8a7 7 0 0 1 0 10" />}
         </svg></span>
       </button>
-      <div className="sq-volume-slider">
+      {open && <div className="sq-volume-slider sq-glass-panel" onPointerEnter={show}>
         <input type="range" min="0" max="1" step="0.01" value={v.muted ? 0 : v.volume}
+          style={{ ["--sq-volume-fill" as string]: `${(v.muted ? 0 : v.volume) * 100}%` }}
           aria-label="Volume" onChange={(e) => {
             const volume = Number(e.target.value);
             store.setVolume(volume);
             store.setMuted(volume === 0);
           }} onKeyDown={(e) => e.stopPropagation()} />
-      </div>
+      </div>}
     </div>
   );
 }
@@ -342,19 +353,58 @@ function CaptionsPill() {
   );
 }
 
-function SpeedButton() {
+function SpeedButton({ compact, open, setOpen }: { compact: boolean; open: boolean; setOpen: (open: boolean) => void }) {
   const store = usePlayer();
   const rate = usePlayer((s) => s.playbackRate);
   const { handlers } = usePress();
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const outside = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const escape = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); setOpen(false); ref.current?.querySelector<HTMLButtonElement>(".sq-btn")?.focus(); } };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape); };
+  }, [open, setOpen]);
   return (
-    <div className="sq-speed">
+    <div ref={ref} className="sq-speed">
       <button type="button" className="sq-pill sq-btn sq-squish sq-squish-body"
+        aria-expanded={!compact && open} aria-haspopup={compact ? undefined : "menu"}
         aria-label={`Playback speed, ${rate}x`} {...handlers}
-        onClick={() => store.setPlaybackRate(nextPlaybackRate(rate))}>
+        onClick={() => { if (compact) store.setPlaybackRate(nextPlaybackRate(rate)); else setOpen(!open); }}>
         <span className="sq-phone-face">{rate}×</span>
       </button>
+      {open && <div className="sq-speed-menu sq-glass-panel" role="menu" aria-label="Playback speed" onKeyDown={(e) => {
+        if (!["ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) return;
+        e.preventDefault(); e.stopPropagation();
+        const items = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>("button"));
+        const index = items.findIndex((item) => item === document.activeElement);
+        const next = e.key === "Home" ? 0 : e.key === "End" ? items.length - 1 : (index + (e.key === "ArrowUp" ? -1 : 1) + items.length) % items.length;
+        items[next]?.focus();
+      }}>
+        {POPUP_SPEEDS.map((speed) => <button key={speed} type="button" role="menuitemradio" aria-checked={rate === speed}
+          onClick={() => { store.setPlaybackRate(speed); setOpen(false); ref.current?.querySelector<HTMLButtonElement>(".sq-btn")?.focus(); }}>{speed}×</button>)}
+      </div>}
     </div>
   );
+}
+
+/** Desktop cues share the native track state, but can move smoothly above the row. */
+function RowCaptions({ rootRef }: { rootRef: { current: HTMLDivElement | null } }) {
+  const [cues, setCues] = useState<string[]>([]);
+  useEffect(() => {
+    const update = () => {
+      const video = rootRef.current?.querySelector("video");
+      if (!video) return;
+      const text = Array.from(video.textTracks).filter((track) => track.mode === "showing")
+        .flatMap((track) => Array.from(track.activeCues ?? []).map((cue) => "text" in cue ? String(cue.text).replace(/<[^>]*>/g, "") : ""));
+      setCues((old) => old.join("\n") === text.join("\n") ? old : text);
+    };
+    const timer = window.setInterval(update, 100);
+    update();
+    return () => window.clearInterval(timer);
+  }, [rootRef]);
+  return <div className="sq-row-captions" aria-live="off">{cues.map((cue, i) => <span key={i}>{cue}</span>)}</div>;
 }
 
 function FullscreenPill() {

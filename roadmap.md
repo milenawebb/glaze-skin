@@ -1,3 +1,5 @@
+- [x] Rework wider controls into one row with upward glass volume/speed popups; preserve phones.
+- [x] Verify popup dismissal, 300ms delay, idle/focus visibility, injected caption placement, playback/volume/glaze/Reset and phone layout in Chromium; physical tablet and native caption styling remain unverified.
 - [x] Replace synthesized press/glaze sounds with the ten recordings and keep the generated release pop.
 - [x] Verify loading, variation, deeper presses and two-voice/150ms drag limits in tests; check real press/drag, playback, seeking, dents, Reset and sound-off in Chromium. Physical iPhone audio remains unverified.
 - [x] Replace control crust with clear glass glaze, tiny shards and glassy sound.

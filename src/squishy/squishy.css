@@ -29,6 +29,10 @@
   --sq-progress-track: #f3eafa;
   --sq-play-ink: #fff;
   --sq-video-text-shadow: 0 1px 3px #1d1220;
+  --sq-popup-surface: rgb(255 255 255 / 0.9);
+  --sq-popup-shadow: 0 5px 16px rgb(36 20 40 / 0.2);
+  --sq-popup-outline: rgb(74 35 56 / 0.4);
+  --sq-caption-surface: rgb(29 18 32 / 0.85);
 
   position: relative;
   display: block;
@@ -105,7 +109,7 @@
   background: linear-gradient(to top, rgb(40 15 30 / 0.45), transparent);
   transition: opacity 0.35s ease;
 }
-.sq-controls:not([data-visible]):not(:focus-within) { opacity: 0; pointer-events: none; }
+.sq-controls:not([data-visible]) { opacity: 0; pointer-events: none; }
 .sq-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .sq-spacer { flex: 1; }
 .sq-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -180,16 +184,29 @@
 }
 .sq-tube[data-dragging] .sq-bead { transform: scale(1.45, 0.55); transition: transform var(--sq-press); }
 
-/* Desktop volume slider stays beside its button, never over other controls. */
-.sq-volume { display: flex; align-items: center; }
-.sq-volume-slider { display: none; width: 76px; padding-inline: 6px; }
-.sq-volume-slider input { display: block; width: 100%; height: 44px; accent-color: var(--sq-ink); cursor: pointer; }
-@media (hover: hover) and (pointer: fine) {
-  .sq-root:not([data-compact]) .sq-volume-slider { display: block; visibility: hidden; }
-  .sq-root:not([data-compact]) .sq-volume:hover .sq-volume-slider,
-  .sq-root:not([data-compact]) .sq-volume:focus-within .sq-volume-slider { visibility: visible; }
-}
+.sq-volume { position: relative; display: flex; align-items: center; }
+.sq-glass-panel { background: var(--sq-popup-surface); backdrop-filter: blur(14px) saturate(120%); border: 1px solid var(--sq-glass-edge); border-radius: 8px; box-shadow: inset 0 1px 1px var(--sq-glass-glint), var(--sq-popup-shadow); color: var(--sq-ink); }
+.sq-volume-slider { position: absolute; bottom: calc(100% + 8px); left: 50%; translate: -50% 0; width: 52px; height: 144px; padding: 12px 4px; display: grid; place-items: center; }
+.sq-volume-slider input { writing-mode: vertical-lr; direction: rtl; appearance: none; width: 8px; height: 116px; border-radius: 8px; border: 1px solid var(--sq-popup-outline); background: linear-gradient(to top, var(--sq-lilac) var(--sq-volume-fill), var(--sq-progress-track) var(--sq-volume-fill)); cursor: pointer; }
+.sq-volume-slider input::-webkit-slider-thumb { appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--sq-play-ink); border: 1px solid var(--sq-popup-outline); box-shadow: var(--sq-popup-shadow); }
+.sq-volume-slider input::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: var(--sq-play-ink); border: 1px solid var(--sq-popup-outline); box-shadow: var(--sq-popup-shadow); }
 .sq-speed { position: relative; }
+.sq-speed-menu { position: absolute; bottom: calc(100% + 8px); left: 50%; translate: -50% 0; width: 68px; padding: 4px; }
+.sq-root .sq-speed-menu button { display: block; width: 100%; height: 36px; border-radius: 4px; font-size: 14px; color: var(--sq-ink); }
+.sq-speed-menu button[aria-checked="true"], .sq-speed-menu button:hover { background: var(--sq-lilac); }
+.sq-root:not([data-compact]) .sq-controls { padding: 18px 10px 10px; }
+.sq-root:not([data-compact]) .sq-row { flex-wrap: nowrap; gap: 8px; }
+.sq-root:not([data-compact]) .sq-row > :not(.sq-seek) { flex-shrink: 0; }
+.sq-root:not([data-compact]) .sq-seek { flex: 1; min-width: 28px; margin-inline: 4px; }
+.sq-root:not([data-compact]) .sq-time { padding-inline: 8px; white-space: nowrap; }
+@media (max-width: 640px) {
+  .sq-root:not([data-compact]) .sq-row { gap: 4px; }
+  .sq-root:not([data-compact]) .sq-time { padding-inline: 4px; font-size: 11px; }
+}
+.sq-row-captions { position: absolute; z-index: 2; bottom: 12px; left: 8%; right: 8%; text-align: center; pointer-events: none; transition: bottom 200ms ease; }
+.sq-root[data-row-visible] .sq-row-captions { bottom: 82px; }
+.sq-row-captions span { display: table; margin: 2px auto; padding: 2px 6px; background: var(--sq-caption-surface); color: var(--sq-video-text); white-space: pre-line; font: 16px/1.4 sans-serif; }
+.sq-root:not([data-compact]) video::cue { color: transparent; background: transparent; text-shadow: none; }
 
 /* Squish press: dent + squash, driven by --sq-s from squish.ts */
 .sq-squish-body,
