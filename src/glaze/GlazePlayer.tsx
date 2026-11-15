@@ -4,12 +4,13 @@ import { MuxVideo } from "@videojs/react/media/mux-video";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent as RKeyboardEvent, type ReactNode } from "react";
 import { GlazeFrame } from "./GlazeFrame";
 import { crackCrust } from "./crust";
-import { attachSquish, useSquishAll } from "./squish";
+import { attachSquish, useSquish, useSquishAll } from "./squish";
+import { vibratePress } from "./haptics";
 import { attachFrameAction } from "./frame-control";
 import { POPUP_SPEEDS, VOLUME_CLOSE_MS, CONTROLS_IDLE_MS, controlsVisible, videoTapActivity } from "./controls";
 import { CAPTIONS_DEFAULT_ON, observeCaptionCues, isCaptionEngine } from "./captions";
 import { COLORS, OPTIONS, readPreferences, savePreferences, type GlazeColor } from "./preferences";
-import { getSoundsBlocked, onSoundsBlockedChange, setSoundsEnabled, unlockSounds } from "./sounds";
+import { playCrack, getSoundsBlocked, onSoundsBlockedChange, setSoundsEnabled, unlockSounds } from "./sounds";
 import "./glaze.css";
 
 export const glaze = createPlayer({ features: videoFeatures });
@@ -162,7 +163,24 @@ export function GlazeSkin({ children, resetKey, label, sounds: startSounds = fal
     return () => window.clearTimeout(timer.current);
   }, [poke]);
 
-  const visible = controlsVisible(paused, active, (!compact && volumeOpen) || speedOpen, keyboardFocus);
+  const { waiting, ended } = useMediaFlags(rootRef);
+  const endedRef = useRef(ended); endedRef.current = ended;
+  const replay = useCallback(() => {
+    const video = rootRef.current?.querySelector("video");
+    if (!video) return;
+    video.currentTime = 0; void video.play().catch(() => {});
+  }, []);
+  // Space/K at the end replays (Video.js plays from 0); add the crack press feel.
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (!endedRef.current || (e.key !== " " && e.key.toLowerCase() !== "k") || e.repeat) return;
+      if (!rootRef.current?.contains(document.activeElement) || (document.activeElement as Element).closest("input, textarea, [contenteditable], .sq-squish")) return;
+      playCrack(); vibratePress();
+    };
+    window.addEventListener("keydown", key, true);
+    return () => window.removeEventListener("keydown", key, true);
+  }, []);
+  const visible = ended || controlsVisible(paused, active, (!compact && volumeOpen) || speedOpen, keyboardFocus);
   useSquishAll(rootRef);
 
   // Focus rings are for keyboard navigation only: any pointer use marks <html>
@@ -194,7 +212,7 @@ export function GlazeSkin({ children, resetKey, label, sounds: startSounds = fal
       data-color={color}
       data-glaze-style={glazeStyle}
       style={{ ["--sq-ar" as string]: String(ar) }}
-      aria-label={`${label} — Glaze player`}
+      aria-label={`${label}, Glaze player`}
       onPointerLeave={(e) => {
         // Touch ends with an implicit pointer leave, not a departure from the player.
         if (e.pointerType === "touch" || e.pointerType === "pen") return;
@@ -229,14 +247,14 @@ export function GlazeSkin({ children, resetKey, label, sounds: startSounds = fal
         }}
         onPointerDown={(e) => {
           setKeyboardFocus(false);
-          if (compact && (e.pointerType === "touch" || e.pointerType === "pen") && !(e.target as Element).closest(".sq-controls")) {
+          if (compact && (e.pointerType === "touch" || e.pointerType === "pen") && !(e.target as Element).closest(".sq-controls, .sq-replay")) {
             videoPress.current = { id: e.pointerId, x: e.clientX, y: e.clientY };
           } else poke();
         }}
         onPointerUp={(e) => {
           const press = videoPress.current;
           videoPress.current = null;
-          if (!press || press.id !== e.pointerId || (e.target as Element).closest(".sq-controls")) return;
+          if (!press || press.id !== e.pointerId || (e.target as Element).closest(".sq-controls, .sq-replay")) return;
           const next = videoTapActivity(compact, e.pointerType, paused, visible);
           if (next === undefined) return;
           setKeyboardFocus(false); setSpeedOpen(false); setVolumeOpen(false);
@@ -248,15 +266,20 @@ export function GlazeSkin({ children, resetKey, label, sounds: startSounds = fal
         onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setKeyboardFocus(false); }}
         onKeyDown={() => { setKeyboardFocus(true); poke(); }}
         onClickCapture={(e) => {
-        if (compact && !(e.target as Element).closest(".sq-controls")) {
+        if (compact && !(e.target as Element).closest(".sq-controls, .sq-replay")) {
           e.stopPropagation();
         }
       }}>
         {children}
         <RowCaptions rootRef={rootRef} enabled={captionsOn} />
+        {waiting && !ended && <div className="sq-center sq-loading" role="status" aria-live="polite" aria-label="Loading"><span className="sq-center-bubble sq-wobble"><Sprinkles /></span></div>}
+        {ended && <ReplayBubble replay={replay} />}
         <div className="sq-controls" data-visible={visible || undefined}>
           <div className="sq-row">
             <BunPlay
+              waiting={waiting}
+              ended={ended}
+              replay={replay}
               crusted={crust.play}
               onCrack={(el, pt) =>
                 crackCrust(el, flakeRef.current, { duration: 0.8, ...pt, onRemove: () => setCrust((c) => ({ ...c, play: false })) })
@@ -332,7 +355,61 @@ function Crust({ className = "" }: { className?: string }) {
   return <span className={`sq-crust ${className}`} aria-hidden="true" />;
 }
 
-function BunPlay({ crusted, onCrack }: { crusted: boolean; onCrack: CrackFn }) {
+const REPLAY_ICON = <path d="M12 5a7 7 0 1 1-6.6 4.7l1.9.6A5 5 0 1 0 12 7v3L7.5 6 12 2z" />;
+
+/** Waiting (after 300ms) and ended flags from the media element; media events are caught in capture. */
+function useMediaFlags(rootRef: React.RefObject<HTMLElement | null>) {
+  const [waiting, setWaiting] = useState(false);
+  const [ended, setEnded] = useState(false);
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    let timer = 0;
+    const stop = () => { window.clearTimeout(timer); timer = 0; setWaiting(false); };
+    const arm = (e: Event) => {
+      const v = e.target as HTMLVideoElement;
+      if (!(v instanceof HTMLMediaElement) || v.paused || v.readyState >= 3 || timer) return;
+      timer = window.setTimeout(() => { timer = 0; if (!v.paused && v.readyState < 3) setWaiting(true); }, 300);
+    };
+    const onEvent = (e: Event) => {
+      if (!(e.target instanceof HTMLMediaElement)) return;
+      switch (e.type) {
+        case "waiting": case "stalled": case "play": case "seeking": arm(e); break;
+        case "playing": case "canplay": case "pause": stop(); break;
+        case "ended": stop(); setEnded(true); break;
+      }
+      if (e.type === "play" || e.type === "seeking") setEnded(false);
+    };
+    const types = ["waiting", "stalled", "play", "seeking", "playing", "canplay", "pause", "ended"];
+    types.forEach(t => root.addEventListener(t, onEvent, true));
+    return () => { window.clearTimeout(timer); types.forEach(t => root.removeEventListener(t, onEvent, true)); };
+  }, [rootRef]);
+  return { waiting, ended };
+}
+
+function Sprinkles() {
+  return <span className="sq-orbit" aria-hidden="true"><i /><i /><i /></span>;
+}
+
+function ReplayBubble({ replay }: { replay: () => void }) {
+  const { pressed, handlers } = usePress();
+  const ref = useRef<HTMLButtonElement>(null);
+  useSquish(ref); // squish press feel plus the control crack clip
+  const go = () => replay();
+  return (
+    <div className="sq-center sq-replay-wrap">
+      <button ref={ref} type="button" className="sq-replay sq-squish" data-pressed={pressed || undefined} aria-label="Replay" {...handlers}
+        onClick={go}
+        onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); e.stopPropagation(); if (!e.repeat) go(); } }}
+        onKeyUp={(e) => { if (e.key === " ") e.preventDefault(); }}>
+        <span className="sq-center-bubble sq-squish-body"><svg className="sq-play-icon" viewBox="0 0 24 24" aria-hidden="true">{REPLAY_ICON}</svg></span>
+        <span className="sq-replay-text">Again?</span>
+      </button>
+    </div>
+  );
+}
+
+function BunPlay({ crusted, onCrack, waiting, ended, replay }: { crusted: boolean; onCrack: CrackFn; waiting: boolean; ended: boolean; replay: () => void }) {
   const store = usePlayer();
   const paused = usePlayer((s) => s.paused);
   const { pressed, handlers } = usePress();
@@ -342,7 +419,8 @@ function BunPlay({ crusted, onCrack }: { crusted: boolean; onCrack: CrackFn }) {
       type="button"
       className="sq-bun sq-squish"
       data-pressed={pressed || undefined}
-      aria-label={paused ? "Play" : "Pause"}
+      aria-label={ended ? "Replay" : paused ? "Play" : "Pause"}
+      data-loading={(waiting && !ended) || undefined}
       aria-keyshortcuts="Space k"
       {...handlers}
       onPointerDown={(e) => {
@@ -351,14 +429,16 @@ function BunPlay({ crusted, onCrack }: { crusted: boolean; onCrack: CrackFn }) {
       }}
       onClick={() => {
         if (crusted) onCrack(crustOf(crustRef.current), {});
-        if (store.paused) store.play();
+        if (ended) replay();
+        else if (store.paused) store.play();
         else store.pause();
       }}
     >
       <span className="sq-bun-body sq-squish-body">
         <svg className="sq-play-icon" viewBox="0 0 24 24" aria-hidden="true">
-          {paused ? <path d="M8 4 21 12 8 20Z" /> : <path d="M6 4h4v16H6zM14 4h4v16h-4z" />}
+          {ended ? REPLAY_ICON : paused ? <path d="M8 4 21 12 8 20Z" /> : <path d="M6 4h4v16H6zM14 4h4v16h-4z" />}
         </svg>
+        {waiting && !ended && <Sprinkles />}
         {crusted && (
           <span key={String(crusted)} ref={crustRef} className="sq-crust-wrap">
             <Crust />
