@@ -23,6 +23,32 @@ it("updates on cuechange and timeupdate, then removes listeners on detach", () =
   track.activeCues = [{ text: "Time event" }]; video.dispatchEvent(new Event("timeupdate")); expect(text).toBe("Time event");
   detach(); track.activeCues = [{ text: "Detached" }]; track.dispatchEvent(new Event("cuechange")); expect(text).toBe("Time event");
 });
+it("attaches to late stream tracks and replaces listeners when the source changes", () => {
+  const video = document.createElement("video");
+  const tracks = Object.assign(new EventTarget(), { 0: undefined as EventTarget | undefined, length: 0 });
+  Object.defineProperty(video, "textTracks", { value: tracks });
+  let text = "";
+  const detach = observeCaptionCues(video, () => undefined, true, (value) => { text = value; });
+  const first = Object.assign(new EventTarget(), { kind: "subtitles", mode: "disabled", label: "English", language: "en", activeCues: [{ text: "Late caption" }] });
+  tracks[0] = first; tracks.length = 1; tracks.dispatchEvent(new Event("addtrack"));
+  expect(first.mode).toBe("hidden"); expect(text).toBe("Late caption");
+  const next = Object.assign(new EventTarget(), { kind: "captions", mode: "disabled", activeCues: [{ text: "New source" }] });
+  tracks[0] = next; video.dispatchEvent(new Event("loadstart"));
+  expect(text).toBe("New source");
+  next.activeCues = [{ text: "New cue" }]; next.dispatchEvent(new Event("cuechange")); expect(text).toBe("New cue");
+  first.activeCues = [{ text: "Old source" }]; first.dispatchEvent(new Event("cuechange")); expect(text).toBe("New cue");
+  detach();
+});
+it("updates cues when a sideloaded caption track finishes loading", () => {
+  const video = document.createElement("video");
+  const element = document.createElement("track"); element.kind = "captions"; element.srclang = "en"; element.src = "/captions.vtt"; element.default = true; video.append(element);
+  const track = Object.assign(new EventTarget(), { kind: "captions", mode: "disabled", activeCues: [] as { text: string }[] });
+  Object.defineProperty(video, "textTracks", { value: Object.assign(new EventTarget(), { 0: track, length: 1 }) });
+  let text = "";
+  const detach = observeCaptionCues(video, () => undefined, true, (value) => { text = value; });
+  track.activeCues = [{ text: "Loaded caption" }]; element.dispatchEvent(new Event("load")); expect(text).toBe("Loaded caption"); expect(track.mode).toBe("hidden");
+  detach();
+});
 
 it("sets every text track hidden so native captions never draw", () => {
   const tracks = ["showing", "disabled"].map((mode) => ({ mode: mode as TextTrackMode, kind: "captions", activeCues: [{ text: "Hello" }] }));

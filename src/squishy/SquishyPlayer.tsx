@@ -398,12 +398,23 @@ function RowCaptions({ rootRef, enabled }: { rootRef: { current: HTMLDivElement 
   const [cues, setCues] = useState("");
   const media = useMedia();
   useEffect(() => {
-    const video = rootRef.current?.querySelector("video");
-    if (!video) return;
-    return observeCaptionCues(video, () => {
-      const engine = media && "engine" in media ? media.engine : undefined;
-      return isCaptionEngine(engine) ? engine : undefined;
-    }, enabled, setCues);
+    const root = rootRef.current;
+    if (!root) return;
+    let video: HTMLVideoElement | null = null;
+    let detach: (() => void) | undefined;
+    const attach = () => {
+      const next = root.querySelector("video");
+      if (next === video) return;
+      detach?.(); detach = undefined; video = next; setCues("");
+      if (video) detach = observeCaptionCues(video, () => {
+        const engine = media && "engine" in media ? media.engine : undefined;
+        return isCaptionEngine(engine) ? engine : undefined;
+      }, enabled, setCues);
+    };
+    const observer = new MutationObserver(attach);
+    observer.observe(root, { childList: true, subtree: true });
+    attach();
+    return () => { observer.disconnect(); detach?.(); };
   }, [rootRef, enabled, media]);
   return enabled && cues ? <div className="sq-row-captions" aria-live="off"><span>{cues}</span></div> : null;
 }
