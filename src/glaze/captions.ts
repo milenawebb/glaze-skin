@@ -66,8 +66,9 @@ export function overlayCaptionText(tracks: ArrayLike<CaptionTrack>, enabled: boo
   const list = Array.from(tracks);
   for (const track of list) if (track.mode !== "hidden") track.mode = "hidden";
   if (!enabled) return "";
-  for (const track of list) {
-    if (track.kind !== "captions" && track.kind !== "subtitles") continue;
+  // Prefer real captions over generated subtitle tracks (for example Mux "English (Generated)").
+  const ordered = [...list.filter((track) => track.kind === "captions"), ...list.filter((track) => track.kind === "subtitles")];
+  for (const track of ordered) {
     const text = Array.from(track.activeCues ?? []).map((cue) =>
       ("text" in cue ? String(cue.text) : "").replace(/<[^>]*>/g, "").trim()).filter(Boolean).join("\n");
     if (text) return text;
