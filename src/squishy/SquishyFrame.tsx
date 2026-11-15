@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createFrameRenderer, isOnRing, smoothDents, stampDent, type FrameRenderer } from "./frame-gl";
-import { playCrunch, playPop, playSquelch } from "./sounds";
+import { playCrunch, playSquelch } from "./sounds";
 import { vibratePress } from "./haptics";
 import { dentDepth, dentRadius, faceExpression, frameInsets, pressureScale } from "./touch";
 
@@ -133,7 +133,6 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
     };
     const up = (e: PointerEvent) => {
       if (presses.delete(e.pointerId)) {
-        playPop();
         if (!presses.size) released = performance.now();
         schedule();
       }

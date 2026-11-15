@@ -95,4 +95,18 @@ describe("recorded Squishy sounds", () => {
     expect(sources.every((source) => source.stop.mock.calls.length === 1)).toBe(true);
     sounds.playShatter(); expect(sources).toHaveLength(2);
   });
+  it.each(["mouse", "touch"])("starts no sound when a %s press is released", async (pointerType) => {
+    await enable();
+    const control = document.createElement("button");
+    const detach = sounds.attachPressSounds(control);
+    const down = new Event("pointerdown");
+    Object.assign(down, { button: 0, pointerType });
+    control.dispatchEvent(down);
+    expect(sources).toHaveLength(1);
+    expect(gains).toHaveLength(1);
+    window.dispatchEvent(new Event("pointerup"));
+    expect(sources).toHaveLength(1);
+    expect(gains).toHaveLength(1);
+    detach();
+  });
 });

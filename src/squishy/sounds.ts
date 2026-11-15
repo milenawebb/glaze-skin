@@ -9,7 +9,7 @@ import crunch1 from "./assets/sounds/crunch-1.mp3.asset.json";
 import crunch2 from "./assets/sounds/crunch-2.mp3.asset.json";
 import crunch3 from "./assets/sounds/crunch-3.mp3.asset.json";
 
-/** All recording playback and the temporary synthesized release pop live here. */
+/** All recording playback lives here. */
 const groups = {
   squish: [squish1.url, squish2.url, squish3.url],
   crack: [crack1.url, crack2.url],
@@ -121,23 +121,6 @@ export function playCrunch() {
   }
 }
 
-/** Current short generated release pop, retained until a recording is available. */
-export function playPop() {
-  if (!enabled || !ctx) return;
-  const c = ctx, t = c.currentTime;
-  const o = c.createOscillator(), g = c.createGain();
-  o.type = "sine";
-  o.frequency.setValueAtTime(520, t);
-  o.frequency.exponentialRampToValueAtTime(900, t + 0.09);
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(0.14, t + 0.005);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
-  o.connect(g).connect(c.destination);
-  o.onended = () => { o.disconnect(); g.disconnect(); };
-  o.start(t);
-  o.stop(t + 0.11);
-}
-
 /** Sound-only press tracking for controls; visuals remain owned by squish.ts. */
 export function attachPressSounds(el: HTMLElement) {
   let raf = 0, start = 0, held = false;
@@ -150,7 +133,6 @@ export function attachPressSounds(el: HTMLElement) {
     if (!held) return;
     held = false;
     cancelAnimationFrame(raf);
-    playPop();
     window.removeEventListener("pointerup", end);
     window.removeEventListener("pointercancel", end);
   };
