@@ -1,3 +1,4 @@
+- [x] Restore real Mux cue loading with hidden native tracks, default-on CC and source-safe cue/time listeners; verified 10 real stream cues load, two successive lines match active cues during playback, CC toggles, and a single overlay appears on desktop and phone. 13 tests passed; physical Safari remains unverified.
 - [x] Restyle controls/popups as milky pink glass and remove the seek background panel without changing layout or glaze.
 - [x] Render captions once from hidden text tracks; verify CC, animated caption clearance, 4.98:1 minimum glass contrast, stable seek width, playback, frame cracking and Reset in Chromium on desktop and phone. Physical-device rendering remains unverified.
 - [x] Implement two-step frame cracking/peeling with smooth full-resolution holes and satin foam.

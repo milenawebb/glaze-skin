@@ -6,11 +6,11 @@ import { SquishyFrame } from "./SquishyFrame";
 import { crackCrust } from "./crust";
 import { useSquishAll } from "./squish";
 import { nextPlaybackRate, POPUP_SPEEDS, VOLUME_CLOSE_MS, CONTROLS_IDLE_MS, controlsVisible } from "./controls";
-import { overlayCaptionText } from "./captions";
+import { CAPTIONS_DEFAULT_ON, observeCaptionCues, isCaptionEngine } from "./captions";
 import "./squishy.css";
 
 export const squishy = createPlayer({ features: videoFeatures });
-const { Player, usePlayer } = squishy;
+const { Player, usePlayer, useMedia } = squishy;
 
 const IDLE_MS = CONTROLS_IDLE_MS;
 
@@ -53,7 +53,7 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
   const [volumeOpen, setVolumeOpen] = useState(false);
   const [speedOpen, setSpeedOpen] = useState(false);
   const [keyboardFocus, setKeyboardFocus] = useState(false);
-  const [captionsOn, setCaptionsOn] = useState(false);
+  const [captionsOn, setCaptionsOn] = useState(CAPTIONS_DEFAULT_ON);
   const paused = usePlayer((s) => s.paused);
   const [crust, setCrust] = useState({ play: true, tube: true });
 
@@ -396,29 +396,15 @@ function SpeedButton({ compact, open, setOpen }: { compact: boolean; open: boole
 /** Hidden native tracks supply the skin's single caption overlay on every size. */
 function RowCaptions({ rootRef, enabled }: { rootRef: { current: HTMLDivElement | null }; enabled: boolean }) {
   const [cues, setCues] = useState("");
+  const media = useMedia();
   useEffect(() => {
-    let tracks: TextTrackList | undefined;
-    const update = () => {
-      const video = rootRef.current?.querySelector("video");
-      if (!video) return;
-      if (tracks !== video.textTracks) {
-        tracks?.removeEventListener("change", update);
-        tracks?.removeEventListener("addtrack", update);
-        tracks = video.textTracks;
-        tracks.addEventListener("change", update);
-        tracks.addEventListener("addtrack", update);
-      }
-      const text = overlayCaptionText(video.textTracks, enabled);
-      setCues((old) => old === text ? old : text);
-    };
-    const timer = window.setInterval(update, 100);
-    update();
-    return () => {
-      window.clearInterval(timer);
-      tracks?.removeEventListener("change", update);
-      tracks?.removeEventListener("addtrack", update);
-    };
-  }, [rootRef, enabled]);
+    const video = rootRef.current?.querySelector("video");
+    if (!video) return;
+    return observeCaptionCues(video, () => {
+      const engine = media && "engine" in media ? media.engine : undefined;
+      return isCaptionEngine(engine) ? engine : undefined;
+    }, enabled, setCues);
+  }, [rootRef, enabled, media]);
   return enabled && cues ? <div className="sq-row-captions" aria-live="off"><span>{cues}</span></div> : null;
 }
 
