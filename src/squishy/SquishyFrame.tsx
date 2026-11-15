@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createFrameRenderer, isOnRing, smoothDents, stampDent, type FrameRenderer } from "./frame-gl";
-import { playPop, playSquelch } from "./sounds";
+import { playCrunch, playPop, playSquelch } from "./sounds";
 import { vibratePress } from "./haptics";
 import { dentDepth, dentRadius, faceExpression, frameInsets, pressureScale } from "./touch";
 
@@ -9,7 +9,7 @@ import { crackFrameGlaze } from "./crust";
 
 const RESET_MS = 1500;
 
-interface Press { x: number; y: number; start: number; radius: number; pressure: number | null }
+interface Press { x: number; y: number; start: number; radius: number; pressure: number | null; sound: ((depth: number) => void) | undefined }
 
 /** WebGL squishy frame. Dents stay until `resetKey` changes. */
 export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFallback: () => void }) {
@@ -41,6 +41,7 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
       r.face = faceExpression(presses.size, now - released, reduce);
       for (const p of presses.values()) {
         const held = (now - p.start) / 1000;
+        p.sound?.(dentDepth(held, p.pressure));
         const radius = p.radius + (p.pressure === null ? Math.min(held, 2) * 3 : 0);
         stampDent(r, p.x, p.y, radius, dentDepth(held, p.pressure), 0.18);
         const extent = radius * 2.2;
@@ -90,22 +91,23 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
       const rect = canvas.getBoundingClientRect();
       return { x: e.clientX - rect.left, y: e.clientY - rect.top };
     };
-    const crack = (x: number, y: number, pointerType: string) => {
+    const crack = (x: number, y: number, pointerType: string, dragging = false) => {
       if (!hasGlaze(r, x, y) || breaks.some(b => Math.hypot(x - b.x, y - b.y) < b.radius * .8)) return;
       const radius = dentRadius(pointerType) * 2.1;
       const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       breaks.push({ x, y, radius, start: performance.now(), duration: reduce ? 200 : 400 });
-      crackFrameGlaze(canvas, x, y, radius);
+      if (dragging) playCrunch();
+      crackFrameGlaze(canvas, x, y, radius, !dragging);
     };
     const down = (e: PointerEvent) => {
       const { x, y } = local(e);
       if (!isOnRing(x, y, size.w, size.h, frameInsets(size.w))) return;
       e.preventDefault();
       canvas.setPointerCapture?.(e.pointerId);
-      presses.set(e.pointerId, { x, y, start: performance.now(), radius: dentRadius(e.pointerType), pressure: pressureScale(e) });
+      const pressure = pressureScale(e);
+      presses.set(e.pointerId, { x, y, start: performance.now(), radius: dentRadius(e.pointerType), pressure, sound: playSquelch(dentDepth(0, pressure)) });
       resetRef.current = null;
       crack(x, y, e.pointerType);
-      playSquelch();
       vibratePress();
       schedule();
     };
@@ -116,7 +118,7 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
       const held = (performance.now() - p.start) / 1000;
       p.pressure = pressureScale(e);
       const depth = dentDepth(held, p.pressure);
-      if (isOnRing(x, y, size.w, size.h, frameInsets(size.w))) crack(x, y, e.pointerType);
+      if (Math.hypot(x - p.x, y - p.y) > 0 && isOnRing(x, y, size.w, size.h, frameInsets(size.w))) crack(x, y, e.pointerType, true);
       const dist = Math.hypot(x - p.x, y - p.y);
       const steps = Math.max(1, Math.ceil(dist / 3));
       for (let s = 1; s <= steps; s++) {

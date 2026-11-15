@@ -1,3 +1,5 @@
+- [x] Replace synthesized press/glaze sounds with the ten recordings and keep the generated release pop.
+- [x] Verify loading, variation, deeper presses and two-voice/150ms drag limits in tests; check real press/drag, playback, seeking, dents, Reset and sound-off in Chromium. Physical iPhone audio remains unverified.
 - [x] Replace control crust with clear glass glaze, tiny shards and glassy sound.
 - [x] Add independent local frame glaze cracking and gradual Reset restoration.
 - [x] Soften control shapes; verify real playback, seeking, dents, local glaze, Reset and reduced motion in Chromium at desktop and 440px; physical devices remain unverified.

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { crackCrust } from "./crust";
-vi.mock("./sounds", () => ({ playCrunch: vi.fn() }));
+vi.mock("./sounds", () => ({ playCrack: vi.fn(), playShatter: vi.fn() }));
 vi.mock("./haptics", () => ({ vibrateBreak: vi.fn(), vibrateCrack: vi.fn() }));
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
 describe("glass coating motion", () => {

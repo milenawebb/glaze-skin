@@ -1,6 +1,7 @@
 import { useEffect, type RefObject } from "react";
 import { prefersReducedMotion } from "./crust";
 import { vibratePress } from "./haptics";
+import { attachPressSounds } from "./sounds";
 
 const RISE_MS = 1500;
 
@@ -11,6 +12,7 @@ const RISE_MS = 1500;
  * `.sq-squish-body` turns them into the shape and the dent.
  */
 export function attachSquish(el: HTMLElement): () => void {
+  const removeSounds = attachPressSounds(el);
   let s = 0, pressing = false, t0 = 0, s0 = 0, rel0 = 0, relFrom = 0, raf = 0;
   let keyTimer: number | undefined;
 
@@ -70,6 +72,7 @@ export function attachSquish(el: HTMLElement): () => void {
   el.addEventListener("pointerdown", down);
   el.addEventListener("keydown", key);
   return () => {
+    removeSounds();
     cancelAnimationFrame(raf);
     window.clearTimeout(keyTimer);
     el.removeEventListener("pointerdown", down);

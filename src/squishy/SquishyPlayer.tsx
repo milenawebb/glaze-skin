@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent as RKeyboa
 import { SquishyFrame } from "./SquishyFrame";
 import { crackCrust } from "./crust";
 import { useSquishAll } from "./squish";
-import { playPop, playSquelch } from "./sounds";
 import { nextPlaybackRate } from "./controls";
 import "./squishy.css";
 
@@ -199,11 +198,9 @@ function usePress() {
     handlers: {
       onPointerDown: () => {
         setPressed(true);
-        playSquelch();
       },
       onPointerUp: () => {
         setPressed(false);
-        playPop();
       },
       onPointerCancel: () => setPressed(false),
       onPointerLeave: () => setPressed(false),
@@ -264,11 +261,9 @@ function JellySeek({ crust, onCrack }: { crust: boolean; onCrack: CrackFn }) {
       className="sq-seek sq-squish"
       onPointerDownCapture={(e) => {
         down.current = true;
-        playSquelch();
         crack({ x: e.clientX, y: e.clientY });
       }}
       onPointerUpCapture={() => {
-        if (down.current) playPop();
         down.current = false;
       }}
       onPointerCancelCapture={() => (down.current = false)}

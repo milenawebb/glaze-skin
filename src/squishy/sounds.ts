@@ -1,94 +1,185 @@
-/**
- * Squishy ASMR sounds. One function per sound so real recordings can be
- * swapped in later. Everything is synthesized with the Web Audio API.
- * Sounds are OFF by default.
- */
+import squish1 from "./assets/sounds/squish-1.mp3.asset.json";
+import squish2 from "./assets/sounds/squish-2.mp3.asset.json";
+import squish3 from "./assets/sounds/squish-3.mp3.asset.json";
+import crack1 from "./assets/sounds/crack-1.mp3.asset.json";
+import crack2 from "./assets/sounds/crack-2.mp3.asset.json";
+import shatter1 from "./assets/sounds/shatter-1.mp3.asset.json";
+import shatter2 from "./assets/sounds/shatter-2.mp3.asset.json";
+import crunch1 from "./assets/sounds/crunch-1.mp3.asset.json";
+import crunch2 from "./assets/sounds/crunch-2.mp3.asset.json";
+import crunch3 from "./assets/sounds/crunch-3.mp3.asset.json";
+
+/** All recording playback and the temporary synthesized release pop live here. */
+const groups = {
+  squish: [squish1.url, squish2.url, squish3.url],
+  crack: [crack1.url, crack2.url],
+  shatter: [shatter1.url, shatter2.url],
+  crunch: [crunch1.url, crunch2.url, crunch3.url],
+};
+type Group = keyof typeof groups;
 let enabled = false;
 let ctx: AudioContext | null = null;
-
-export function setSoundsEnabled(on: boolean) {
-  enabled = on;
-  if (on) getCtx()?.resume();
-}
-export function getSoundsEnabled() {
-  return enabled;
-}
+let loading: Promise<void> | null = null;
+const buffers = new Map<string, AudioBuffer>();
+const previous = new Map<Group, number>();
+const active = new Set<AudioBufferSourceNode>();
+const crunches = new Set<AudioBufferSourceNode>();
+let lastCrunch = -Infinity;
 
 function getCtx(): AudioContext | null {
   if (typeof window === "undefined") return null;
   if (!ctx) {
-    const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const AC = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AC) return null;
-    ctx = new AC();
+    try { ctx = new AC(); } catch { return null; }
   }
   return ctx;
 }
 
-function noiseBurst(opts: { dur: number; type: BiquadFilterType; freq: number; q: number; gain: number; sweepTo?: number; attack?: number }) {
+export function setSoundsEnabled(on: boolean) {
+  enabled = on;
+  if (!on) {
+    for (const source of active) { try { source.stop(); } catch { /* Already ended. */ } }
+    active.clear();
+    crunches.clear();
+    lastCrunch = -Infinity;
+    return;
+  }
   const c = getCtx();
-  if (!enabled || !c) return;
-  const len = Math.ceil(c.sampleRate * opts.dur);
-  const buf = c.createBuffer(1, len, c.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
-  const src = c.createBufferSource();
-  src.buffer = buf;
-  const f = c.createBiquadFilter();
-  f.type = opts.type;
-  f.Q.value = opts.q;
-  const t = c.currentTime;
-  f.frequency.setValueAtTime(opts.freq, t);
-  if (opts.sweepTo) f.frequency.exponentialRampToValueAtTime(opts.sweepTo, t + opts.dur);
-  const g = c.createGain();
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(opts.gain, t + (opts.attack ?? 0.01));
-  g.gain.exponentialRampToValueAtTime(0.0001, t + opts.dur);
-  src.connect(f).connect(g).connect(c.destination);
-  src.start(t);
-  src.stop(t + opts.dur + 0.02);
-}
-
-function sinePop(freq: number, to: number, dur: number, gain: number) {
-  const c = getCtx();
-  if (!enabled || !c) return;
-  const t = c.currentTime;
-  const o = c.createOscillator();
-  o.type = "sine";
-  o.frequency.setValueAtTime(freq, t);
-  o.frequency.exponentialRampToValueAtTime(to, t + dur);
-  const g = c.createGain();
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(gain, t + 0.005);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g).connect(c.destination);
-  o.start(t);
-  o.stop(t + dur + 0.02);
-}
-
-/** Soft wet squelch when pressing the frame or a control. */
-export function playSquelch() {
-  noiseBurst({ dur: 0.22, type: "bandpass", freq: 900, sweepTo: 260, q: 6, gain: 0.35, attack: 0.02 });
-  sinePop(180, 90, 0.18, 0.08);
-}
-
-/** Soft pop on release. */
-export function playPop() {
-  sinePop(520, 900, 0.09, 0.14);
-}
-
-/** Light sugar-glass tinkle; temporary synthesized coating sound. */
-export function playCrunch(duration = 0.8) {
-  if (!enabled) return;
-  for (let i = 0; i < 8; i++) {
-    setTimeout(() => {
-      if (!enabled) return;
-      const frequency = 1800 + Math.random() * 2600;
-      sinePop(frequency, frequency * 0.92, 0.10 + Math.random() * 0.10, 0.035);
-    }, duration * 300 + i * duration * 45);
+  if (!c) return;
+  // Both resume and a silent buffer start happen synchronously on the enabling tap.
+  void c.resume().catch(() => {});
+  const unlock = c.createBufferSource();
+  unlock.buffer = c.createBuffer(1, 1, c.sampleRate);
+  unlock.connect(c.destination);
+  unlock.onended = () => unlock.disconnect();
+  unlock.start();
+  if (!loading) {
+    loading = Promise.all(Object.values(groups).flat().map(async (url) => {
+      if (buffers.has(url)) return;
+      try {
+        const response = await fetch(url);
+        if (!response.ok) return;
+        buffers.set(url, await c.decodeAudioData(await response.arrayBuffer()));
+      } catch { /* An unavailable recording must not interrupt the player. */ }
+    })).then(() => { loading = null; });
   }
 }
 
-/** Gentle squeeze for the stress ball. */
-export function playSqueeze() {
-  noiseBurst({ dur: 0.3, type: "lowpass", freq: 600, sweepTo: 1400, q: 3, gain: 0.25, attack: 0.06 });
+export function getSoundsEnabled() { return enabled; }
+
+function recording(group: Group, depth = 0) {
+  if (!enabled || !ctx || ctx.state !== "running") return;
+  const c = ctx;
+  const choices = groups[group].map((url, index) => ({ buffer: buffers.get(url), index }))
+    .filter((item) => item.buffer && item.index !== previous.get(group));
+  const choice = choices[Math.floor(Math.random() * choices.length)];
+  if (!choice?.buffer) return;
+  previous.set(group, choice.index);
+  const source = c.createBufferSource();
+  const gain = c.createGain();
+  const rate = 0.95 + Math.random() * 0.1;
+  const volume = 0.65 * (0.9 + Math.random() * 0.2);
+  source.buffer = choice.buffer;
+  source.connect(gain).connect(c.destination);
+  const update = (amount: number) => {
+    const d = Math.max(0, Math.min(1, amount));
+    source.playbackRate.setTargetAtTime(rate * (1 - d * 0.1), c.currentTime, 0.04);
+    gain.gain.setTargetAtTime(volume * (1 + d * 0.2), c.currentTime, 0.04);
+  };
+  update(depth);
+  active.add(source);
+  source.onended = () => {
+    active.delete(source);
+    crunches.delete(source);
+    source.disconnect();
+    gain.disconnect();
+  };
+  source.start();
+  return { source, update };
+}
+
+/** Starts once at press-down; update the same voice as pressure/hold deepens. */
+export function playSquelch(depth = 0) { return recording("squish", depth)?.update; }
+/** Compatibility entry for a squeeze uses the same press recordings. */
+export function playSqueeze(depth = 0) { return playSquelch(depth); }
+/** A fresh stationary spot of frame glaze cracking. */
+export function playCrack() { recording("crack"); }
+/** The whole play-button or seek-bar glaze shattering. */
+export function playShatter() { recording("shatter"); }
+/** Fresh frame-gloss drag only; shared limit also covers simultaneous fingers. */
+export function playCrunch() {
+  if (!enabled || !ctx || ctx.currentTime - lastCrunch < 0.15) return;
+  if (crunches.size >= 2) {
+    const oldest = crunches.values().next().value;
+    if (oldest) { oldest.stop(); crunches.delete(oldest); }
+  }
+  const voice = recording("crunch");
+  if (voice) {
+    crunches.add(voice.source);
+    lastCrunch = ctx.currentTime;
+  }
+}
+
+/** Current short generated release pop, retained until a recording is available. */
+export function playPop() {
+  if (!enabled || !ctx) return;
+  const c = ctx, t = c.currentTime;
+  const o = c.createOscillator(), g = c.createGain();
+  o.type = "sine";
+  o.frequency.setValueAtTime(520, t);
+  o.frequency.exponentialRampToValueAtTime(900, t + 0.09);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.14, t + 0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+  o.connect(g).connect(c.destination);
+  o.onended = () => { o.disconnect(); g.disconnect(); };
+  o.start(t);
+  o.stop(t + 0.11);
+}
+
+/** Sound-only press tracking for controls; visuals remain owned by squish.ts. */
+export function attachPressSounds(el: HTMLElement) {
+  let raf = 0, start = 0, held = false;
+  let update: ((depth: number) => void) | undefined;
+  const tick = () => {
+    update?.(Math.min(1, (performance.now() - start) / 2000));
+    if (held) raf = requestAnimationFrame(tick);
+  };
+  const end = () => {
+    if (!held) return;
+    held = false;
+    cancelAnimationFrame(raf);
+    playPop();
+    window.removeEventListener("pointerup", end);
+    window.removeEventListener("pointercancel", end);
+  };
+  const down = (e: PointerEvent) => {
+    if (e.button > 0 || held) return;
+    held = true;
+    start = performance.now();
+    update = playSquelch();
+    if (update) raf = requestAnimationFrame(tick);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+  };
+  const keyDown = (e: KeyboardEvent) => {
+    if (!e.repeat && (e.key === " " || e.key === "Enter" || (el.matches(".sq-seek") && e.key.startsWith("Arrow")))) {
+      held = true;
+      start = performance.now();
+      update = playSquelch();
+      if (update) raf = requestAnimationFrame(tick);
+    }
+  };
+  el.addEventListener("pointerdown", down);
+  el.addEventListener("keydown", keyDown);
+  el.addEventListener("keyup", end);
+  return () => {
+    cancelAnimationFrame(raf);
+    el.removeEventListener("pointerdown", down);
+    el.removeEventListener("keydown", keyDown);
+    el.removeEventListener("keyup", end);
+    window.removeEventListener("pointerup", end);
+    window.removeEventListener("pointercancel", end);
+  };
 }

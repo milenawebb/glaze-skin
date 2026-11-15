@@ -1,4 +1,4 @@
-import { playCrunch } from "./sounds";
+import { playCrack, playShatter } from "./sounds";
 import { vibrateBreak, vibrateCrack } from "./haptics";
 
 export function prefersReducedMotion() {
@@ -25,7 +25,7 @@ const SVG = "http://www.w3.org/2000/svg";
 export function crackCrust(crust: HTMLElement | null, layer: HTMLElement | null, opts: CrackOptions) {
   if (crust?.dataset["cracking"]) return;
   const dur = (opts.duration ?? 0.8) * 1000;
-  playCrunch(dur / 1000);
+  playShatter();
   if (!crust || !layer) return opts.onRemove();
   crust.dataset["cracking"] = "1";
   vibrateCrack();
@@ -115,8 +115,8 @@ function glassShards(layer: HTMLElement, x: number, y: number, radius: number, c
 }
 
 /** One local glass crack on the ring; coating removal is driven by its independent map. */
-export function crackFrameGlaze(canvas: HTMLCanvasElement, x: number, y: number, radius: number) {
-  playCrunch(0.4);
+export function crackFrameGlaze(canvas: HTMLCanvasElement, x: number, y: number, radius: number, sound = true) {
+  if (sound) playCrack();
   vibrateCrack();
   if (prefersReducedMotion()) return;
   const parent = canvas.parentElement;
