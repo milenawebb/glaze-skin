@@ -1,3 +1,6 @@
+- [x] Replace control crust with clear glass glaze, tiny shards and glassy sound.
+- [x] Add independent local frame glaze cracking and gradual Reset restoration.
+- [x] Soften control shapes; verify real playback, seeking, dents, local glaze, Reset and reduced motion in Chromium at desktop and 440px; physical devices remain unverified.
 - [x] Simplify play, seek, volume, speed and shared control styling; preserve keyboard/touch targets.
 - [x] Render a permanent, dent-following face on the bottom frame with press reactions.
 - [x] Verify playback, whole-bar cracking/seeking, mute/volume, speed cycling, phone layout, dents and Reset in Chromium; physical devices remain unverified.

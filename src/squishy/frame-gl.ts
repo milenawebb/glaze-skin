@@ -15,7 +15,7 @@ precision highp float;
 precision mediump float;
 #endif
 uniform vec2 uRes; uniform vec4 uIns; uniform float uRo; uniform float uRi;
-uniform sampler2D uDent; uniform float uFace; varying vec2 vUv;
+uniform sampler2D uDent; uniform sampler2D uGlaze; uniform float uFace; varying vec2 vUv;
 float sdRR(vec2 p, vec2 c, vec2 hs, float r){ vec2 q=abs(p-c)-hs+r; return length(max(q,0.))+min(max(q.x,q.y),0.)-r; }
 float sdO(vec2 p){ return sdRR(p, uRes*.5, uRes*.5, uRo); }
 float sdI(vec2 p){ vec2 a=uIns.xy; vec2 b=uRes-uIns.zw; return sdRR(p,(a+b)*.5,(b-a)*.5,uRi); }
@@ -99,7 +99,12 @@ void main(){
   sh=clamp(sh+inner*.22,0.,.6);
   vec3 Hh=normalize(L+V);
   float nh=max(dot(N,Hh),0.);
-  float spec=pow(nh,70.)*.6+pow(nh,10.)*.22;
+  float coat=1.-texture2D(uGlaze,p/uRes).r;
+  float spec=pow(nh,10.)*.12;
+  // Sharp sugar-glass reflections follow the dented surface normal.
+  spec+=coat*(pow(nh,180.)*.85+pow(nh,45.)*.22);
+  float streak=pow(max(0.,1.-abs(N.x*.65+N.y*.76+.24)*14.),12.);
+  spec+=coat*streak*.32;
   float rim=clamp(dot(N.xy,vec2(.55,.65)),0.,1.);
   sh=clamp(sh+rim*.22,0.,.6);
   // translucent jelly glow: thinner areas let more light through
@@ -115,6 +120,7 @@ export interface FrameRenderer {
   resize(w: number, h: number, insets: { l: number; t: number; r: number; b: number }): void;
   render(): void;
   dent: Float32Array;
+  glaze: Float32Array;
   dw: number;
   dh: number;
   face: number;
@@ -157,6 +163,7 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
   const u = (n: string) => gl.getUniformLocation(prog, n);
   const uRes = u("uRes"), uIns = u("uIns"), uRo = u("uRo"), uRi = u("uRi"), uFace = u("uFace");
   gl.uniform1i(u("uDent"), 0);
+  gl.uniform1i(u("uGlaze"), 1);
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
@@ -168,9 +175,18 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
+  const glazeTex = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, glazeTex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  let glazeBytes = new Uint8Array(0);
   let bytes = new Uint8Array(0);
   const r: FrameRenderer = {
     dent: new Float32Array(0),
+    glaze: new Float32Array(0),
     dw: 0,
     dh: 0,
     face: 0,
@@ -186,13 +202,20 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
       const nw = Math.max(1, Math.ceil(w / 2)), nh = Math.max(1, Math.ceil(h / 2));
       if (nw !== r.dw || nh !== r.dh) {
         const next = new Float32Array(nw * nh);
+        const nextGlaze = new Float32Array(nw * nh);
         if (r.dw && r.dh) {
           for (let y = 0; y < nh; y++) {
             const sy = Math.min(r.dh - 1, Math.floor((y * r.dh) / nh));
-            for (let x = 0; x < nw; x++) next[y * nw + x] = r.dent[sy * r.dw + Math.min(r.dw - 1, Math.floor((x * r.dw) / nw))] ?? 0;
+            for (let x = 0; x < nw; x++) {
+              const i = sy * r.dw + Math.min(r.dw - 1, Math.floor((x * r.dw) / nw));
+              next[y * nw + x] = r.dent[i] ?? 0;
+              nextGlaze[y * nw + x] = r.glaze[i] ?? 0;
+            }
           }
         }
         r.dent = next;
+        r.glaze = nextGlaze;
+        glazeBytes = new Uint8Array(nw * nh);
         r.dw = nw;
         r.dh = nh;
         bytes = new Uint8Array(nw * nh);
@@ -208,12 +231,18 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
         for (let i = 0; i < r.dent.length; i++) bytes[i] = Math.round((r.dent[i] ?? 0) * 255);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, r.dw, r.dh, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, bytes);
       }
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, glazeTex);
+      for (let i = 0; i < r.glaze.length; i++) glazeBytes[i] = Math.round((r.glaze[i] ?? 0) * 255);
+      if (gl2) gl2.texImage2D(gl2.TEXTURE_2D, 0, gl2.R8, r.dw, r.dh, 0, gl2.RED, gl2.UNSIGNED_BYTE, glazeBytes);
+      else gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, r.dw, r.dh, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, glazeBytes);
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     },
     destroy() {
       gl.deleteTexture(tex);
+      gl.deleteTexture(glazeTex);
       gl.deleteBuffer(buf);
       gl.deleteProgram(prog);
     },

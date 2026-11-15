@@ -167,10 +167,11 @@
   .demo-btn {
     position: relative;
     display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 22px;
-    border-radius: 999px; font-weight: 600; color: var(--color-foreground); background: var(--color-secondary);
+    border-radius: 48% 52% 47% 53% / 53% 47% 53% 47%; font-weight: 600; color: var(--color-foreground); background: var(--color-secondary);
     border: 2px solid var(--color-border); cursor: pointer;
   }
   .demo-btn[aria-pressed="true"] { background: var(--color-accent); }
+  .demo-btn + .demo-btn { border-radius: 52% 48% 54% 46% / 47% 54% 46% 53%; }
   .demo-btn:focus-visible { outline: 3px solid var(--color-ring); outline-offset: 3px; }
   .demo-icon { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 }

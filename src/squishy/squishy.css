@@ -13,14 +13,18 @@
   --sq-peach: #ffd2b0;
   --sq-cheek: #ff9fbf;
   --sq-focus: #1f4f8f;
-  --sq-crust-a: #f7c76a;
-  --sq-crust-b: #d98a2b;
-  --sq-crust-c: #a85a17;
+  --sq-glass-glint: rgb(255 255 255 / 0.95);
+  --sq-glass-edge: rgb(255 255 255 / 0.65);
+  --sq-glass-tint: rgb(255 255 255 / 0.08);
+  --sq-glass-shadow: rgb(91 70 112 / 0.14);
+  --sq-grain: rgb(74 35 56 / 0.035);
+  --sq-blob-highlight: rgb(255 255 255 / 0.6);
   --sq-rise: 1.5s cubic-bezier(0.22, 0.7, 0.25, 1);
   --sq-press: 0.12s cubic-bezier(0.3, 0, 0.4, 1);
   --sq-font: "Fredoka", ui-rounded, "Nunito", system-ui, sans-serif;
   --sq-pill-surface: var(--sq-cream);
-  --sq-pill-shadow: inset 0 2px 3px #fff, inset 0 -3px 5px rgb(220 140 180 / 0.35), 0 2px 5px rgb(60 20 40 / 0.25);
+  --sq-pill-shadow: inset 0 2px 4px var(--sq-blob-highlight), inset 0 -3px 5px var(--sq-glass-shadow), 0 2px 5px var(--sq-glass-shadow);
+  --sq-toy-surface: radial-gradient(ellipse at 32% 24%, var(--sq-blob-highlight), transparent 65%), repeating-conic-gradient(var(--sq-grain) 0% 25%, transparent 0% 50%) 0 0 / 3px 3px;
   --sq-video-text: #fff7fb;
   --sq-progress-track: #f3eafa;
   --sq-play-ink: #fff;
@@ -135,7 +139,7 @@
   font-weight: 600;
   font-size: 14px;
   color: var(--sq-ink);
-  background: var(--sq-pill-surface);
+  background: var(--sq-toy-surface), var(--sq-pill-surface);
   box-shadow: var(--sq-pill-shadow);
 }
 .sq-phone-face { display: contents; }
@@ -146,10 +150,10 @@
 /* Soft lilac play button */
 .sq-bun { position: relative; width: 56px; height: 56px; display: grid; place-items: center; }
 .sq-bun-body {
-  position: relative; width: 52px; height: 52px; border-radius: 50%;
-  display: grid; place-items: center; background: var(--sq-lilac); box-shadow: var(--sq-pill-shadow);
+  position: relative; width: 52px; height: 52px; border-radius: 47% 53% 49% 51% / 52% 46% 54% 48%;
+  display: grid; place-items: center; background: var(--sq-toy-surface), var(--sq-lilac); box-shadow: var(--sq-pill-shadow);
 }
-.sq-play-icon { width: 28px; height: 28px; fill: var(--sq-play-ink); }
+.sq-play-icon { width: 28px; height: 28px; fill: var(--sq-play-ink); stroke: var(--sq-ink); stroke-width: 1.2; stroke-linejoin: round; paint-order: stroke fill; }
 
 /* Jelly seek tube */
 .sq-seek { position: relative; touch-action: none; }
@@ -208,28 +212,28 @@
 [data-squish-pressed].sq-squish-body,
 [data-squish-pressed] .sq-squish-body { filter: brightness(0.9); }
 
-/* Baked crust */
+/* Clear sugar-glass coat: transparent so the icon and progress remain visible. */
 .sq-crust-wrap { position: absolute; inset: -2px; border-radius: inherit; pointer-events: none; }
 .sq-crust {
-  position: absolute; inset: 0; border-radius: inherit;
-  background:
-    radial-gradient(40% 30% at 30% 22%, rgb(255 245 200 / 0.9), transparent 70%),
-    repeating-linear-gradient(115deg, transparent 0 5px, rgb(150 80 20 / 0.28) 5px 6px, transparent 6px 11px),
-    radial-gradient(circle at 70% 70%, var(--sq-crust-b), transparent 60%),
-    radial-gradient(120% 100% at 40% 30%, var(--sq-crust-a), var(--sq-crust-b) 65%, var(--sq-crust-c));
-  box-shadow: inset 0 2px 2px rgb(255 240 190 / 0.9), inset 0 -3px 5px rgb(110 50 10 / 0.5), 0 2px 4px rgb(60 20 0 / 0.3);
+  position: absolute; inset: 0; border-radius: inherit; overflow: hidden;
+  background: linear-gradient(125deg, transparent 27%, var(--sq-glass-glint) 29%, transparent 32%), radial-gradient(ellipse at 28% 15%, var(--sq-glass-edge), transparent 46%), var(--sq-glass-tint);
+  box-shadow: inset 0 1px 1px var(--sq-glass-glint), inset 0 0 0 1px var(--sq-glass-edge), inset 0 -2px 2px var(--sq-glass-edge), 0 1px 2px var(--sq-glass-shadow);
+  animation: sq-glaze-return 1.5s ease-out;
 }
-
+@keyframes sq-glaze-return { from { opacity: 0; } to { opacity: 1; } }
 .sq-cracks { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
-.sq-cracks polyline { fill: none; stroke: rgb(90 40 8 / 0.85); stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 1; }
-.sq-piece { position: absolute; pointer-events: none; will-change: transform, opacity; }
-.sq-piece > .sq-crust { inset: 0; }
+.sq-cracks polyline { fill: none; stroke: var(--sq-glass-glint); stroke-width: .85; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 1; filter: drop-shadow(0 0 1px var(--sq-glass-edge)); }
 .sq-flakes { position: absolute; inset: 0; z-index: 5; pointer-events: none; overflow: visible; }
 .sq-flake {
-  position: absolute; border-radius: 2px 5px 3px 6px;
-  background: linear-gradient(135deg, #ffe39a, var(--sq-crust-b) 60%, var(--sq-crust-c));
-  box-shadow: 0 1px 1px rgb(80 30 0 / 0.35);
+  position: absolute;
+  background: linear-gradient(135deg, var(--sq-glass-glint), var(--sq-glass-tint) 35%, var(--sq-glass-edge) 65%, transparent);
+  box-shadow: inset 0 1px 0 var(--sq-glass-glint);
 }
+.sq-sparkle { position: absolute; width: 7px; height: 7px; background: var(--sq-glass-glint); clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%); }
+.sq-volume .sq-btn { border-radius: 48% 52% 46% 54% / 54% 47% 53% 46%; }
+.sq-row > .sq-btn:not(.sq-icon) { border-radius: 53% 47% 51% 49% / 47% 54% 46% 53%; }
+.sq-speed .sq-btn { border-radius: 46% 54% 53% 47% / 51% 46% 54% 49%; }
+.sq-row > .sq-icon { border-radius: 51% 49% 46% 54% / 46% 53% 47% 54%; }
 
 /* Phones and tablets: 44px targets */
 @media (pointer: coarse), (max-width: 640px) {
@@ -257,7 +261,7 @@
 .sq-root[data-compact] .sq-volume { position: absolute; right: 6px; top: 0; width: 44px; height: 44px; }
 .sq-root[data-compact] .sq-pill.sq-btn { width: 44px; height: 44px; min-height: 44px; min-width: 44px; padding: 6px; background: none; box-shadow: none; transform: none; }
 .sq-root[data-compact] .sq-pill.sq-btn::after { display: none; }
-.sq-root[data-compact] .sq-phone-face { display: grid; place-items: center; position: relative; width: 32px; height: 32px; border-radius: inherit; background: var(--sq-pill-surface); box-shadow: var(--sq-pill-shadow); font-size: 12px; }
+.sq-root[data-compact] .sq-phone-face { display: grid; place-items: center; position: relative; width: 32px; height: 32px; border-radius: inherit; background: var(--sq-toy-surface), var(--sq-pill-surface); box-shadow: var(--sq-pill-shadow); font-size: 12px; }
 .sq-root[data-compact] .sq-btn[aria-pressed="true"] .sq-phone-face { background: var(--sq-mint); }
 .sq-root[data-compact] .sq-time { position: absolute; left: 8px; bottom: 0; width: 68px; height: 44px; min-height: 44px; min-width: 0; padding: 0; font-size: 10px; white-space: nowrap; background: none; box-shadow: none; color: var(--sq-video-text); text-shadow: var(--sq-video-text-shadow); }
 .sq-root[data-compact] .sq-seek { position: absolute; left: 84px; right: 56px; bottom: 0; }

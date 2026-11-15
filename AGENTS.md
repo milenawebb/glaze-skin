@@ -37,4 +37,5 @@ use the editor.
 - Phone layout positions the existing controls through data-compact rather than mounting duplicates, preserving media, squish, and crust state across resizes; compact pill faces separate 32px artwork from 44px buttons.
 - Render the bottom-band face in the frame shader using the same dent map and lighting, so permanent dents deform rather than erase it; animate its expression independently of the dent reset.
 - Keep the playback-speed tap cycle in controls.ts with a concrete behavior test so the button and its sequence stay aligned.
+- Store broken frame glaze in its own height-map-sized texture, independent of dents, so local matte patches and Reset never erase the face or alter squishing.
 <!-- AGENT-MEMORY:END -->

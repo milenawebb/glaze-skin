@@ -161,7 +161,7 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
             <BunPlay
               crusted={crust.play}
               onCrack={(el, pt) =>
-                crackCrust(el, flakeRef.current, { ...pt, onRemove: () => setCrust((c) => ({ ...c, play: false })) })
+                crackCrust(el, flakeRef.current, { duration: 0.8, ...pt, onRemove: () => setCrust((c) => ({ ...c, play: false })) })
               }
             />
             <TimePill />
@@ -243,7 +243,7 @@ function BunPlay({ crusted, onCrack }: { crusted: boolean; onCrack: CrackFn }) {
           {paused ? <path d="M8 4 21 12 8 20Z" /> : <path d="M6 4h4v16H6zM14 4h4v16h-4z" />}
         </svg>
         {crusted && (
-          <span ref={crustRef} className="sq-crust-wrap">
+          <span key={String(crusted)} ref={crustRef} className="sq-crust-wrap">
             <Crust />
           </span>
         )}

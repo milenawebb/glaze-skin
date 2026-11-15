@@ -4,6 +4,9 @@ import { playPop, playSquelch } from "./sounds";
 import { vibratePress } from "./haptics";
 import { dentDepth, dentRadius, faceExpression, frameInsets, pressureScale } from "./touch";
 
+import { breakGlaze, hasGlaze } from "./glaze";
+import { crackFrameGlaze } from "./crust";
+
 const RESET_MS = 1500;
 
 interface Press { x: number; y: number; start: number; radius: number; pressure: number | null }
@@ -13,7 +16,7 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<FrameRenderer | null>(null);
   const kick = useRef<() => void>(() => {});
-  const resetRef = useRef<{ start: number; snap: Float32Array } | null>(null);
+  const resetRef = useRef<{ start: number; snap: Float32Array; glaze: Float32Array } | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -30,6 +33,7 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
     let size = { w: 1, h: 1 };
     let raf = 0;
     let released = -1000;
+    const breaks: { x: number; y: number; radius: number; start: number; duration: number }[] = [];
 
     const loop = (now: number) => {
       raf = 0;
@@ -42,15 +46,25 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
         const extent = radius * 2.2;
         smoothDents(r, p.x - extent, p.y - extent, p.x + extent, p.y + extent);
       }
+      for (let i = breaks.length - 1; i >= 0; i--) {
+        const b = breaks[i];
+        if (!b) continue;
+        const t = Math.min(1, (now - b.start) / b.duration);
+        breakGlaze(r, b.x, b.y, b.radius, t);
+        if (t === 1) breaks.splice(i, 1);
+      }
       const rs = resetRef.current;
       if (rs) {
         const t = Math.min(1, (now - rs.start) / RESET_MS);
         const k = 1 - (1 - Math.pow(1 - t, 3));
-        for (let i = 0; i < r.dent.length; i++) r.dent[i] = (rs.snap[i] ?? 0) * k;
+        for (let i = 0; i < r.dent.length; i++) {
+          r.dent[i] = (rs.snap[i] ?? 0) * k;
+          r.glaze[i] = (rs.glaze[i] ?? 0) * k;
+        }
         if (t >= 1) resetRef.current = null;
       }
       r.render();
-      if (presses.size || resetRef.current || r.face > 0) raf = requestAnimationFrame(loop);
+      if (presses.size || breaks.length || resetRef.current || r.face > 0) raf = requestAnimationFrame(loop);
     };
     const schedule = () => {
       if (!raf) raf = requestAnimationFrame(loop);
@@ -76,6 +90,13 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
       const rect = canvas.getBoundingClientRect();
       return { x: e.clientX - rect.left, y: e.clientY - rect.top };
     };
+    const crack = (x: number, y: number, pointerType: string) => {
+      if (!hasGlaze(r, x, y) || breaks.some(b => Math.hypot(x - b.x, y - b.y) < b.radius * .8)) return;
+      const radius = dentRadius(pointerType) * 2.1;
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      breaks.push({ x, y, radius, start: performance.now(), duration: reduce ? 200 : 400 });
+      crackFrameGlaze(canvas, x, y, radius);
+    };
     const down = (e: PointerEvent) => {
       const { x, y } = local(e);
       if (!isOnRing(x, y, size.w, size.h, frameInsets(size.w))) return;
@@ -83,6 +104,7 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
       canvas.setPointerCapture?.(e.pointerId);
       presses.set(e.pointerId, { x, y, start: performance.now(), radius: dentRadius(e.pointerType), pressure: pressureScale(e) });
       resetRef.current = null;
+      crack(x, y, e.pointerType);
       playSquelch();
       vibratePress();
       schedule();
@@ -94,6 +116,7 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
       const held = (performance.now() - p.start) / 1000;
       p.pressure = pressureScale(e);
       const depth = dentDepth(held, p.pressure);
+      if (isOnRing(x, y, size.w, size.h, frameInsets(size.w))) crack(x, y, e.pointerType);
       const dist = Math.hypot(x - p.x, y - p.y);
       const steps = Math.max(1, Math.ceil(dist / 3));
       for (let s = 1; s <= steps; s++) {
@@ -149,9 +172,10 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduce) {
       r.dent.fill(0);
+      r.glaze.fill(0);
       resetRef.current = null;
     } else {
-      resetRef.current = { start: performance.now(), snap: r.dent.slice() };
+      resetRef.current = { start: performance.now(), snap: r.dent.slice(), glaze: r.glaze.slice() };
     }
     kick.current();
   }, [resetKey]);
