@@ -2,6 +2,19 @@
 export interface ShellPoint { x: number; y: number }
 export interface ShellBreak { boundary: ShellPoint[]; plates: ShellPoint[][]; cracks: ShellPoint[][]; arcs: ShellPoint[][]; removed: Set<number> }
 export const SHELL_BREAK_MS = 600;
+export const MAX_FLYING_PIECES = 40;
+export function pieceMotion(crumb:boolean,random=Math.random){
+  return {duration:400+random()*700,dx:(random()-.5)*(crumb?240:100),dy:40+random()*100,lift:random()<.65?4+random()*24:0,spin:(random()-.5)*640,tilt:random()<.3?20+random()*35:random()*12,thickness:crumb?.3+random()*.6:.6+random()*4};
+}
+/** Three to nine primary sides, each bent and jittered, with slivers and bites. */
+export function debrisPolygon(center:ShellPoint,radius:number,index:number,random=Math.random){
+  const sides=3+Math.min(6,Math.floor(random()*7)),angle=random()*Math.PI*2;
+  const sliver=index%4===1,vertices=Array.from({length:sides},(_,i)=>{
+    const a=angle+i*Math.PI*2/sides,r=radius*(.65+random()*.35)*(i===1&&index%3===0?.35:1);
+    return {x:center.x+Math.cos(a)*r*(sliver?1.6:1),y:center.y+Math.sin(a)*r*(sliver?.3:1)};
+  });
+  return vertices.flatMap((a,i)=>jagged(a,vertices[(i+1)%sides]??a,random,radius*.12));
+}
 export function framePressStage(glazed: boolean, cracked: boolean) { return !glazed ? "foam" : cracked ? "shatter" : "crack"; }
 
 function jagged(a: ShellPoint, b: ShellPoint, random: () => number, bend = 1.5) {
@@ -21,10 +34,11 @@ export function createShellBreak(x: number, y: number, radius: number, random = 
   const cracks=[...rays];
   rays.forEach((ray,i)=>{if(i%3!==0)return;const start=ray[Math.floor(ray.length*.55)], end=ray.at(-1);if(!start||!end)return;cracks.push(jagged(start,{x:start.x+(end.x-start.x)*.35-(end.y-start.y)*.5,y:start.y+(end.y-start.y)*.35+(end.x-start.x)*.5},random));});
   const arcs:ShellPoint[][]=[], plates:ShellPoint[][]=[];
-  const inner=rays.map(ray=>ray[Math.max(1,Math.floor((ray.length-1)*.45))]??center);
+  const inner=rays.map((ray,i)=>ray[Math.max(1,Math.floor((ray.length-1)*(.2+(i%3)*.2+random()*.15)))]??center);
   for(let i=0;i<count;i++){
     const ray=rays[i], next=rays[(i+1)%count], a=inner[i], b=inner[(i+1)%count];if(!ray||!next||!a||!b)continue;
-    const arc=jagged(a,b,random,1.2), outer=jagged(ray.at(-1)??a,next.at(-1)??b,random,2.5);
+    const arc=jagged(a,b,random,2.2), outer=jagged(ray.at(-1)??a,next.at(-1)??b,random,3.5);
+    if(arc.length===3){const midpoint=arc[1];if(midpoint)arc.splice(1,0,{x:(a.x+midpoint.x)*.5,y:(a.y+midpoint.y)*.5});}
     const ai=ray.indexOf(a), bi=next.indexOf(b);
     plates.push([...ray.slice(0,ai+1),...arc.slice(1),...next.slice(0,bi).reverse()]);
     plates.push([...ray.slice(ai),...outer.slice(1),...next.slice(bi).reverse(),...arc.slice().reverse()]);
@@ -74,15 +88,30 @@ export function createCrackTrail(a:ShellPoint,b:ShellPoint,random=Math.random) {
   for(let d=spacing;d<length;d+=spacing){const t=d/length,start={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};cracks.push(jagged(start,{x:start.x-(b.y-a.y)/length*(7+random()*6),y:start.y+(b.x-a.x)/length*(7+random()*6)},random));}
   return {boundary:[],plates:[],cracks,arcs:[],removed:new Set<number>()};
 }
-/** Textured chips preserve the original crack geometry and material. */
+/** Mixed debris clips to removed chips, retaining the original shell material. */
 export function peelShell(layer: HTMLElement,image:HTMLCanvasElement,shape:ShellBreak,x:number,y:number,radius:number) {
-  for(const [i,poly] of shape.plates.entries()){
-    const piece=document.createElement("canvas");piece.className="sq-shell-plate";piece.width=image.width;piece.height=image.height;
-    piece.style.width=`${radius*2}px`;piece.style.height=`${radius*2}px`;piece.style.left=`${x-radius}px`;piece.style.top=`${y-radius}px`;
-    const ctx=piece.getContext("2d");if(!ctx||!poly.length)continue;
-    ctx.scale(image.width/(radius*2),image.height/(radius*2));ctx.beginPath();poly.forEach((p,j)=>j===0?ctx.moveTo(p.x-x+radius,p.y-y+radius):ctx.lineTo(p.x-x+radius,p.y-y+radius));ctx.closePath();ctx.clip();ctx.drawImage(image,0,0,radius*2,radius*2);layer.appendChild(piece);
-    const direction=(i-(shape.plates.length-1)/2)*9;
-    const anim=piece.animate([{transform:"translate(0,0) rotateX(0deg) rotate(0deg)",opacity:1},{transform:`translate(${direction*.25}px,-7px) rotateX(24deg) rotate(${direction*.3}deg)`,opacity:1,offset:.35},{transform:`translate(${direction}px,64px) rotateX(55deg) rotate(${direction*2}deg)`,opacity:0}],{duration:SHELL_BREAK_MS,easing:"cubic-bezier(.3,.15,.65,1)",fill:"forwards"});anim.onfinish=()=>piece.remove();
+  if(window.matchMedia("(prefers-reduced-motion: reduce)").matches)return;
+  const polygons=shape.plates.filter(poly=>poly.length>2);
+  for(const poly of polygons){
+    const center={x:poly.reduce((n,p)=>n+p.x,0)/poly.length,y:poly.reduce((n,p)=>n+p.y,0)/poly.length};
+    const span=Math.max(Math.max(...poly.map(p=>p.x))-Math.min(...poly.map(p=>p.x)),Math.max(...poly.map(p=>p.y))-Math.min(...poly.map(p=>p.y)));
+    // One substantial chunk, three midsize flakes, and eight crumbs/dust specks.
+    for(let i=0;i<12;i++){
+      while(layer.querySelectorAll(".sq-shell-plate").length>=MAX_FLYING_PIECES){const oldest=layer.querySelector(".sq-shell-plate");if(!oldest)break;oldest.getAnimations().forEach(a=>a.cancel());oldest.remove();}
+      const crumb=i>=4,size=i===0?span*.44:i<4?span*(.1+Math.random()*.12):.35+Math.random()*2;
+      let origin=center;
+      if(i>0){for(let attempt=0;attempt<20;attempt++){const candidate={x:center.x+(Math.random()-.5)*span,y:center.y+(Math.random()-.5)*span};if(insideShellPolygon(candidate.x,candidate.y,poly)){origin=candidate;break;}}}
+      const fragment=debrisPolygon(origin,size,i),motion=pieceMotion(crumb);
+      const left=Math.min(...fragment.map(p=>p.x))-1,top=Math.min(...fragment.map(p=>p.y))-1;
+      const w=Math.max(2,Math.max(...fragment.map(p=>p.x))-left+1),h=Math.max(2,Math.max(...fragment.map(p=>p.y))-top+1);
+      const piece=document.createElement("canvas");piece.className="sq-shell-plate";piece.dataset['debris']=crumb?"crumb":i===0?"chunk":"flake";
+      const scale=crumb?1:Math.min(2,image.width/(radius*2));piece.width=Math.ceil(w*scale);piece.height=Math.ceil(h*scale);
+      piece.style.width=`${w}px`;piece.style.height=`${h}px`;piece.style.left=`${left}px`;piece.style.top=`${top}px`;piece.style.setProperty("--sq-piece-thickness",`${motion.thickness}px`);piece.style.transformOrigin=`${Math.random()*100}% ${Math.random()*100}%`;
+      const ctx=piece.getContext("2d");if(!ctx)continue;ctx.scale(scale,scale);
+      const clip=(points:ShellPoint[])=>{ctx.beginPath();points.forEach((p,j)=>j===0?ctx.moveTo(p.x-left,p.y-top):ctx.lineTo(p.x-left,p.y-top));ctx.closePath();ctx.clip();};
+      clip(poly);clip(fragment);ctx.drawImage(image,x-radius-left,y-radius-top,radius*2,radius*2);layer.appendChild(piece);
+      const anim=piece.animate([{transform:"translate(0,0) rotateX(0deg) rotate(0deg)",opacity:1},{transform:`translate(${motion.dx*.25}px,${-motion.lift}px) rotateX(${motion.tilt}deg) rotate(${motion.spin*.2}deg)`,opacity:1,offset:.25},{transform:`translate(${motion.dx}px,${motion.dy}px) rotateX(${motion.tilt*2}deg) rotate(${motion.spin}deg)`,opacity:0}],{duration:motion.duration,easing:"cubic-bezier(.3,.15,.65,1)",fill:"forwards"});anim.onfinish=()=>piece.remove();
+    }
   }
 }
 /** Red holes and green fissures, rasterized only when damage changes. */

@@ -327,7 +327,8 @@
 .sq-cracks { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .sq-cracks polyline { fill: none; stroke: var(--sq-glass-glint); stroke-width: .85; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 1; filter: drop-shadow(0 0 1px var(--sq-glass-edge)); }
 .sq-flakes { position: absolute; inset: 0; z-index: 5; pointer-events: none; overflow: visible; }
-.sq-shell-plate { position: absolute; pointer-events: none; transform-origin: 50% 70%; filter: drop-shadow(0 3.5px 0 var(--sq-shell-edge)) drop-shadow(0 4px 3px var(--sq-shell-shadow)); }
+.sq-shell-plate { position: absolute; pointer-events: none; transform-origin: 50% 70%; filter: drop-shadow(0 var(--sq-piece-thickness, 3.5px) 0 var(--sq-shell-edge)) drop-shadow(0 4px 3px var(--sq-shell-shadow)); }
+.sq-shell-plate[data-debris="crumb"] { filter: none; }
 .sq-flake {
   position: absolute;
   background: linear-gradient(135deg, var(--sq-glass-glint), var(--sq-glass-tint) 35%, var(--sq-glass-edge) 65%, transparent);

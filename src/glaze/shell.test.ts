@@ -1,8 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { createShellBreak, takeShellChips, createCrackTrail, SHELL_BREAK_MS, framePressStage } from "./shell";
+import { createShellBreak, takeShellChips, createCrackTrail, SHELL_BREAK_MS, framePressStage, MAX_FLYING_PIECES, pieceMotion, debrisPolygon, peelShell } from "./shell";
 import { breakGlaze, hasGlaze } from "./glaze";
 
 describe("wax shell", () => {
+  it("limits flying pieces to forty even during overlapping breaks",()=>{
+    const layer=document.createElement("div");for(let i=0;i<45;i++){const el=document.createElement("canvas");el.className="sq-shell-plate";layer.append(el);}
+    const image=document.createElement("canvas");image.width=20;image.height=20;
+    const animate=HTMLCanvasElement.prototype.animate;
+    HTMLCanvasElement.prototype.animate=()=>({onfinish:null} as Animation);
+    const get=HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext=(()=>({scale(){},beginPath(){},moveTo(){},lineTo(){},closePath(){},clip(){},drawImage(){}})) as unknown as typeof get;
+    Element.prototype.getAnimations??=()=>[];
+    try{peelShell(layer,image,{boundary:[],plates:[[{x:0,y:0},{x:20,y:0},{x:0,y:20}]],cracks:[],arcs:[],removed:new Set()},10,10,10);expect(MAX_FLYING_PIECES).toBe(40);expect(layer.querySelectorAll(".sq-shell-plate")).toHaveLength(40);expect(layer.querySelectorAll('[data-debris="crumb"]')).toHaveLength(8);}
+    finally{HTMLCanvasElement.prototype.animate=animate;HTMLCanvasElement.prototype.getContext=get;}
+  });
+  it("gives pieces individual 0.4–1.1 second falls and thin or thick edges",()=>{
+    expect(pieceMotion(false,()=>0).duration).toBe(400);expect(pieceMotion(false,()=>1).duration).toBe(1100);
+    expect(pieceMotion(false,()=>0).thickness).toBe(.6);expect(pieceMotion(false,()=>1).thickness).toBe(4.6);
+    expect(Math.abs(pieceMotion(true,()=>1).dx)).toBeGreaterThan(Math.abs(pieceMotion(false,()=>1).dx));
+  });
+  it("mixes sliver and notched outlines with jittered three-to-nine primary sides",()=>{
+    const chunk=debrisPolygon({x:0,y:0},20,0,()=>.5),sliver=debrisPolygon({x:0,y:0},20,1,()=>.5);
+    const span=(p:typeof chunk,axis:"x"|"y")=>Math.max(...p.map(v=>v[axis]))-Math.min(...p.map(v=>v[axis]));
+    expect(span(sliver,"x")/span(sliver,"y")).toBeGreaterThan(3);
+    expect(chunk.length).toBeGreaterThan(9);expect(chunk).not.toEqual(sliver);
+  });
   it("first press cracks without exposing foam", () => { expect(framePressStage(true,false)).toBe("crack"); });
   it("second press shatters an already cracked shell", () => { expect(framePressStage(true,true)).toBe("shatter"); });
   it("exposed foam only squishes", () => { expect(framePressStage(false,true)).toBe("foam"); });

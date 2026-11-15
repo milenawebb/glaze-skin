@@ -33,6 +33,7 @@ use the editor.
 - Keep app icons and the web manifest in public with head links in the root; home-screen support is manifest-only to avoid caching the preview.
 - The Glaze skin lives self-contained in src/glaze/ (entry index.ts, own CSS vars, no app imports) so it can ship as its own package.
 - All skin sounds stay in src/glaze/sounds.ts, one function per sound, so recordings can replace synthesis.
+- Shell debris stays in shell.ts with small cropped textured chunks and cheap crumbs; randomized motion shares a forty-piece cap to bound phone work.
 - Route skin audio through one master highpass; click sound selection stays tied to press-down material until the gesture becomes a drag, preventing squish plus fracture on jitter or recovery.
 - Decode recording assets on sound enable and keep press tracking, variation and shared drag voice limits in sounds.ts so audio remains package-local and unlocks on the enabling gesture.
 - Control audio observes press/release in window capture before React glaze changes; coating animations never trigger control audio, preventing duplicate clips and slider propagation issues.
