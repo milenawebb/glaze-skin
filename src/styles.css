@@ -174,6 +174,39 @@
   .demo-logo { display: block; height: 56px; width: auto; max-width: 100%; margin-inline: auto; }
   @media (width < 480px) { .demo-logo { height: 40px; } }
   .demo-subtitle { text-align: center; font-size: 16px; color: var(--demo-text); margin-bottom: 20px; }
+  .demo-tagline { text-align: center; font-size: 22px; font-weight: 600; color: var(--demo-text); margin: -8px auto 24px; max-width: 880px; }
+  @media (width < 480px) { .demo-tagline { font-size: 19px; } }
+  .demo-content { max-width: 880px; margin: 96px auto 0; color: var(--demo-text); font-family: "Nunito", var(--font-display); font-weight: 400; display: grid; grid-template-columns: minmax(0, 1fr); gap: 88px; }
+  .demo-content h2 { font-family: var(--font-display); font-weight: 600; font-size: 30px; margin-bottom: 24px; text-align: center; }
+  .demo-content h3 { font-family: var(--font-display); font-weight: 600; font-size: 21px; margin: 12px 0 6px; }
+  .demo-content p { line-height: 1.6; }
+  .demo-content section > p { text-align: center; }
+  .demo-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (width < 700px) { .demo-cards { grid-template-columns: 1fr; } }
+  .demo-card, .demo-code, .demo-table-wrap { background: rgb(251 231 240 / 0.09); border: 1px solid rgb(251 231 240 / 0.2); border-radius: 20px; backdrop-filter: blur(10px); box-shadow: inset 0 1px 0 rgb(251 231 240 / 0.18), var(--demo-surface-shadow); }
+  .demo-card { padding: 24px; }
+  .demo-card-icon { width: 36px; height: 36px; fill: none; stroke: var(--demo-text); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .demo-note { margin-top: 20px; font-size: 15px; }
+  .demo-sprinkles { list-style: none; display: grid; gap: 14px; max-width: 680px; margin-inline: auto; }
+  .demo-sprinkles li { position: relative; padding-left: 28px; line-height: 1.55; }
+  .demo-sprinkles li::before { content: ""; position: absolute; left: 4px; top: 0.6em; width: 10px; height: 4px; border-radius: 2px; background: #ff8fc1; transform: rotate(-28deg); }
+  .demo-sprinkles li:nth-child(4n+2)::before { background: #ffd966; transform: rotate(22deg); }
+  .demo-sprinkles li:nth-child(4n+3)::before { background: #8cc8ff; transform: rotate(-12deg); }
+  .demo-sprinkles li:nth-child(4n+4)::before { background: #9be3a8; transform: rotate(35deg); }
+  .demo-code { position: relative; margin-top: 24px; min-width: 0; }
+  .demo-code pre { overflow-x: auto; padding: 20px; padding-right: 84px; font-size: 14px; line-height: 1.6; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .demo-copy { position: absolute; top: 10px; right: 10px; min-height: 36px; padding: 0 14px; border-radius: 999px; background: var(--demo-tab-glass); color: var(--demo-background); font: 600 14px var(--font-display); }
+  .demo-copy:focus-visible, .demo-footer a:focus-visible { outline: 2px solid var(--demo-text); outline-offset: 2px; }
+  .demo-table-wrap { margin-top: 20px; overflow-x: auto; }
+  .demo-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  .demo-table th, .demo-table td { text-align: left; padding: 12px 16px; vertical-align: top; }
+  .demo-table th { font-family: var(--font-display); font-weight: 600; }
+  .demo-table tbody tr { border-top: 1px solid rgb(251 231 240 / 0.15); }
+  .demo-table td:nth-child(-n+3) { white-space: nowrap; }
+  @media (width < 560px) { .demo-table td:last-child { min-width: 200px; } }
+  @media (width < 560px) { .demo-code pre { padding: 56px 16px 16px; } .demo-content h2 { font-size: 26px; } }
+  .demo-footer { text-align: center; font-size: 15px; padding-bottom: 8px; }
+  .demo-footer a { text-decoration: underline; text-underline-offset: 3px; }
   .demo-preview { position: relative; width: 100%; margin-inline: auto; transition-property: max-width; transition-timing-function: ease; }
   .demo-preview[data-preview="Mobile"]::before { content: ""; position: absolute; inset: -8px; border: 1px solid var(--demo-outline); border-radius: 54px; pointer-events: none; }
   .demo-preview-tabs { display: flex; width: fit-content; max-width: 100%; margin: 0 auto 28px; padding: 4px; border: 1px solid var(--demo-outline); border-radius: 999px; gap: 2px; }
