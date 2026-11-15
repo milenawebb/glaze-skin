@@ -21,6 +21,7 @@ uniform vec3 uWaxBlue; uniform vec3 uWaxMilk; uniform vec3 uWaxYellow;
 uniform vec3 uFoam; uniform vec3 uPore; uniform vec3 uSprinklePink;
 uniform vec3 uSprinkleRed; uniform vec3 uSprinkleGreen;
 uniform vec3 uSprinkleBlue; uniform vec3 uSprinkleYellow;
+uniform vec3 uMonoColor; uniform float uMono;
 varying vec2 vUv;
 float sdRR(vec2 p, vec2 c, vec2 hs, float r){ vec2 q=abs(p-c)-hs+r; return length(max(q,0.))+min(max(q.x,q.y),0.)-r; }
 float sdO(vec2 p){ return sdRR(p, uRes*.5, uRes*.5, uRo); }
@@ -138,6 +139,16 @@ void main(){
   float thin=1.-pr*amp;
   vec3 glow=mix(shell,uWaxYellow,.15)*coat*(.11*thin+.065*cut);
   vec3 c=col*diff*(1.-sh)+glow+uWaxMilk*spec+col*.065;
+  if(uMono>.5){
+    float monoLum=dot(uMonoColor,vec3(.299,.587,.114));
+    vec3 velvet=mix(mix(vec3(monoLum),uMonoColor,.92),vec3(1.),.07)+(noise(p*2.)-.5)*.006;
+    vec3 base=mix(uMonoColor,velvet,hole);
+    float monoDiffuse=clamp(dot(N,L)*.48+.57,0.,1.);
+    float streak=pow(nh,150.);
+    float clearcoat=coat*(pow(nh,14.)*.22+streak*.62);
+    float lip=coat*smoothstep(.03,.3,(broken(p+vec2(1.5,0.))+broken(p-vec2(1.5,0.))+broken(p+vec2(0.,1.5))+broken(p-vec2(0.,1.5)))*.25);
+    c=base*(monoDiffuse*(1.-sh*.8)+.12)+vec3(1.)*(clearcoat+lip*.24);
+  }
   c=sprinkles(p,c,coat);
   float crack=texture2D(uGlaze,p/uRes).g*coat;
   float crackShadow=texture2D(uGlaze,(p-vec2(.8,.9))/uRes).g*coat;
@@ -161,6 +172,7 @@ export interface FrameRenderer {
   dw: number;
   dh: number;
   face: number;
+  mono: number;
   destroy(): void;
 }
 
@@ -224,6 +236,7 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
     ["uFoam", "--sq-foam"], ["uPore", "--sq-foam-pore"], ["uSprinklePink", "--sq-sprinkle-pink"],
     ["uSprinkleRed", "--sq-sprinkle-red"], ["uSprinkleGreen", "--sq-sprinkle-green"],
     ["uSprinkleBlue", "--sq-sprinkle-blue"], ["uSprinkleYellow", "--sq-sprinkle-yellow"],
+    ["uMonoColor", "--sq-mono-color"],
   ];
   let paletteStart = -Infinity;
   let currentColors: number[][] = [];
@@ -238,6 +251,7 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
     dw: 0,
     dh: 0,
     face: 0,
+    mono: 0,
     updatePalette() {
       const css = getComputedStyle(canvas);
       const next = palette.map((pair) => {
@@ -291,6 +305,7 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
       }
     },
     render() {
+      gl.uniform1f(u("uMono"), r.mono);
       const t = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : Math.min(1, (performance.now() - paletteStart) / COLOR_FADE_MS);
       currentColors = targetColors.map((color, i) => color.map((value, j) => (fromColors[i]?.[j] ?? value) + (value - (fromColors[i]?.[j] ?? value)) * t));
       palette.forEach((pair, i) => { const color = currentColors[i]; if (pair[0] && color) gl.uniform3f(u(pair[0]), color[0] ?? 0, color[1] ?? 0, color[2] ?? 0); });

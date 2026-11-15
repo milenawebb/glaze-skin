@@ -10,12 +10,13 @@ import { createShellBreak, peelShell, SHELL_BREAK_MS, paintCoating, insideShellP
 
 import { recoverySettings, recoveryFactor, immediateDepth } from "./recovery";
 import type { SquishyColor } from "./preferences";
+import { DEFAULT_GLAZE_STYLE, monoStyleAmount, type GlazeStyle } from "./glaze-style";
 const RESET_MS = 1500;
 
 interface Press { x: number; y: number; start: number; radius: number; pressure: number | null; sound: ((depth: number) => void) | undefined; spots: {x:number;y:number}[] }
 
 /** WebGL squishy frame. Dents stay until `resetKey` changes. */
-export function SquishyFrame({ resetKey, color = "Rainbow", onFallback }: { resetKey: number; color?: SquishyColor; onFallback: () => void }) {
+export function SquishyFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_GLAZE_STYLE, onFallback }: { resetKey: number; color?: SquishyColor; glazeStyle?: GlazeStyle; onFallback: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<FrameRenderer | null>(null);
   const kick = useRef<() => void>(() => {});
@@ -23,6 +24,7 @@ export function SquishyFrame({ resetKey, color = "Rainbow", onFallback }: { rese
   const resetRef = useRef<{ start: number; snap: Float32Array; glaze: Float32Array; coating: HTMLCanvasElement } | null>(null);
   const [ready, setReady] = useState(false);
   useEffect(() => { rendererRef.current?.updatePalette(); kick.current(); }, [color, ready]);
+  useEffect(() => { const renderer = rendererRef.current; if (renderer) { renderer.mono = monoStyleAmount(glazeStyle); kick.current(); } }, [glazeStyle, ready]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

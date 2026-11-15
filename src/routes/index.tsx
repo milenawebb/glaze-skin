@@ -1,5 +1,6 @@
 import { createFileRoute, ClientOnly } from "@tanstack/react-router";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState } from "react";
+import type { GlazeStyle } from "@/squishy/glaze-style";
 
 const SquishyPlayer = lazy(() => import("@/squishy").then((m) => ({ default: m.SquishyPlayer })));
 
@@ -24,14 +25,18 @@ function Placeholder() {
 }
 
 function Index() {
+  const [glazeStyle, setGlazeStyle] = useState<GlazeStyle>("candy");
   return (
     <main className="demo">
       <h1 className="demo-title">Squishy</h1>
       <ClientOnly fallback={<Placeholder />}>
         <Suspense fallback={<Placeholder />}>
-          <SquishyPlayer playbackId={PLAYBACK_ID} title="Squishy demo video" />
+          <SquishyPlayer playbackId={PLAYBACK_ID} title="Squishy demo video" glazeStyle={glazeStyle} />
         </Suspense>
       </ClientOnly>
+      <div className="demo-actions" role="group" aria-label="Glaze style">
+        {(["candy", "mono"] as const).map((style) => <button key={style} type="button" className="demo-btn" aria-pressed={glazeStyle === style} onClick={() => setGlazeStyle(style)}>{style === "candy" ? "Candy" : "Mono"}</button>)}
+      </div>
     </main>
   );
 }

@@ -9,6 +9,7 @@ import { POPUP_SPEEDS, VOLUME_CLOSE_MS, CONTROLS_IDLE_MS, controlsVisible } from
 import { CAPTIONS_DEFAULT_ON, observeCaptionCues, isCaptionEngine } from "./captions";
 import { COLORS, readPreferences, savePreferences, type SquishyColor } from "./preferences";
 import { setSoundsEnabled } from "./sounds";
+import { DEFAULT_GLAZE_STYLE, type GlazeStyle } from "./glaze-style";
 import "./squishy.css";
 
 export const squishy = createPlayer({ features: videoFeatures });
@@ -21,12 +22,13 @@ export interface SquishyPlayerProps {
   /** Changing this number puffs the frame back to smooth and re-bakes the crust. */
   resetKey?: number;
   title?: string;
+  glazeStyle?: GlazeStyle;
 }
 
-export function SquishyPlayer({ playbackId, resetKey = 0, title = "Video" }: SquishyPlayerProps) {
+export function SquishyPlayer({ playbackId, resetKey = 0, title = "Video", glazeStyle = DEFAULT_GLAZE_STYLE }: SquishyPlayerProps) {
   return (
     <Player>
-      <SquishySkin resetKey={resetKey} label={title}>
+      <SquishySkin resetKey={resetKey} label={title} glazeStyle={glazeStyle}>
         <MuxVideo
           source={{ playbackId }}
           poster={`https://image.mux.com/${playbackId}/thumbnail.webp?time=1`}
@@ -45,7 +47,7 @@ const fmt = (s: number) => {
   return `${h ? h + ":" : ""}${mm}:${String(sec).padStart(2, "0")}`;
 };
 
-export function SquishySkin({ children, resetKey, label }: { children: ReactNode; resetKey: number; label: string }) {
+export function SquishySkin({ children, resetKey, label, glazeStyle = DEFAULT_GLAZE_STYLE }: { children: ReactNode; resetKey: number; label: string; glazeStyle?: GlazeStyle }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const flakeRef = useRef<HTMLDivElement>(null);
   const [fallback, setFallback] = useState(false);
@@ -163,6 +165,7 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
       data-compact={compact || undefined}
       data-row-visible={visible || undefined}
       data-color={color}
+      data-glaze-style={glazeStyle}
       style={{ ["--sq-ar" as string]: String(ar) }}
       aria-label={`${label} — Squishy player`}
       onPointerMove={poke}
@@ -176,7 +179,7 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
       onFocus={() => { setKeyboardFocus(!document.documentElement.hasAttribute("data-sq-pointer")); poke(); }}
       onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setKeyboardFocus(false); }}
     >
-      {!fallback && <SquishyFrame resetKey={resetKey + localReset} color={color} onFallback={() => setFallback(true)} />}
+      {!fallback && <SquishyFrame resetKey={resetKey + localReset} color={color} glazeStyle={glazeStyle} onFallback={() => setFallback(true)} />}
       <div ref={colorRef} className="sq-frame-colors" role="group" aria-label="Squishy colors">
         <button type="button" className="sq-candy sq-squish sq-color-toggle" data-swatch={color} aria-label={`Choose color: ${color}`} title={`Choose color: ${color}`} aria-expanded={colorOpen} onClick={() => setColorOpen((open) => !open)}><span className="sq-candy-face sq-squish-body" /></button>
         <div className="sq-color-choices" data-open={colorOpen || undefined}>

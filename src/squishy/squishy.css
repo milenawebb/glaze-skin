@@ -46,6 +46,7 @@
   --sq-liquid-text-shadow: 0 0 3px rgb(255 255 255 / 0.65);
   --sq-liquid-refraction: linear-gradient(135deg, rgb(252 231 240 / 0.18), rgb(252 231 240 / 0.16));
   --sq-wax-blue: #b9dfee;
+  --sq-mono-color: #c9b9e9;
   --sq-wax-milk: #fffaf4;
   --sq-wax-yellow: #fff0b2;
   --sq-foam: #f6b3cd;
@@ -87,6 +88,10 @@
 .sq-root[data-color="Strawberry"] { --sq-wax-blue: #f6b9cf; --sq-wax-milk: #ffe5ef; --sq-wax-yellow: #f4c5d6; --sq-foam: #fff6df; --sq-foam-pore: #d3bca0; }
 .sq-root[data-color="Matcha"] { --sq-wax-blue: #cbe6bc; --sq-wax-milk: #eef5df; --sq-wax-yellow: #dceabe; --sq-foam: #fff6df; --sq-foam-pore: #d3bca0; }
 .sq-root[data-color="Blueberry"] { --sq-wax-blue: #c8c6ef; --sq-wax-milk: #eae8fa; --sq-wax-yellow: #c6d6f2; }
+.sq-root[data-color="Strawberry"] { --sq-mono-color: #f6b9cf; }
+.sq-root[data-color="Matcha"] { --sq-mono-color: #cbe6bc; }
+.sq-root[data-color="Blueberry"] { --sq-mono-color: #c8c6ef; }
+.sq-root[data-glaze-style="mono"][data-fallback] { background: var(--sq-mono-color); }
 .sq-frame-colors, .sq-frame-actions { position: absolute; z-index: 6; bottom: 48px; translate: 0 50%; display: flex; gap: 8px; }
 .sq-frame-colors { left: 24px; }
 .sq-frame-actions { right: 24px; }

@@ -45,4 +45,5 @@ use the editor.
 - Frame dent recovery uses per-release local depth samples with random partial easing; Reset clears recovery and fracture state so the complete smoothing cannot be overwritten.
 - Phone controls reuse one bottom glass row and an absolutely positioned top pill without duplicate media or buttons; captions stay above the bottom row while visible and near the bottom when hidden.
 - Frame candy controls live above the canvas and fragments; viewer preferences use guarded localStorage in preferences.ts, while shader palette interpolation changes shell/foam without touching dent or coating maps and sprinkles use independent color uniforms.
+- Glaze style is an optional package-local prop selecting shader lighting/material only; both styles share coating, dent and recovery maps so comparison never resets damage or playback.
 <!-- AGENT-MEMORY:END -->
