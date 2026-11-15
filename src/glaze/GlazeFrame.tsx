@@ -1,4 +1,4 @@
-import { mapShell } from "./damage";
+import { clipCrackPaths, mapShell } from "./damage";
 import { useEffect, useRef, useState } from "react";
 import { createFrameRenderer, isOnRing, smoothDents, stampDent, type FrameRenderer } from "./frame-gl";
 import { playCrack, playCrunch, playShatter, playSquelch } from "./sounds";
@@ -14,7 +14,7 @@ import type { GlazeColor } from "./preferences";
 import { DEFAULT_GLAZE_STYLE, monoStyleAmount, type GlazeStyle } from "./glaze-style";
 const RESET_MS = 1500;
 
-interface Press { x: number; y: number; start: number; radius: number; pressure: number | null; sound: ((depth: number) => void) | undefined; spots: {x:number;y:number}[]; trailDistance:number; branchSpacing:number }
+interface Press { x: number; y: number; start: number; radius: number; pressure: number | null; sound: ((depth: number) => void) | undefined; foam: boolean; spots: {x:number;y:number}[]; trailDistance:number; branchSpacing:number }
 
 /** WebGL squishy frame. Dents stay until `resetKey` changes. */
 export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_GLAZE_STYLE, onFallback }: { resetKey: number; color?: GlazeColor; glazeStyle?: GlazeStyle; onFallback: () => void }) {
@@ -53,8 +53,11 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       return isOnRing(x,y,size.w,size.h,insets) && !protectedRects().some(b=>x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h);
     };
     const damage=damageRef.current;
+    const intact = (x:number,y:number) => safe(x,y) && hasGlaze(r,x,y) && !damage.some(d=>d.hole&&insideShellPolygon(x/size.w,y/size.h,d.shape.boundary));
     let replaying=false;
     const paint = (shape:ShellBreak,hole:boolean,progress=1) => {
+      if(!hole)shape={...shape,cracks:clipCrackPaths(shape.cracks,intact),arcs:clipCrackPaths(shape.arcs,intact)};
+      if(!hole&&!shape.cracks.length&&!shape.arcs.length)return;
       if(!replaying){
         const normalized=mapShell(shape,1/size.w,1/size.h);
         const retained=hole?damage.find(d=>d.hole&&d.shape.boundary.length===normalized.boundary.length&&d.shape.boundary.every((p,i)=>Math.abs(p.x-(normalized.boundary[i]?.x??-1))<1e-9&&Math.abs(p.y-(normalized.boundary[i]?.y??-1))<1e-9)):undefined;
@@ -83,6 +86,10 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       }
       for (const p of presses.values()) {
         const held = (now - p.start) / 1000;
+        const foam=safe(p.x,p.y)&&!intact(p.x,p.y);
+        if(foam&&!p.foam)p.sound=playSquelch(dentDepth(held,p.pressure));
+        if(!foam&&p.foam)p.sound=undefined;
+        p.foam=foam;
         p.sound?.(dentDepth(held, p.pressure));
         const radius = p.radius + (p.pressure === null ? Math.min(held, 2) * 3 : 0);
         stampDent(r, p.x, p.y, radius, Math.max(immediateDepth(1), dentDepth(held, p.pressure)), 0.18);
@@ -149,12 +156,12 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     const crack = (x:number,y:number,pointerType:string,dragging=false) => {
       if(!safe(x,y))return "foam";
       const existing=cracked.find(c=>insideShellPolygon(x/size.w,y/size.h,c.shape.boundary));
-      if(framePressStage(hasGlaze(r,x,y),Boolean(existing))==="foam")return "foam";
+      if(framePressStage(intact(x,y),Boolean(existing))==="foam")return "foam";
       if(existing){
         const before=new Set(existing.shape.removed);
         const pixelShape=mapShell(existing.shape,size.w,size.h);
         const plates=takeShellChips(pixelShape,x,y).filter(poly=>{
-          if(poly.every(p=>safe(p.x,p.y)))return true;
+          if(poly.every(p=>safe(p.x,p.y))&&poly.some(p=>intact(p.x,p.y)))return true;
           const index=pixelShape.plates.indexOf(poly);if(!before.has(index))existing.shape.removed.delete(index);
           return false;
         });
@@ -187,7 +194,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       const result=crack(x,y,e.pointerType);
       const radius=dentRadius(e.pointerType);
       stampDent(r,x,y,radius,immediateDepth(1),1);
-      presses.set(e.pointerId, { x, y, start: performance.now(), radius, pressure, sound: result==="foam"?playSquelch(immediateDepth(1)):undefined, spots:[{x,y}],trailDistance:0,branchSpacing:15+Math.random()*10 });
+      presses.set(e.pointerId, { x, y, start: performance.now(), radius, pressure, sound: result==="foam"?playSquelch(immediateDepth(1)):undefined, foam:result==="foam", spots:[{x,y}],trailDistance:0,branchSpacing:15+Math.random()*10 });
       resetRef.current = null;
 
       vibratePress();
@@ -209,8 +216,18 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
           p.trailDistance=0;p.branchSpacing=15+Math.random()*10;
         }
         // Sample longer moves too, so a fast finger leaves no skipped cracked regions.
-        const samples=Math.ceil(dist/18);
-        for(let i=1;i<=samples;i++){const t=i/samples;const tx=p.x+(x-p.x)*t,ty=p.y+(y-p.y)*t;if(safe(tx,ty))crack(tx,ty,e.pointerType,true);}
+        const samples=Math.ceil(dist/2);
+        let sinceCrack=18;
+        for(let i=1;i<=samples;i++){
+          const t=i/samples,tx=p.x+(x-p.x)*t,ty=p.y+(y-p.y)*t;
+          if(!safe(tx,ty))continue;
+          const foam=!intact(tx,ty);
+          if(foam&&!p.foam)p.sound=playSquelch(depth);
+          if(!foam&&p.foam)p.sound=undefined;
+          const enteredGlaze=!foam&&p.foam;
+          p.foam=foam;sinceCrack+=dist/samples;
+          if(!foam&&(enteredGlaze||sinceCrack>=18)){crack(tx,ty,e.pointerType,true);sinceCrack=0;}
+        }
       }
       const steps = Math.max(1, Math.ceil(dist / 3));
       for (let s = 1; s <= steps; s++) {

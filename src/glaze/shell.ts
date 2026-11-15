@@ -88,7 +88,13 @@ export function peelShell(layer: HTMLElement,image:HTMLCanvasElement,shape:Shell
 /** Red holes and green fissures, rasterized only when damage changes. */
 export function paintCoating(canvas:HTMLCanvasElement,width:number,shape:ShellBreak,hole:boolean,progress=1) {
  const ctx=canvas.getContext("2d");if(!ctx)return;ctx.save();ctx.scale(canvas.width/width,canvas.width/width);
- if(hole){ctx.globalCompositeOperation="lighter";ctx.fillStyle=`rgba(255,0,0,${progress})`;ctx.beginPath();shape.boundary.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));ctx.closePath();ctx.fill();}
+ if(hole){ctx.globalCompositeOperation="source-over";ctx.fillStyle=`rgb(${Math.round(255*progress)},0,0)`;ctx.beginPath();shape.boundary.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));ctx.closePath();ctx.fill();}
  else {ctx.strokeStyle="rgb(0,255,0)";ctx.lineJoin="round";ctx.lineCap="round";for(const path of [...shape.cracks,...shape.arcs])for(let i=1;i<path.length;i++){const a=path[i-1],b=path[i];if(!a||!b)continue;ctx.lineWidth=.18+1.1*(1-i/path.length);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}}
  ctx.restore();
+ if(hole&&shape.boundary.length){
+   const scale=canvas.width/width;
+   const x=Math.max(0,Math.floor(Math.min(...shape.boundary.map(p=>p.x))*scale)-2),y=Math.max(0,Math.floor(Math.min(...shape.boundary.map(p=>p.y))*scale)-2);
+   const w=Math.min(canvas.width-x,Math.ceil(Math.max(...shape.boundary.map(p=>p.x))*scale)+2-x),h=Math.min(canvas.height-y,Math.ceil(Math.max(...shape.boundary.map(p=>p.y))*scale)+2-y);
+   if(w>0&&h>0){const image=ctx.getImageData(x,y,w,h);for(let i=0;i<image.data.length;i+=4)if((image.data[i]??0)>=128)image.data[i+1]=0;ctx.putImageData(image,x,y);}
+ }
 }

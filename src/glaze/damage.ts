@@ -1,4 +1,23 @@
-import type { ShellBreak } from "./shell";
+import type { ShellBreak, ShellPoint } from "./shell";
+
+/** Split even long segments at material boundaries, including holes between endpoints. */
+export function clipCrackPaths(paths: ShellPoint[][], intact: (x: number, y: number) => boolean) {
+  const result: ShellPoint[][]=[];
+  for(const path of paths){
+    let run: ShellPoint[]=[];
+    const flush=()=>{if(run.length>1)result.push(run);run=[];};
+    for(let i=1;i<path.length;i++){
+      const a=path[i-1],b=path[i];if(!a||!b)continue;
+      const steps=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.y-a.y)/.5));
+      for(let j=0;j<=steps;j++){
+        const t=j/steps,p={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};
+        if(intact(p.x,p.y))run.push(p);else flush();
+      }
+    }
+    flush();
+  }
+  return result;
+}
 
 /** Geometry is retained in unit-frame space; raster masks are disposable. */
 export function mapShell(shape: ShellBreak, w: number, h: number): ShellBreak {

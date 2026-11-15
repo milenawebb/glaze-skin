@@ -1,6 +1,22 @@
 import { expect, it } from "vitest";
-import { mapShell, rasterHeight } from "./damage";
+import { clipCrackPaths, mapShell, rasterHeight } from "./damage";
 import { createShellBreak } from "./shell";
+
+it("clips cracks on either side of an exposed hole, including a hole between intact endpoints",()=>{
+  const paths=clipCrackPaths([[{x:0,y:10},{x:40,y:10}]],x=>x<10||x>30);
+  expect(paths).toHaveLength(2);
+  expect(paths[0]?.at(-1)?.x).toBeLessThan(10);
+  expect(paths[1]?.[0]?.x).toBeGreaterThan(30);
+  expect(paths.flat().some(p=>p.x>=10&&p.x<=30)).toBe(false);
+});
+it("foam-only dragging retains no crack lines and crossings crack only intact material",()=>{
+  expect(clipCrackPaths([[{x:10,y:0},{x:30,y:0}]],()=>false)).toEqual([]);
+  for(const path of [[{x:0,y:0},{x:40,y:0}],[{x:40,y:0},{x:0,y:0}]]){
+    const clipped=clipCrackPaths([path],x=>x>=20);
+    expect(clipped).toHaveLength(1);
+    expect(clipped.flat().every(p=>p.x>=20)).toBe(true);
+  }
+});
 
 it("retains normalized crack and chip geometry after repeated preview resizes",()=>{
   const source=createShellBreak(480,550,60,()=>.5);
