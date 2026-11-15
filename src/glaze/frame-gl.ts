@@ -134,17 +134,18 @@ void main(){
   shell=mix(shell,uWaxMilk,cut*.28);
   vec3 col=mix(shell,foam,hole);
   float lum=dot(col,vec3(.299,.587,.114));
-  col=mix(vec3(lum),col,1.+.3*d)*(1.-.07*d);
+  col=mix(vec3(lum),col,1.+.3*d)*(1.-min(.07*d,mix(.1,.04,hole)));
   float diff=clamp(dot(N,L)*.38+.67,0.,1.);
   float dl=dent(p+vec2(-.55,-.65)*9.);
-  float sh=clamp((d-dl)*1.4,0.,1.)*.24+d*.04;
+  // Foam dents stay gentle (about 15% darker at most) so swipes never look bruised.
+  float sh=min(clamp((d-dl)*1.4,0.,1.)*.24+d*.04,mix(.3,.08,hole));
   sh+=(1.-smoothstep(0.,10.,si))*.2+under*.2;
   float nh=max(dot(N,normalize(L+V)),0.);
   // Broad satin reflection under a restrained clear-coat sheen, never foam shine.
   float wall=max(0.,dent(p+vec2(-.55,-.65)*5.)-signedDent);
   float spec=coat*(pow(nh,8.)*.12+pow(nh,95.)*.06)+hole*(pow(nh,3.)*.045+wall*.08+bulge*.12);
   float rim=clamp(dot(N.xy,vec2(.55,.65)),0.,1.);
-  sh=clamp(sh+rim*.18,0.,.6);
+  sh=clamp(sh+rim*mix(.18,.07,hole),0.,.6);
   float thin=1.-pr*amp;
   vec3 glow=mix(shell,uWaxYellow,.15)*coat*(.11*thin+.065*cut);
   vec3 c=col*diff*(1.-sh)+glow+uWaxMilk*spec+col*.065;

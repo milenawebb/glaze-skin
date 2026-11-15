@@ -7,7 +7,8 @@ import { coarsePointer, dentDepth, dentRadius, faceExpression, frameInsets, pres
 
 import { breakGlaze, hasGlaze } from "./glaze";
 
-import { prepareShellDebris, cancelShellDebris, createShellBreak, takeShellChips, peelShell, SHELL_BREAK_MS, paintCoating, insideShellPolygon, framePressStage, type ShellBreak } from "./shell";
+import { prepareShellDebris, cancelShellDebris, createShellBreak, peelShell, SHELL_BREAK_MS, paintCoating, insideShellPolygon, framePressStage, type ShellBreak } from "./shell";
+import { chipPlates, chipRadius, snapRadius, snapToGlaze, ISLAND_SIZE } from "./chip";
 import { createGlazeStrip, dragThreshold, isGlazeDrag, stripWidth } from "./strip";
 
 import { recoverySettings, recoveryFactor, immediateDepth } from "./recovery";
@@ -20,7 +21,7 @@ import { region, resetAmount, resetDuration, REDUCED_FADE_MS, union, type Region
 /** Same rounded corners as the video stage, so no layer gets a square box. */
 function insideRounded(x:number,y:number,b:{x:number;y:number;w:number;h:number;r:number}){const qx=Math.abs(x-(b.x+b.w/2))-b.w/2+b.r,qy=Math.abs(y-(b.y+b.h/2))-b.h/2+b.r;return Math.hypot(Math.max(qx,0),Math.max(qy,0))+Math.min(Math.max(qx,qy),0)-b.r<=0;}
 
-interface Press { crackedOnDown:boolean; pad:FingerPad; before:Float32Array; x: number; y: number; origin: {x:number;y:number}; dragging:boolean; pointerType:string; exposed:ShellBreak[]; initialFoam:boolean; start: number; radius: number; pressure: number | null; sound: ((depth: number) => void) | undefined; foam: boolean; spots: {x:number;y:number}[]; flakeDistance:number }
+interface Press { target:{x:number;y:number}|null; crackedOnDown:boolean; pad:FingerPad; before:Float32Array; x: number; y: number; origin: {x:number;y:number}; dragging:boolean; pointerType:string; exposed:ShellBreak[]; initialFoam:boolean; start: number; radius: number; pressure: number | null; sound: ((depth: number) => void) | undefined; foam: boolean; spots: {x:number;y:number}[]; flakeDistance:number }
 
 /** WebGL squishy frame. Dents stay until `resetKey` changes. */
 export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_GLAZE_STYLE, onFallback, onReset }: { resetKey: number; color?: GlazeColor; glazeStyle?: GlazeStyle; onFallback: () => void; onReset?: () => void }) {
@@ -203,14 +204,9 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       const existing=cracked.find(c=>insideShellPolygon(x/size.w,y/size.h,c.shape.boundary));
       if(framePressStage(intact(x,y),Boolean(existing))==="foam")return "foam";
       if(existing){
-        const before=new Set(existing.shape.removed);
         const pixelShape=mapShell(existing.shape,size.w,size.h);
-        const plates=takeShellChips(pixelShape,x,y).filter(poly=>{
-          // Plates may reach past the band edge; painting clips them, so only require glaze under them.
-          if(poly.some(p=>intact(p.x,p.y)))return true;
-          const index=pixelShape.plates.indexOf(poly);if(!before.has(index))existing.shape.removed.delete(index);
-          return false;
-        });
+        // Only the glaze under the finger breaks off; small islands and loose crumbs go with it.
+        const plates=chipPlates(pixelShape.plates,existing.shape.removed,x,y,chipRadius(coarsePointer()),intact,insideShellPolygon);
         if(!plates.length)return "cracked";
         // One snapshot per break-off; pieces are cut from it over the next frames.
         let snap:HTMLCanvasElement|null=null;
@@ -224,6 +220,17 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
           breaks.push({x:existing.x,y:existing.y,radius:existing.radius,start:performance.now(),duration:SHELL_BREAK_MS,shape:mapShell(shape,1/size.w,1/size.h)});
           }
         }
+        playShatter();return "shatter";
+      }
+      // A small cut-off island chips off right away instead of cracking first.
+      let glazed=0,total=0;
+      for(let gy=-ISLAND_SIZE/2;gy<=ISLAND_SIZE/2;gy+=5)for(let gx=-ISLAND_SIZE/2;gx<=ISLAND_SIZE/2;gx+=5){const px=x+gx,py=y+gy;if(!safe(px,py))continue;total++;if(intact(px,py))glazed++;}
+      if(total&&glazed/total<.35){
+        const cr=chipRadius(coarsePointer())*1.6,poly=Array.from({length:18},(_,i)=>({x:x+Math.cos(i/18*Math.PI*2)*cr,y:y+Math.sin(i/18*Math.PI*2)*cr}));
+        const shape={boundary:poly,plates:[poly],cracks:[],arcs:[],removed:new Set<number>()};
+        const layer=reduced?null:canvas.parentElement?.querySelector<HTMLElement>(".sq-flakes");
+        if(layer)peelShell(layer,r.snapshot(x,y,cr),shape,x,y,cr);
+        breaks.push({x:x/size.w,y:y/size.h,radius:cr/size.w,start:performance.now(),duration:reduced?REDUCED_FADE_MS/.35:SHELL_BREAK_MS,shape:mapShell(shape,1/size.w,1/size.h)});
         playShatter();return "shatter";
       }
       const radius=60;
@@ -251,8 +258,10 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       if(foam)stampFingertip(r,x,y,pad,fingerDepth(0,pressure),1);else stampDent(r,x,y,radius,immediateDepth(1),1);
       smoothDents(r,x-radius*2.2,y-radius*2.2,x+radius*2.2,y+radius*2.2);
       // Fresh glaze shows its first crack lines immediately; click vs drag only decides what follows.
-      const crackedOnDown=!foam&&!cracked.some(c=>insideShellPolygon(x/size.w,y/size.h,c.shape.boundary))&&crack(x,y)==="crack";
-      presses.set(e.pointerId, { crackedOnDown,pad,before,x, y, origin:{x,y},dragging:false,pointerType:e.pointerType,exposed:damage.filter(d=>d.hole).map(d=>d.shape),initialFoam:foam,start: e.timeStamp, radius, pressure, sound: foam?playSquelch(immediateDepth(1)):undefined, foam, spots:[{x,y}],flakeDistance:20 });
+      // Taps on bare squishy act on glaze within reach; with none nearby they only squish.
+      const target=foam?snapToGlaze(x,y,snapRadius(coarsePointer()),intact):{x,y};
+      const crackedOnDown=!!target&&!cracked.some(c=>insideShellPolygon(target.x/size.w,target.y/size.h,c.shape.boundary))&&crack(target.x,target.y)!=="foam";
+      presses.set(e.pointerId, { target,crackedOnDown,pad,before,x, y, origin:{x,y},dragging:false,pointerType:e.pointerType,exposed:damage.filter(d=>d.hole).map(d=>d.shape),initialFoam:foam,start: e.timeStamp, radius, pressure, sound: foam?playSquelch(immediateDepth(1)):undefined, foam, spots:[{x,y}],flakeDistance:20 });
       resetRef.current = null;r.resetAmount=1;
 
       vibratePress();
@@ -317,7 +326,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     const up = (e: PointerEvent) => {
       const press=presses.get(e.pointerId);
       if (press && presses.delete(e.pointerId)) {
-        if(e.type==="pointerup"&&!press.dragging&&!press.initialFoam&&!press.crackedOnDown)crack(press.origin.x,press.origin.y);
+        if(e.type==="pointerup"&&!press.dragging&&press.target&&!press.crackedOnDown)crack(press.target.x,press.target.y);
         const settings=recoverySettings(),now=performance.now();
         bakeRise(now);
         // Queue the complete smooth contribution, tails included, for the shader to raise.

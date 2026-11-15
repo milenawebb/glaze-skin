@@ -59,4 +59,5 @@ use the editor.
 - Compact flavor choices open horizontally beside the existing toggle in the bottom band above other player layers; demo-only preview tabs use viewport visibility independently of the skin's width.
 - Dent rise-back is a shader uniform over a rise map, baked once per press; phones halve map sizes and restore maps after GPU context loss.
 - Phone frame tools use one .sq-frame-tools row below the frame (display: contents when wide).
+- chip.ts owns tap snapping, finger-sized break-off clipping, island and crumb rules; GlazeFrame never creates cracks or pieces without glaze under or near the tap.
 <!-- AGENT-MEMORY:END -->
