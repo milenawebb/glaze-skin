@@ -289,7 +289,8 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
           const t=i/samples,point={x:p.x+(x-p.x)*t,y:p.y+(y-p.y)*t};
           if(!safe(point.x,point.y)){previous=point;continue;}
           const shape=createGlazeStrip(previous,point,width);
-          const glazed=!p.exposed.some(shape=>insideShellPolygon(point.x/size.w,point.y/size.h,shape.boundary));
+          // Live check: a swipe over glaze already stripped (even earlier in this drag) only squishes.
+          const glazed=intact(point.x,point.y)&&!p.exposed.some(shape=>insideShellPolygon(point.x/size.w,point.y/size.h,shape.boundary));
           if(glazed){
             p.sound=undefined;playCrunch();p.flakeDistance+=distance/samples;
             if(p.flakeDistance>=(coarsePointer()?30:12)&&!reduced){
