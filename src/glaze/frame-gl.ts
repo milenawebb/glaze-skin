@@ -158,8 +158,8 @@ void main(){
   float crack=texture2D(uGlaze,p/uRes).g*coat;
   float crackShadow=texture2D(uGlaze,(p-vec2(.8,.9))/uRes).g*coat;
   vec3 glazeTint=mix(shell,uMonoColor,uMono);
-  c=mix(c,glazeTint*.48,crack*.7);
-  c=mix(c,mix(glazeTint,uWaxMilk,.32),max(0.,crackShadow-crack)*.65);
+  c=mix(c,glazeTint*.72,crack*.6);
+  c=mix(c,mix(glazeTint,uWaxMilk,.32),max(0.,crackShadow-crack)*.45);
   // Fissures cross the printed glaze face; the softer inside face remains below.
   float alpha=a*(.9+.08*pr);
   gl_FragColor=vec4(c*alpha,alpha);

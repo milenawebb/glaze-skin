@@ -7,14 +7,15 @@ import { dentDepth, dentRadius, faceExpression, frameInsets, pressureScale } fro
 
 import { breakGlaze, hasGlaze } from "./glaze";
 
-import { createShellBreak, createCrackTrail, takeShellChips, peelShell, SHELL_BREAK_MS, paintCoating, insideShellPolygon, framePressStage, type ShellBreak } from "./shell";
+import { createShellBreak, takeShellChips, peelShell, SHELL_BREAK_MS, paintCoating, insideShellPolygon, framePressStage, type ShellBreak } from "./shell";
+import { createGlazeStrip, isGlazeDrag, stripWidth } from "./strip";
 
 import { recoverySettings, recoveryFactor, immediateDepth } from "./recovery";
 import type { GlazeColor } from "./preferences";
 import { DEFAULT_GLAZE_STYLE, monoStyleAmount, type GlazeStyle } from "./glaze-style";
 const RESET_MS = 1500;
 
-interface Press { x: number; y: number; start: number; radius: number; pressure: number | null; sound: ((depth: number) => void) | undefined; foam: boolean; spots: {x:number;y:number}[]; trailDistance:number; branchSpacing:number }
+interface Press { x: number; y: number; origin: {x:number;y:number}; dragging:boolean; pointerType:string; exposed:ShellBreak[]; start: number; radius: number; pressure: number | null; sound: ((depth: number) => void) | undefined; foam: boolean; spots: {x:number;y:number}[]; flakeDistance:number }
 
 /** WebGL squishy frame. Dents stay until `resetKey` changes. */
 export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_GLAZE_STYLE, onFallback }: { resetKey: number; color?: GlazeColor; glazeStyle?: GlazeStyle; onFallback: () => void }) {
@@ -46,7 +47,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     const cracked: { x:number; y:number; radius:number; shape:ShellBreak; removed:boolean; start:number; drawn:boolean }[]=[];
     const protectedRects = () => {
       const bounds=canvas.getBoundingClientRect();
-      return Array.from(canvas.parentElement?.querySelectorAll<HTMLElement>(".sq-frame-colors, .sq-frame-actions, .sq-stage")??[]).map(el=>{const b=el.getBoundingClientRect();return {x:b.left-bounds.left-3,y:b.top-bounds.top-3,w:b.width+6,h:b.height+6};});
+      return Array.from(canvas.parentElement?.querySelectorAll<HTMLElement>(".sq-stage")??[]).map(el=>{const b=el.getBoundingClientRect();return {x:b.left-bounds.left-3,y:b.top-bounds.top-3,w:b.width+6,h:b.height+6};});
     };
     const safe = (x:number,y:number) => {
       const insets=frameInsets(size.w);
@@ -87,7 +88,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       for (const p of presses.values()) {
         const held = (now - p.start) / 1000;
         const foam=safe(p.x,p.y)&&!intact(p.x,p.y);
-        if(foam&&!p.foam)p.sound=playSquelch(dentDepth(held,p.pressure));
+        if(foam&&!p.foam&&!p.dragging)p.sound=playSquelch(dentDepth(held,p.pressure));
         if(!foam&&p.foam)p.sound=undefined;
         p.foam=foam;
         p.sound?.(dentDepth(held, p.pressure));
@@ -131,7 +132,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       const rect = canvas.getBoundingClientRect();
       const old=size;
       size = { w: rect.width, h: rect.height };
-      for(const p of presses.values()){p.x=p.x/old.w*size.w;p.y=p.y/old.h*size.h;p.spots=p.spots.map(v=>({x:v.x/old.w*size.w,y:v.y/old.h*size.h}));}
+      for(const p of presses.values()){p.x=p.x/old.w*size.w;p.y=p.y/old.h*size.h;p.origin={x:p.origin.x/old.w*size.w,y:p.origin.y/old.h*size.h};p.spots=p.spots.map(v=>({x:v.x/old.w*size.w,y:v.y/old.h*size.h}));}
       if (snapSize(r, size)) {
         r.coating.getContext("2d")?.clearRect(0,0,r.coating.width,r.coating.height);
         replaying=true;
@@ -153,7 +154,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       const rect = canvas.getBoundingClientRect();
       return { x: e.clientX - rect.left, y: e.clientY - rect.top };
     };
-    const crack = (x:number,y:number,pointerType:string,dragging=false) => {
+    const crack = (x:number,y:number) => {
       if(!safe(x,y))return "foam";
       const existing=cracked.find(c=>insideShellPolygon(x/size.w,y/size.h,c.shape.boundary));
       if(framePressStage(intact(x,y),Boolean(existing))==="foam")return "foam";
@@ -176,11 +177,11 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
           breaks.push({x:existing.x,y:existing.y,radius:existing.radius,start:performance.now(),duration:SHELL_BREAK_MS,shape:mapShell(shape,1/size.w,1/size.h)});
           }
         }
-        if(dragging)playCrunch();else playShatter();return "shatter";
+        playShatter();return "shatter";
       }
       const radius=60;
       cracked.push({x:x/size.w,y:y/size.h,radius:radius/size.w,shape:mapShell(createShellBreak(x,y,radius),1/size.w,1/size.h),removed:false,start:performance.now(),drawn:false});
-      if(dragging)playCrunch();else playCrack();
+      playCrack();
       return "crack";
     };
     const down = (e: PointerEvent) => {
@@ -191,10 +192,10 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       const pressure = pressureScale(e);
       // A new press owns these cells; an older rise must not pull against it.
       for(const rec of recoveries)rec.cells=rec.cells.filter(c=>Math.hypot((c.i%r.dw)/r.dw*size.w-x,Math.floor(c.i/r.dw)/r.dh*size.h-y)>dentRadius(e.pointerType)*2.5);
-      const result=crack(x,y,e.pointerType);
+      const foam=!intact(x,y);
       const radius=dentRadius(e.pointerType);
       stampDent(r,x,y,radius,immediateDepth(1),1);
-      presses.set(e.pointerId, { x, y, start: performance.now(), radius, pressure, sound: result==="foam"?playSquelch(immediateDepth(1)):undefined, foam:result==="foam", spots:[{x,y}],trailDistance:0,branchSpacing:15+Math.random()*10 });
+      presses.set(e.pointerId, { x, y, origin:{x,y},dragging:false,pointerType:e.pointerType,exposed:damage.filter(d=>d.hole).map(d=>d.shape),start: performance.now(), radius, pressure, sound: foam?playSquelch(immediateDepth(1)):undefined, foam, spots:[{x,y}],flakeDistance:20 });
       resetRef.current = null;
 
       vibratePress();
@@ -208,25 +209,35 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       p.pressure = pressureScale(e);
       const depth = dentDepth(held, p.pressure);
       const dist = Math.hypot(x - p.x, y - p.y);
-      if(dist>0){
-        const trail=createCrackTrail({x:p.x,y:p.y},{x,y});paint(trail,false);
-        p.trailDistance+=dist;
-        if(dist<15&&p.trailDistance>=p.branchSpacing){
-          const branch=createCrackTrail({x,y},{x:x-(y-p.y)/dist*12,y:y+(x-p.x)/dist*12});paint(branch,false);
-          p.trailDistance=0;p.branchSpacing=15+Math.random()*10;
-        }
-        // Sample longer moves too, so a fast finger leaves no skipped cracked regions.
-        const samples=Math.ceil(dist/2);
-        let sinceCrack=18;
+      if(!p.dragging&&isGlazeDrag(p.origin,{x,y})){
+        p.dragging=true;
+        // Include all the initial jitter once the gesture becomes a drag.
+        p.x=p.origin.x;p.y=p.origin.y;
+      }
+      if(p.dragging){
+        const distance=Math.hypot(x-p.x,y-p.y),samples=Math.max(1,Math.ceil(distance/5)),width=stripWidth(p.pointerType);
+        let previous={x:p.x,y:p.y};
         for(let i=1;i<=samples;i++){
-          const t=i/samples,tx=p.x+(x-p.x)*t,ty=p.y+(y-p.y)*t;
-          if(!safe(tx,ty))continue;
-          const foam=!intact(tx,ty);
-          if(foam&&!p.foam)p.sound=playSquelch(depth);
-          if(!foam&&p.foam)p.sound=undefined;
-          const enteredGlaze=!foam&&p.foam;
-          p.foam=foam;sinceCrack+=dist/samples;
-          if(!foam&&(enteredGlaze||sinceCrack>=18)){crack(tx,ty,e.pointerType,true);sinceCrack=0;}
+          const t=i/samples,point={x:p.x+(x-p.x)*t,y:p.y+(y-p.y)*t};
+          if(!safe(point.x,point.y)){previous=point;continue;}
+          const shape=createGlazeStrip(previous,point,width);
+          const glazed=!p.exposed.some(shape=>insideShellPolygon(point.x/size.w,point.y/size.h,shape.boundary));
+          if(glazed){
+            p.sound=undefined;playCrunch();p.flakeDistance+=distance/samples;
+            if(p.flakeDistance>=12&&!window.matchMedia("(prefers-reduced-motion: reduce)").matches){
+              const layer=canvas.parentElement?.querySelector<HTMLElement>(".sq-flakes");
+              const chips=shape.boundary.filter(v=>intact(v.x,v.y)).slice(0,3).map(v=>{
+                const dx=v.x-point.x,dy=v.y-point.y,length=Math.hypot(dx,dy)||1;
+                const center={x:v.x+dx/length*3,y:v.y+dy/length*3};
+                return createGlazeStrip(center,{x:center.x+2,y:center.y+1},5).boundary;
+              }).filter(poly=>poly.every(v=>safe(v.x,v.y)));
+              if(layer&&chips.length)peelShell(layer,r.snapshot(point.x,point.y,width),{...shape,plates:chips},point.x,point.y,width);
+              p.flakeDistance=0;
+            }
+            // The vector swath is retained even where it passes beneath frame buttons.
+            breakGlaze(r,point.x,point.y,width,1,shape.boundary);paint(shape,true);
+          }else if(!p.foam||!p.sound)p.sound=playSquelch(depth);
+          p.foam=!glazed;previous=point;
         }
       }
       const steps = Math.max(1, Math.ceil(dist / 3));
@@ -244,6 +255,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     const up = (e: PointerEvent) => {
       const press=presses.get(e.pointerId);
       if (press && presses.delete(e.pointerId)) {
+        if(e.type==="pointerup"&&!press.dragging)crack(press.origin.x,press.origin.y);
         const settings=recoverySettings();
         const cells:{i:number;depth:number}[]=[];
         const visited=new Set<number>();
