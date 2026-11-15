@@ -38,7 +38,7 @@ async function enable() {
   await vi.waitFor(() => expect(decode).toHaveBeenCalledTimes(10));
   sources.length = 0;
 }
-describe("recorded Squishy sounds", () => {
+describe("recorded Glaze sounds", () => {
   it("preloads all ten recordings without resuming before a gesture", async () => {
     contextState = "suspended";
     sounds.setSoundsEnabled(true, false);

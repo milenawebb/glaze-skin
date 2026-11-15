@@ -160,7 +160,8 @@
 
 @layer components {
   .demo { min-height: 100vh; background: var(--color-background); padding: 32px max(28px, 5vw) 48px; font-family: var(--font-display); overflow-x: clip; }
-  .demo-title { text-align: center; font-size: 2.5rem; font-weight: 700; color: var(--color-foreground); margin-bottom: 20px; }
+  .demo-title { text-align: center; font-size: 2.5rem; font-weight: 700; color: var(--color-foreground); margin-bottom: 4px; }
+  .demo-subtitle { text-align: center; font-size: 16px; color: var(--color-foreground); margin-bottom: 20px; }
   .demo > .sq-root, .demo-placeholder { max-width: 960px; }
   .demo-placeholder { margin-inline: auto; aspect-ratio: 900 / 632; width: 100%; }
   .demo-actions { display: flex; justify-content: center; gap: 12px; margin-top: 24px; }

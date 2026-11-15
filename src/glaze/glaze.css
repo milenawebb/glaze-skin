@@ -1,7 +1,7 @@
 @property --sq-s { syntax: "<number>"; inherits: true; initial-value: 0; }
 @property --lx { syntax: "<number>"; inherits: false; initial-value: 1; }
 @property --ly { syntax: "<number>"; inherits: false; initial-value: 1; }
-/* Squishy — a soft squishy-toy skin for Video.js v10 */
+/* Glaze — a soft squishy-toy skin for Video.js v10 */
 .sq-root {
   --sq-ink: #4a2338;
   --sq-ink-soft: #6b3a55;

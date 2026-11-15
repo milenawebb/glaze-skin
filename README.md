@@ -1,4 +1,6 @@
-# Welcome to your Lovable project
+# Glaze
+
+An ASMR squishy skin for Video.js
 
 This project was built with [Lovable](https://lovable.dev).
 
@@ -21,7 +23,7 @@ npm i
 npm run dev
 ```
 
-## Squishy skin settings
+## Glaze skin settings
 
 - `sounds`: start with squish sounds on (default `false`). A viewer's remembered sound-button choice overrides this starting setting.
 - The demo passes `sounds={true}`. Recordings preload on player mount, and the first player gesture resumes audio before its press sound is scheduled.

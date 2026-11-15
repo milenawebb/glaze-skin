@@ -2,21 +2,21 @@ import { Container, Hotkey, TimeSlider, createPlayer } from "@videojs/react";
 import { videoFeatures } from "@videojs/react/video";
 import { MuxVideo } from "@videojs/react/media/mux-video";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent as RKeyboardEvent, type ReactNode } from "react";
-import { SquishyFrame } from "./SquishyFrame";
+import { GlazeFrame } from "./GlazeFrame";
 import { crackCrust } from "./crust";
 import { useSquishAll } from "./squish";
 import { POPUP_SPEEDS, VOLUME_CLOSE_MS, CONTROLS_IDLE_MS, controlsVisible } from "./controls";
 import { CAPTIONS_DEFAULT_ON, observeCaptionCues, isCaptionEngine } from "./captions";
-import { COLORS, OPTIONS, readPreferences, savePreferences, type SquishyColor } from "./preferences";
+import { COLORS, OPTIONS, readPreferences, savePreferences, type GlazeColor } from "./preferences";
 import { setSoundsEnabled, unlockSounds } from "./sounds";
-import "./squishy.css";
+import "./glaze.css";
 
-export const squishy = createPlayer({ features: videoFeatures });
-const { Player, usePlayer, useMedia } = squishy;
+export const glaze = createPlayer({ features: videoFeatures });
+const { Player, usePlayer, useMedia } = glaze;
 
 const IDLE_MS = CONTROLS_IDLE_MS;
 
-export interface SquishyPlayerProps {
+export interface GlazePlayerProps {
   playbackId: string;
   /** Changing this number puffs the frame back to smooth and re-bakes the crust. */
   resetKey?: number;
@@ -25,17 +25,17 @@ export interface SquishyPlayerProps {
   sounds?: boolean;
 }
 
-export function SquishyPlayer({ playbackId, resetKey = 0, title = "Video", sounds = false }: SquishyPlayerProps) {
+export function GlazePlayer({ playbackId, resetKey = 0, title = "Video", sounds = false }: GlazePlayerProps) {
   return (
     <Player>
-      <SquishySkin resetKey={resetKey} label={title} sounds={sounds}>
+      <GlazeSkin resetKey={resetKey} label={title} sounds={sounds}>
         <MuxVideo
           source={{ playbackId }}
           poster={`https://image.mux.com/${playbackId}/thumbnail.webp?time=1`}
           playsInline
           crossOrigin="anonymous"
         />
-      </SquishySkin>
+      </GlazeSkin>
     </Player>
   );
 }
@@ -47,7 +47,7 @@ const fmt = (s: number) => {
   return `${h ? h + ":" : ""}${mm}:${String(sec).padStart(2, "0")}`;
 };
 
-export function SquishySkin({ children, resetKey, label, sounds: startSounds = false }: { children: ReactNode; resetKey: number; label: string; sounds?: boolean }) {
+export function GlazeSkin({ children, resetKey, label, sounds: startSounds = false }: { children: ReactNode; resetKey: number; label: string; sounds?: boolean }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const flakeRef = useRef<HTMLDivElement>(null);
   const [fallback, setFallback] = useState(false);
@@ -61,7 +61,7 @@ export function SquishySkin({ children, resetKey, label, sounds: startSounds = f
   const paused = usePlayer((s) => s.paused);
   const [crust, setCrust] = useState({ play: true, tube: true });
   const [localReset, setLocalReset] = useState(0);
-  const [color, setColor] = useState<SquishyColor>("Rainbow");
+  const [color, setColor] = useState<GlazeColor>("Rainbow");
   const glazeStyle = OPTIONS[color].glazeStyle;
   const [sounds, setSounds] = useState(startSounds);
   const [soundHint, setSoundHint] = useState(false);
@@ -81,7 +81,7 @@ export function SquishySkin({ children, resetKey, label, sounds: startSounds = f
     try { const prefs = readPreferences(window.localStorage, startSounds); setColor(prefs.color); on = prefs.sounds; } catch { /* Storage is optional. */ }
     setSounds(on); setSoundsEnabled(on, false);
     try {
-      if (!on && !window.localStorage.getItem("squishy-sound-hint-seen")) { setSoundHint(true); window.localStorage.setItem("squishy-sound-hint-seen", "true"); }
+      if (!on && !window.localStorage.getItem("glaze-sound-hint-seen") && !window.localStorage.getItem("squishy-sound-hint-seen")) { setSoundHint(true); window.localStorage.setItem("glaze-sound-hint-seen", "true"); }
     } catch { if (!on) setSoundHint(true); }
     const firstGesture = (e: Event) => {
       if (e.target instanceof Node && rootRef.current?.contains(e.target)) {
@@ -95,7 +95,7 @@ export function SquishySkin({ children, resetKey, label, sounds: startSounds = f
     window.addEventListener("keydown", firstGesture, true);
     return () => { window.removeEventListener("pointerdown", firstGesture, true); window.removeEventListener("keydown", firstGesture, true); };
   }, []);
-  const persist = (nextColor: SquishyColor, nextSounds: boolean) => {
+  const persist = (nextColor: GlazeColor, nextSounds: boolean) => {
     try { savePreferences(window.localStorage, nextColor, nextSounds); } catch { /* Storage is optional. */ }
   };
 
@@ -185,7 +185,7 @@ export function SquishySkin({ children, resetKey, label, sounds: startSounds = f
       data-color={color}
       data-glaze-style={glazeStyle}
       style={{ ["--sq-ar" as string]: String(ar) }}
-      aria-label={`${label} — Squishy player`}
+      aria-label={`${label} — Glaze player`}
       onPointerMove={poke}
       onPointerDown={() => { setKeyboardFocus(false); poke(); }}
       onKeyDown={(e) => {
@@ -197,8 +197,8 @@ export function SquishySkin({ children, resetKey, label, sounds: startSounds = f
       onFocus={() => { setKeyboardFocus(!document.documentElement.hasAttribute("data-sq-pointer")); poke(); }}
       onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setKeyboardFocus(false); }}
     >
-      {!fallback && <SquishyFrame resetKey={resetKey + localReset} color={color} glazeStyle={glazeStyle} onFallback={() => setFallback(true)} />}
-      <div ref={colorRef} className="sq-frame-colors" role="group" aria-label="Squishy colors">
+      {!fallback && <GlazeFrame resetKey={resetKey + localReset} color={color} glazeStyle={glazeStyle} onFallback={() => setFallback(true)} />}
+      <div ref={colorRef} className="sq-frame-colors" role="group" aria-label="Glaze colors">
         <button type="button" className="sq-candy sq-squish sq-color-toggle" data-swatch={color} aria-label={`Choose color: ${OPTIONS[color].label}`} title={`Choose color: ${OPTIONS[color].label}`} aria-expanded={colorOpen} onClick={() => setColorOpen((open) => !open)}><span className="sq-candy-face sq-squish-body" /></button>
         <div className="sq-color-choices" data-open={colorOpen || undefined}>
           {COLORS.map((choice) => <button key={choice} type="button" className="sq-candy sq-squish" data-swatch={choice} aria-label={OPTIONS[choice].label} title={OPTIONS[choice].label} aria-pressed={color === choice} onClick={() => { setColor(choice); persist(choice, sounds); setColorOpen(false); if (compact) colorRef.current?.querySelector<HTMLButtonElement>(".sq-color-toggle")?.focus(); }}><span className="sq-candy-face sq-squish-body" /></button>)}
@@ -206,7 +206,7 @@ export function SquishySkin({ children, resetKey, label, sounds: startSounds = f
       </div>
       <div className="sq-frame-actions">
         {soundHint && !sounds && <span className="sq-sound-hint">Turn on squish sounds</span>}
-        <button type="button" className="sq-candy sq-squish" aria-label="Reset squishy" title="Reset squishy" onClick={() => setLocalReset((n) => n + 1)}><span className="sq-candy-face sq-squish-body"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6a7 7 0 1 1-1 7M4 2v5h5" /></svg></span></button>
+        <button type="button" className="sq-candy sq-squish" aria-label="Reset Glaze" title="Reset Glaze" onClick={() => setLocalReset((n) => n + 1)}><span className="sq-candy-face sq-squish-body"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6a7 7 0 1 1-1 7M4 2v5h5" /></svg></span></button>
         <button type="button" className="sq-candy sq-squish" aria-label={`Squish sounds ${sounds ? "on" : "off"}`} title={`Squish sounds ${sounds ? "on" : "off"}`} aria-pressed={sounds} onClick={() => { const next = !sounds; setSoundsEnabled(next); setSounds(next); persist(color, next); }}><span className="sq-candy-face sq-squish-body"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 3 1.8 4.2L13 9l-4.2 1.8L7 15l-1.8-4.2L1 9l4.2-1.8ZM14 6a5 5 0 0 1 0 8m3-10a8 8 0 0 1 0 12" />{!sounds && <path d="m2 18 16-16" />}</svg></span></button>
       </div>
       <div className="sq-stage" onClickCapture={(e) => {

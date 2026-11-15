@@ -27,7 +27,7 @@ export function observeCaptionCues(video: HTMLVideoElement, engine: () => Captio
     loadHiddenCaptionTrack(active, engine());
     render(overlayCaptionText(video.textTracks, enabled));
     const next = JSON.stringify(tracks.map((track) => ({ kind: track.kind, label: track.label, language: track.language, mode: track.mode })));
-    if (next !== signature) { signature = next; console.info("[Squishy captions] Tracks found:", JSON.parse(next)); }
+    if (next !== signature) { signature = next; console.info("[Glaze captions] Tracks found:", JSON.parse(next)); }
   };
   const bind = () => {
     const targets: EventTarget[] = [...Array.from(video.textTracks), ...Array.from(video.querySelectorAll("track"))];
