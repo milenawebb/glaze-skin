@@ -4,6 +4,7 @@
  * frame and lit in the fragment shader.
  */
 import { COLOR_FADE_MS } from "./preferences";
+import { sprinklesEnabled } from "./glaze-style";
 export const FRAME = { side: 30, top: 30, bottom: 96, outerRadius: 46, innerRadius: 16 };
 
 const VS = `attribute vec2 aPos; varying vec2 vUv;
@@ -22,6 +23,7 @@ uniform vec3 uFoam; uniform vec3 uPore; uniform vec3 uSprinklePink;
 uniform vec3 uSprinkleRed; uniform vec3 uSprinkleGreen;
 uniform vec3 uSprinkleBlue; uniform vec3 uSprinkleYellow;
 uniform vec3 uMonoColor; uniform float uMono;
+uniform float uSprinkles;
 varying vec2 vUv;
 float sdRR(vec2 p, vec2 c, vec2 hs, float r){ vec2 q=abs(p-c)-hs+r; return length(max(q,0.))+min(max(q.x,q.y),0.)-r; }
 float sdO(vec2 p){ return sdRR(p, uRes*.5, uRes*.5, uRo); }
@@ -149,7 +151,7 @@ void main(){
     float lip=coat*smoothstep(.03,.3,(broken(p+vec2(1.5,0.))+broken(p-vec2(1.5,0.))+broken(p+vec2(0.,1.5))+broken(p-vec2(0.,1.5)))*.25);
     c=base*(monoDiffuse*(1.-sh*.8)+.12)+vec3(1.)*(clearcoat+lip*.24);
   }
-  c=sprinkles(p,c,coat);
+  if(uSprinkles>.5) c=sprinkles(p,c,coat);
   float crack=texture2D(uGlaze,p/uRes).g*coat;
   float crackShadow=texture2D(uGlaze,(p-vec2(.8,.9))/uRes).g*coat;
   c*=1.-crackShadow*.35;
@@ -306,6 +308,7 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
     },
     render() {
       gl.uniform1f(u("uMono"), r.mono);
+      gl.uniform1f(u("uSprinkles"), sprinklesEnabled(r.mono) ? 1 : 0);
       const t = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : Math.min(1, (performance.now() - paletteStart) / COLOR_FADE_MS);
       currentColors = targetColors.map((color, i) => color.map((value, j) => (fromColors[i]?.[j] ?? value) + (value - (fromColors[i]?.[j] ?? value)) * t));
       palette.forEach((pair, i) => { const color = currentColors[i]; if (pair[0] && color) gl.uniform3f(u(pair[0]), color[0] ?? 0, color[1] ?? 0, color[2] ?? 0); });
