@@ -1,6 +1,6 @@
 /**
  * Raw WebGL renderer for the squishy frame. A CPU height map (Float32Array,
- * half resolution) stores permanent dents; it is uploaded as a texture each
+ * in unit-frame coordinates) stores permanent dents; it is uploaded as a texture each
  * frame and lit in the fragment shader.
  */
 import { COLOR_FADE_MS } from "./preferences";
@@ -136,7 +136,7 @@ void main(){
   sh+=(1.-smoothstep(0.,10.,si))*.2+under*.2;
   float nh=max(dot(N,normalize(L+V)),0.);
   // Broad satin reflection under a restrained clear-coat sheen, never foam shine.
-  float spec=coat*(pow(nh,8.)*.17+pow(nh,95.)*.2)+hole*pow(nh,7.)*.115;
+  float spec=coat*(pow(nh,8.)*.17+pow(nh,95.)*.2)+hole*pow(nh,3.)*.045;
   float rim=clamp(dot(N.xy,vec2(.55,.65)),0.,1.);
   sh=clamp(sh+rim*.18,0.,.6);
   float thin=1.-pr*amp;
@@ -352,37 +352,38 @@ export function isOnRing(x: number, y: number, w: number, h: number, ins: { l: n
   return o < 0 && i > 0;
 }
 
-/** Press a soft gaussian dent into the height map. Dents only deepen, never spring back. */
+/** Gaussian tails span the map, without a radius cutoff or disc edge. */
 export function stampDent(r: FrameRenderer, cssX: number, cssY: number, radiusCss: number, depth: number, rate: number) {
-  const sx=r.dw/r.width, sy=r.dh/r.height;
-  const cx = cssX * sx, cy = cssY * sy, rad = radiusCss * Math.max(sx,sy);
-  const ext = Math.ceil(rad * 2.2);
-  const x0 = Math.max(0, Math.floor(cx - ext)), x1 = Math.min(r.dw - 1, Math.ceil(cx + ext));
-  const y0 = Math.max(0, Math.floor(cy - ext)), y1 = Math.min(r.dh - 1, Math.ceil(cy + ext));
-  const inv = 1 / (2 * rad * rad);
-  for (let y = y0; y <= y1; y++) {
-    for (let x = x0; x <= x1; x++) {
-      const dx = (x - cx)/sx*Math.max(sx,sy), dy = (y - cy)/sy*Math.max(sx,sy);
-      const target = depth * Math.exp(-(dx * dx + dy * dy) * inv);
+  const inv = 1 / (2 * radiusCss * radiusCss);
+  for (let y = 0; y < r.dh; y++) {
+    for (let x = 0; x < r.dw; x++) {
+      const dx=x*r.width/r.dw-cssX,dy=y*r.height/r.dh-cssY;
+      const weight=Math.exp(-(dx*dx+dy*dy)*inv);
+      const target = depth * weight;
       const i = y * r.dw + x;
       const cur = r.dent[i] ?? 0;
-      if (target > cur) r.dent[i] = cur + (target - cur) * rate;
+      const delta=target-cur,softness=.002*weight;
+      r.dent[i]=cur+.5*(delta+Math.sqrt(delta*delta+softness*softness))*rate;
     }
   }
 }
 
 /** Lightly blur a region of the height map so overlapping dents and grooves blend smoothly. */
 export function smoothDents(r: FrameRenderer, cssX0: number, cssY0: number, cssX1: number, cssY1: number) {
-  const x0 = Math.max(1, Math.floor(Math.min(cssX0, cssX1)*r.dw/r.width) - 2), x1 = Math.min(r.dw - 2, Math.ceil(Math.max(cssX0, cssX1)*r.dw/r.width) + 2);
-  const y0 = Math.max(1, Math.floor(Math.min(cssY0, cssY1)*r.dh/r.height) - 2), y1 = Math.min(r.dh - 2, Math.ceil(Math.max(cssY0, cssY1)*r.dh/r.height) + 2);
+  const x0=0,x1=r.dw-1,y0=0,y1=r.dh-1;
   if (x1 <= x0 || y1 <= y0) return;
   const w = r.dw, src = r.dent;
+  const ox=Math.max(1,Math.round(2.5*r.dw/r.width)),oy=Math.max(1,Math.round(2.5*r.dh/r.height));
+  const sample=(x:number,y:number)=>src[Math.max(0,Math.min(r.dh-1,y))*w+Math.max(0,Math.min(w-1,x))]??0;
   const tmp = new Float32Array((x1 - x0 + 1) * (y1 - y0 + 1));
   let k = 0;
   for (let y = y0; y <= y1; y++)
     for (let x = x0; x <= x1; x++) {
-      const i = y * w + x;
-      tmp[k++] = (src[i] ?? 0) * 0.4 + ((src[i - 1] ?? 0) + (src[i + 1] ?? 0) + (src[i - w] ?? 0) + (src[i + w] ?? 0)) * 0.1 + ((src[i - w - 1] ?? 0) + (src[i - w + 1] ?? 0) + (src[i + w - 1] ?? 0) + (src[i + w + 1] ?? 0)) * 0.05;
+      const dx=x*r.width/r.dw-(cssX0+cssX1)*.5,dy=y*r.height/r.dh-(cssY0+cssY1)*.5;
+      const rx=Math.abs(cssX1-cssX0)*.5+2.5,ry=Math.abs(cssY1-cssY0)*.5+2.5;
+      const weight=Math.exp(-.5*(dx*dx/(rx*rx)+dy*dy/(ry*ry)));
+      const blurred=sample(x,y)*.25+(sample(x-ox,y)+sample(x+ox,y)+sample(x,y-oy)+sample(x,y+oy))*.125+(sample(x-ox,y-oy)+sample(x+ox,y-oy)+sample(x-ox,y+oy)+sample(x+ox,y+oy))*.0625;
+      tmp[k++]=sample(x,y)+(blurred-sample(x,y))*weight;
     }
   k = 0;
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) src[y * w + x] = tmp[k++] ?? 0;
