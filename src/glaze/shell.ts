@@ -158,10 +158,13 @@ export function cancelShellDebris(){debrisGeneration++;debrisJobs.length=0;cance
 /** Red holes and green fissures, rasterized only when damage changes. */
 export function paintCoating(canvas:HTMLCanvasElement,width:number,shape:ShellBreak,hole:boolean,progress=1) {
  const ctx=canvas.getContext("2d");if(!ctx)return;ctx.save();ctx.scale(canvas.width/width,canvas.width/width);
- if(hole){ctx.globalCompositeOperation="source-over";ctx.fillStyle=`rgb(${Math.round(255*progress)},0,0)`;ctx.beginPath();tornOutline(shape.boundary).forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));ctx.closePath();ctx.fill();
+ if(hole){
+   // Holes only ever grow: "lighten" while fading in, so overlapping or touching holes never pull red back down (no ghost rings);
+   // the final full fill uses source-over to delete crack lines (green) inside the removed piece.
+   ctx.globalCompositeOperation=progress>=1?"source-over":"lighten";ctx.fillStyle=`rgb(${Math.round(255*progress)},0,0)`;ctx.beginPath();tornOutline(shape.boundary).forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));ctx.closePath();ctx.fill();
    // A thin same-colour edge stroke covers antialiased fissure pixels: no readback needed.
    ctx.strokeStyle=ctx.fillStyle;ctx.lineWidth=width/canvas.width;ctx.lineJoin="round";ctx.stroke();}
- else {ctx.strokeStyle="rgb(0,255,0)";ctx.lineJoin="round";ctx.lineCap="round";for(const path of [...shape.cracks,...shape.arcs])for(let i=1;i<path.length;i++){const a=path[i-1],b=path[i];if(!a||!b)continue;ctx.lineWidth=.14+.65*(1-i/path.length);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}}
+ else {ctx.globalCompositeOperation="lighten";ctx.strokeStyle="rgb(0,255,0)";ctx.lineJoin="round";ctx.lineCap="round";for(const path of [...shape.cracks,...shape.arcs])for(let i=1;i<path.length;i++){const a=path[i-1],b=path[i];if(!a||!b)continue;ctx.lineWidth=.14+.65*(1-i/path.length);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}}
  ctx.restore();
 }
 

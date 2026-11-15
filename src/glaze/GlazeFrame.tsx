@@ -8,7 +8,7 @@ import { coarsePointer, dentDepth, dentRadius, faceExpression, frameInsets, pres
 import { breakGlaze, hasGlaze } from "./glaze";
 
 import { prepareShellDebris, cancelShellDebris, createShellBreak, peelShell, SHELL_BREAK_MS, paintCoating, insideShellPolygon, framePressStage, type ShellBreak } from "./shell";
-import { chipPlates, chipRadius, snapRadius, snapToGlaze, ISLAND_SIZE } from "./chip";
+import { angularCell, maxPiece, chipPlates, chipRadius, snapRadius, snapToGlaze, ISLAND_SIZE } from "./chip";
 import { createGlazeStrip, dragThreshold, isGlazeDrag, stripWidth } from "./strip";
 
 import { recoverySettings, recoveryFactor, immediateDepth } from "./recovery";
@@ -206,7 +206,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       if(existing){
         const pixelShape=mapShell(existing.shape,size.w,size.h);
         // Only the glaze under the finger breaks off; small islands and loose crumbs go with it.
-        const plates=chipPlates(pixelShape.plates,existing.shape.removed,x,y,chipRadius(coarsePointer()),intact,insideShellPolygon);
+        const plates=chipPlates(pixelShape.plates,existing.shape.removed,x,y,chipRadius(coarsePointer()),intact,insideShellPolygon,maxPiece(coarsePointer()));
         if(!plates.length)return "cracked";
         // One snapshot per break-off; pieces are cut from it over the next frames.
         let snap:HTMLCanvasElement|null=null;
@@ -226,7 +226,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       let glazed=0,total=0;
       for(let gy=-ISLAND_SIZE/2;gy<=ISLAND_SIZE/2;gy+=5)for(let gx=-ISLAND_SIZE/2;gx<=ISLAND_SIZE/2;gx+=5){const px=x+gx,py=y+gy;if(!safe(px,py))continue;total++;if(intact(px,py))glazed++;}
       if(total&&glazed/total<.35){
-        const cr=chipRadius(coarsePointer())*1.6,poly=Array.from({length:18},(_,i)=>({x:x+Math.cos(i/18*Math.PI*2)*cr,y:y+Math.sin(i/18*Math.PI*2)*cr}));
+        const cr=chipRadius(coarsePointer()),poly=angularCell(x,y,cr);
         const shape={boundary:poly,plates:[poly],cracks:[],arcs:[],removed:new Set<number>()};
         const layer=reduced?null:canvas.parentElement?.querySelector<HTMLElement>(".sq-flakes");
         if(layer)peelShell(layer,r.snapshot(x,y,cr),shape,x,y,cr);

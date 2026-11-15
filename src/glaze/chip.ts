@@ -2,7 +2,10 @@ import type { ShellPoint } from "./shell";
 
 /** Tap reach and break-off size; phones get larger targets. */
 export function snapRadius(coarse: boolean) { return coarse ? 24 : 16; }
-export function chipRadius(coarse: boolean) { return coarse ? 22 : 16; }
+/** Half the break-off size: about 30 to 50px across on phones. */
+export function chipRadius(coarse: boolean) { return coarse ? 20 : 15; }
+/** Crack pieces larger than this are split before removal. */
+export function maxPiece(coarse: boolean) { return coarse ? 48 : 36; }
 export const ISLAND_SIZE = 40;
 export const CRUMB_SIZE = 12;
 
@@ -25,12 +28,11 @@ export function extent(poly: ShellPoint[]) {
   return Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
 }
 
-/** Clip any polygon to a disc (convex clipper, Sutherland-Hodgman) so break-offs stay finger-sized. */
-export function clipToCircle(poly: ShellPoint[], cx: number, cy: number, radius: number, sides = 20): ShellPoint[] {
+/** Clip any polygon to a convex counter-clockwise polygon (Sutherland-Hodgman). */
+export function clipToConvex(poly: ShellPoint[], clip: ShellPoint[]): ShellPoint[] {
   let out = poly;
-  for (let k = 0; k < sides && out.length; k++) {
-    const a0 = k / sides * Math.PI * 2, a1 = (k + 1) / sides * Math.PI * 2;
-    const e0 = { x: cx + Math.cos(a0) * radius, y: cy + Math.sin(a0) * radius }, e1 = { x: cx + Math.cos(a1) * radius, y: cy + Math.sin(a1) * radius };
+  for (let k = 0; k < clip.length && out.length; k++) {
+    const e0 = clip[k]!, e1 = clip[(k + 1) % clip.length]!;
     const inside = (p: ShellPoint) => (e1.x - e0.x) * (p.y - e0.y) - (e1.y - e0.y) * (p.x - e0.x) >= 0;
     const cross = (p: ShellPoint, q: ShellPoint) => { const dx = q.x - p.x, dy = q.y - p.y, ex = e1.x - e0.x, ey = e1.y - e0.y, den = dx * ey - dy * ex; const t = den ? ((e0.x - p.x) * ey - (e0.y - p.y) * ex) / den : 0; return { x: p.x + dx * t, y: p.y + dy * t }; };
     const input = out; out = [];
@@ -40,6 +42,16 @@ export function clipToCircle(poly: ShellPoint[], cx: number, cy: number, radius:
     }
   }
   return out.length >= 3 ? out : [];
+}
+/** An angular, never round, convex shard of 4 to 6 corners around the finger: the short new cracks that split a big piece. */
+export function angularCell(x: number, y: number, radius: number, random = Math.random): ShellPoint[] {
+  const n = 4 + Math.floor(random() * 3), offset = random() * Math.PI * 2;
+  const angles = Array.from({ length: n }, (_, i) => offset + (i + (random() - .5) * .5) / n * Math.PI * 2);
+  return angles.map(a => { const r = radius * (.8 + random() * .45); return { x: x + Math.cos(a) * r, y: y + Math.sin(a) * r }; });
+}
+/** Kept for tests: clip to a many-sided polygon. */
+export function clipToCircle(poly: ShellPoint[], cx: number, cy: number, radius: number, sides = 20): ShellPoint[] {
+  return clipToConvex(poly, Array.from({ length: sides }, (_, k) => ({ x: cx + Math.cos(k / sides * Math.PI * 2) * radius, y: cy + Math.sin(k / sides * Math.PI * 2) * radius })));
 }
 
 /** Fraction of sample points inside the polygon that still have glaze. */
@@ -52,23 +64,27 @@ export function glazedFraction(poly: ShellPoint[], intact: (x: number, y: number
   return total ? glazed / total : 0;
 }
 
+function edgeDistance(poly: ShellPoint[], x: number, y: number) {
+  return Math.min(...poly.map((a, i) => { const b = poly[(i + 1) % poly.length] ?? a, dx = b.x - a.x, dy = b.y - a.y, t = Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / (dx * dx + dy * dy || 1))); return Math.hypot(a.x + t * dx - x, a.y + t * dy - y); }));
+}
 /**
- * Pieces to remove for a tap at (x,y): whole plates when they are mostly under the finger or tiny,
- * otherwise only the part inside the finger disc. Plates without glaze under them are skipped.
+ * Pieces to remove for a tap at (x,y), following the cracks: whole crack pieces under and right next to the finger.
+ * A piece bigger than `max` is split by a small angular shard around the finger and only that shard goes.
+ * Plates without glaze under them are skipped; loose crumbs go with the break.
  */
-export function chipPlates(plates: ShellPoint[][], removed: Set<number>, x: number, y: number, radius: number, intact: (x: number, y: number) => boolean, inside: (x: number, y: number, poly: ShellPoint[]) => boolean): ShellPoint[][] {
+export function chipPlates(plates: ShellPoint[][], removed: Set<number>, x: number, y: number, radius: number, intact: (x: number, y: number) => boolean, inside: (x: number, y: number, poly: ShellPoint[]) => boolean, max = radius * 2.4, random = Math.random): ShellPoint[][] {
   const out: ShellPoint[][] = [];
-  plates.forEach((poly, index) => {
-    if (removed.has(index)) return;
-    const small = extent(poly) < ISLAND_SIZE;
-    const clipped = clipToCircle(poly, x, y, small ? radius * 1.6 : radius);
-    if (!clipped.length) return;
-    const whole = small || polygonArea(clipped) >= polygonArea(poly) * .8;
-    const piece = whole ? poly : clipped;
-    if (glazedFraction(piece, intact, inside) < .15) { if (whole) removed.add(index); return; }
+  const near = plates.map((poly, index) => ({ poly, index, d: inside(x, y, poly) ? 0 : edgeDistance(poly, x, y) }))
+    .filter(p => !removed.has(p.index) && p.d <= radius * .6).sort((a, b) => a.d - b.d);
+  let budget = 0;
+  for (const { poly, index, d } of near) {
+    if (budget >= 3) break;
+    let piece = poly, whole = true;
+    if (extent(poly) > max) { if (d > 0 && out.length) continue; piece = clipToConvex(poly, angularCell(x, y, radius, random)); whole = false; if (!piece.length) continue; }
+    if (glazedFraction(piece, intact, inside) < .15) { if (whole) removed.add(index); continue; }
     if (whole) removed.add(index);
-    out.push(piece);
-  });
+    out.push(piece); budget++;
+  }
   if (out.length) plates.forEach((poly, index) => { if (!removed.has(index) && extent(poly) < CRUMB_SIZE) { removed.add(index); out.push(poly); } });
   return out;
 }
