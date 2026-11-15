@@ -63,6 +63,7 @@
   --sq-color-matcha: #cbe6bc;
   --sq-color-lilac: #c9b9e9;
   --sq-color-ring: #fff;
+  --sq-color-shadow: 0 3px 6px rgb(74 35 56 / 0.24);
 
   position: relative;
   display: block;
@@ -97,7 +98,7 @@
 .sq-root:not([data-compact]) .sq-color-toggle { display: none; }
 .sq-root .sq-candy { width: 44px; height: 44px; display: grid; place-items: center; color: var(--sq-liquid-ink); }
 .sq-candy-face { position: relative; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: radial-gradient(ellipse at 35% 20%, var(--sq-blob-highlight), transparent 65%), var(--sq-candy-surface); box-shadow: var(--sq-pill-shadow); }
-.sq-frame-colors .sq-candy-face { width: 24px; height: 24px; }
+.sq-frame-colors .sq-candy-face { width: 28px; height: 28px; opacity: 1; border: 1px solid var(--sq-color-ring); box-shadow: var(--sq-pill-shadow), var(--sq-color-shadow); }
 .sq-candy svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .sq-candy[data-swatch="Rainbow"] .sq-candy-face { background: conic-gradient(var(--sq-sprinkle-blue), var(--sq-sprinkle-yellow), var(--sq-color-strawberry), var(--sq-color-matcha), var(--sq-sprinkle-blue)); }
 .sq-candy[data-swatch="Strawberry"] .sq-candy-face { background-color: var(--sq-color-strawberry); }
@@ -105,7 +106,7 @@
 .sq-candy[data-swatch="Lilac"] .sq-candy-face { background-color: var(--sq-color-lilac); }
 .sq-candy[data-swatch="Rainbow"] .sq-candy-face::before,
 .sq-candy[data-swatch="Strawberry"] .sq-candy-face::before { content: ""; position: absolute; top: 7px; left: 7px; width: 5px; height: 2px; border-radius: 2px; rotate: -25deg; background: var(--sq-sprinkle-blue); box-shadow: 6px 6px 0 var(--sq-sprinkle-yellow), -1px 11px 0 var(--sq-sprinkle-green); }
-.sq-candy[data-swatch][aria-pressed="true"] .sq-candy-face { outline: 2px solid var(--sq-color-ring); outline-offset: 2px; }
+.sq-candy[data-swatch][aria-pressed="true"] .sq-candy-face { outline: 2px solid var(--sq-color-ring); outline-offset: 2px; scale: 1.1; }
 .sq-root[data-compact] .sq-frame-colors, .sq-root[data-compact] .sq-frame-actions { bottom: 55px; }
 .sq-root[data-compact] .sq-color-toggle { display: grid; }
 .sq-root[data-compact] .sq-color-choices { display: none; position: absolute; bottom: calc(100% + 8px); left: 0; padding: 4px; border-radius: 999px; background: var(--sq-liquid-refraction), var(--sq-liquid-surface); backdrop-filter: blur(10px); box-shadow: var(--sq-liquid-shadow); }
