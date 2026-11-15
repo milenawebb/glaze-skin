@@ -398,3 +398,11 @@
   :root:not([data-sq-pointer]) .sq-root :focus-visible,
   :root:not([data-sq-pointer]) .sq-root:focus-visible { outline-color: Highlight; }
 }
+
+/* Phones: frame tools leave the squishy band and sit in one glass row below the frame. */
+.sq-frame-tools { display: contents; }
+.sq-root[data-compact] { margin-bottom: 64px; overflow: visible; }
+.sq-root[data-compact] .sq-frame-tools { position: absolute; z-index: 8; top: calc(100% + 8px); left: 50%; translate: -50% 0; display: flex; align-items: center; gap: 4px; height: 52px; padding: 4px; border-radius: 999px; background: var(--sq-liquid-refraction), var(--sq-liquid-surface); backdrop-filter: blur(10px) saturate(115%); box-shadow: var(--sq-liquid-shadow); max-width: calc(100% - 8px); }
+.sq-root[data-compact] .sq-frame-colors, .sq-root[data-compact] .sq-frame-actions { position: relative; inset: auto; bottom: auto; left: auto; right: auto; translate: none; gap: 4px; align-items: center; }
+.sq-root[data-compact] .sq-color-choices { position: static; translate: none; width: auto; padding: 0; background: none; backdrop-filter: none; box-shadow: none; gap: 0; }
+.sq-root[data-compact] .sq-color-choices[data-open] { display: flex; }

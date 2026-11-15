@@ -1,5 +1,5 @@
 import { expect,it } from "vitest";
-import { createGlazeStrip,isGlazeDrag,stripWidth } from "./strip";
+import { createGlazeStrip,dragThreshold,isGlazeDrag,stripWidth } from "./strip";
 import { insideShellPolygon } from "./shell";
 
 it("clicks stay clicks through 6px and become drags beyond 6px",()=>{
@@ -14,4 +14,8 @@ it("strips are 28px wide for mouse and pen and 36px for touch",()=>{
     expect(insideShellPolygon(40,40,shape.boundary)).toBe(true);
     expect(shape.cracks).toEqual([]);expect(shape.arcs).toEqual([]);
   }
+});it("finger moves over 8px are swipes; 8px or less stays a tap",()=>{
+  expect(isGlazeDrag({x:0,y:0},{x:8,y:0},dragThreshold("touch"))).toBe(false);
+  expect(isGlazeDrag({x:0,y:0},{x:8.01,y:0},dragThreshold("touch"))).toBe(true);
+  expect(dragThreshold("mouse")).toBe(6);
 });

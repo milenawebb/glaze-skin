@@ -1,7 +1,9 @@
 import type { ShellBreak, ShellPoint } from "./shell";
 
 export const DRAG_THRESHOLD = 6;
-export function isGlazeDrag(origin: ShellPoint, point: ShellPoint) { return Math.hypot(point.x-origin.x,point.y-origin.y)>DRAG_THRESHOLD; }
+export const TOUCH_DRAG_THRESHOLD = 8;
+export function dragThreshold(pointerType: string) { return pointerType === "touch" ? TOUCH_DRAG_THRESHOLD : DRAG_THRESHOLD; }
+export function isGlazeDrag(origin: ShellPoint, point: ShellPoint, threshold = DRAG_THRESHOLD) { return Math.hypot(point.x-origin.x,point.y-origin.y)>threshold; }
 export function stripWidth(pointerType: string) { return pointerType === "touch" ? 36 : 28; }
 /** Short overlapping capsules give the strip a continuous center and broken outer lip. */
 export function createGlazeStrip(a: ShellPoint,b: ShellPoint,width: number,random=Math.random): ShellBreak {

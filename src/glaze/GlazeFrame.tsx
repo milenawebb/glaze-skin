@@ -3,19 +3,19 @@ import { useEffect, useRef, useState } from "react";
 import { createFrameRenderer, isOnRing, smoothDents, stampDent, type FrameRenderer } from "./frame-gl";
 import { playCrack, playCrunch, playShatter, playSquelch } from "./sounds";
 import { vibratePress } from "./haptics";
-import { dentDepth, dentRadius, faceExpression, frameInsets, pressureScale } from "./touch";
+import { coarsePointer, dentDepth, dentRadius, faceExpression, frameInsets, pressureScale } from "./touch";
 
 import { breakGlaze, hasGlaze } from "./glaze";
 
 import { prepareShellDebris, cancelShellDebris, createShellBreak, takeShellChips, peelShell, SHELL_BREAK_MS, paintCoating, insideShellPolygon, framePressStage, type ShellBreak } from "./shell";
-import { createGlazeStrip, isGlazeDrag, stripWidth } from "./strip";
+import { createGlazeStrip, dragThreshold, isGlazeDrag, stripWidth } from "./strip";
 
 import { recoverySettings, recoveryFactor, immediateDepth } from "./recovery";
 import { settledResize } from "./resize";
 import { fingerPad, fingerDepth, stampFingertip, type FingerPad } from "./fingertip";
 import type { GlazeColor } from "./preferences";
 import { DEFAULT_GLAZE_STYLE, monoStyleAmount, type GlazeStyle } from "./glaze-style";
-import { region, resetAmount, RESET_MS, type Region } from "./regions";
+import { region, resetAmount, RESET_MS, union, type Region } from "./regions";
 
 interface Press { crackedOnDown:boolean; pad:FingerPad; before:Float32Array; x: number; y: number; origin: {x:number;y:number}; dragging:boolean; pointerType:string; exposed:ShellBreak[]; initialFoam:boolean; start: number; radius: number; pressure: number | null; sound: ((depth: number) => void) | undefined; foam: boolean; spots: {x:number;y:number}[]; flakeDistance:number }
 
@@ -80,11 +80,23 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       const points=hole?shape.boundary:[...shape.cracks,...shape.arcs].flat();
       if(points.length)r.dirtyCoating(Math.min(...points.map(p=>p.x))-2,Math.min(...points.map(p=>p.y))-2,Math.max(...points.map(p=>p.x))+2,Math.max(...points.map(p=>p.y))+2);
     };
-    const recoveries: { start:number; duration:number; fraction:number; lastFactor:number; bounds:Region|undefined; idx:Int32Array; depth:Float32Array }[]=[];
-    const beforePool:Float32Array[]=[];let scanIdx=new Int32Array(512*512),scanDepth=new Float32Array(512*512);
-    clearTransient.current=()=>{cancelShellDebris();breaks.length=0;cracked.length=0;recoveries.length=0;damage.length=0;holeBins.clear();pending.length=0;canvas.parentElement?.querySelectorAll(".sq-shell-plate").forEach(p=>p.remove());};
+    // Rise-back lives on the GPU: r.rise holds depth still to rise, the shader eases it by r.riseK.
+    let rise:{start:number;duration:number;bounds:Region}|null=null;
+    const riseK=(now:number)=>rise?recoveryFactor(now-rise.start,rise.duration,1)-1:0;
+    /** Fold the current rise progress into the dent map; the remainder keeps rising. */
+    const bakeRise=(now:number,finish=false)=>{
+      if(!rise){r.riseK=0;return;}
+      const k=finish?-1:riseK(now),b=rise.bounds,remaining=Math.max(300,rise.duration-(now-rise.start));
+      for(let y=b.y0;y<=b.y1;y++)for(let x=b.x0;x<=b.x1;x++){const i=y*r.dw+x,l=r.rise[i]??0;if(l!==0){r.dent[i]=(r.dent[i]??0)+l*k;r.rise[i]=finish?0:l*(1+k);}}
+      r.dirtyHeight(b);r.dirtyRise(b);r.riseK=0;
+      rise=finish?null:{start:now,duration:remaining,bounds:b};
+    };
+    const clearRise=()=>{bakeRise(performance.now());if(rise){r.rise.fill(0);r.dirtyRise(region(r.dw,r.dh,0,0,r.dw-1,r.dh-1));}rise=null;r.riseK=0;};
+    const beforePool:Float32Array[]=[];
+    clearTransient.current=()=>{cancelShellDebris();breaks.length=0;cracked.length=0;clearRise();damage.length=0;holeBins.clear();pending.length=0;canvas.parentElement?.querySelectorAll(".sq-shell-plate").forEach(p=>p.remove());};
     const loop = (now: number) => {
       raf = 0;
+      const frameStart=performance.now();
       // CSS stretches the last rendered bitmap; no mask replay or upload mid-resize.
       if(resizing)return;
       refreshProtected();
@@ -92,14 +104,8 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       while(pending.length&&performance.now()<deadline){const event=pending.shift();if(event)processEvent(event);if(event?.type==="pointermove")break;}
       const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       r.face = faceExpression(presses.size, now - released, reduce);
-      for(let j=recoveries.length-1;j>=0;j--){
-        const rec=recoveries[j]; if(!rec)continue;
-        const factor=recoveryFactor(now-rec.start,rec.duration,rec.fraction);
-        const k=factor-rec.lastFactor,ids=rec.idx,ds=rec.depth;for(let c=0;c<ids.length;c++){const i=ids[c]??0;r.dent[i]=(r.dent[i]??0)+(ds[c]??0)*k;}
-        if(rec.bounds)r.dirtyHeight(rec.bounds);
-        rec.lastFactor=factor;
-        if(now-rec.start>=rec.duration)recoveries.splice(j,1);
-      }
+      // Only a uniform changes while dents rise; the maps are baked once at the end.
+      if(rise){if(now-rise.start>=rise.duration)bakeRise(now,true);else r.riseK=riseK(now);}
       for(const c of cracked) if(!c.removed && !c.drawn){
         paint(mapShell(c.shape,size.w,size.h),false);c.drawn=true;
       }
@@ -125,22 +131,27 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       }
       const rs = resetRef.current;
       if (rs) {
-        breaks.length = 0; cracked.length=0; recoveries.length=0;
+        breaks.length = 0; cracked.length=0;
         r.resetAmount=resetAmount(now-rs.start);
         if(now-rs.start>=RESET_MS){
-          r.dent.fill(0);r.glaze.fill(0);r.coating.getContext("2d")?.clearRect(0,0,r.coating.width,r.coating.height);
+          r.dent.fill(0);r.rise.fill(0);r.dirtyRise(region(r.dw,r.dh,0,0,r.dw-1,r.dh-1));r.glaze.fill(0);r.coating.getContext("2d")?.clearRect(0,0,r.coating.width,r.coating.height);
           r.dirtyHeight(region(r.dw,r.dh,0,0,r.dw-1,r.dh-1));r.dirtyCoating(0,0,size.w,size.h);
           resetRef.current=null;damage.length=0;holeBins.clear();r.resetAmount=1;
         }
       }
 
       r.render();
-      if (pending.length || presses.size || breaks.length || recoveries.length || cracked.some(c=>!c.removed&&!c.drawn) || resetRef.current || r.face > 0 || r.paletteAnimating()) raf = requestAnimationFrame(loop);
+      const spent=performance.now()-frameStart;
+      if(import.meta.env?.DEV&&spent>30)console.warn(`[glaze] slow frame: ${spent.toFixed(1)}ms`);
+      if (pending.length || presses.size || breaks.length || rise || cracked.some(c=>!c.removed&&!c.drawn) || resetRef.current || r.face > 0 || r.paletteAnimating()) raf = requestAnimationFrame(loop);
     };
     const schedule = () => {
       if (!raf) raf = requestAnimationFrame(loop);
     };
     kick.current = schedule;
+    // A lost GPU context (common on phones when video starts) restores from the retained maps.
+    r.onRestore=()=>{fullUploadPending();schedule();};
+    const fullUploadPending=()=>{r.dirtyHeight(region(r.dw,r.dh,0,0,r.dw-1,r.dh-1));r.dirtyCoating(0,0,size.w,size.h);};
 
     const rebuild = () => {
       const rect = canvas.getBoundingClientRect();
@@ -187,7 +198,8 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
         const before=new Set(existing.shape.removed);
         const pixelShape=mapShell(existing.shape,size.w,size.h);
         const plates=takeShellChips(pixelShape,x,y).filter(poly=>{
-          if(poly.every(p=>safe(p.x,p.y))&&poly.some(p=>intact(p.x,p.y)))return true;
+          // Plates may reach past the band edge; painting clips them, so only require glaze under them.
+          if(poly.some(p=>intact(p.x,p.y)))return true;
           const index=pixelShape.plates.indexOf(poly);if(!before.has(index))existing.shape.removed.delete(index);
           return false;
         });
@@ -216,7 +228,12 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
 
       const pressure = pressureScale(e);
       // A new press owns these cells; an older rise must not pull against it.
-      const inv=1/(2*Math.pow(dentRadius(e.pointerType)*2.5,2));for(const rec of recoveries){const ids=rec.idx,ds=rec.depth;for(let c=0;c<ids.length;c++){const i=ids[c]??0,dx=(i%r.dw)/r.dw*size.w-x,dy=Math.floor(i/r.dw)/r.dh*size.h-y;ds[c]=(ds[c]??0)*(1-Math.exp(-(dx*dx+dy*dy)*inv));}}
+      if(rise){
+        bakeRise(performance.now());
+        const reach=dentRadius(e.pointerType)*2.5,inv=1/(2*reach*reach),b=region(r.dw,r.dh,(x-reach*3)*r.dw/size.w,(y-reach*3)*r.dh/size.h,(x+reach*3)*r.dw/size.w,(y+reach*3)*r.dh/size.h);
+        for(let yy=b.y0;yy<=b.y1;yy++)for(let xx=b.x0;xx<=b.x1;xx++){const i=yy*r.dw+xx,l=r.rise[i]??0;if(l===0)continue;const dx=xx/r.dw*size.w-x,dy=yy/r.dh*size.h-y;r.rise[i]=l*(1-Math.exp(-(dx*dx+dy*dy)*inv));}
+        r.dirtyRise(b);
+      }
       const foam=!intact(x,y);
       const radius=dentRadius(e.pointerType);
       const before=beforePool.pop()??new Float32Array(r.dent.length);before.set(r.dent);
@@ -241,7 +258,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       p.pressure = pressureScale(e);
       const depth = dentDepth(held, p.pressure);
       const dist = Math.hypot(x - p.x, y - p.y);
-      if(!p.dragging&&isGlazeDrag(p.origin,{x,y})){
+      if(!p.dragging&&isGlazeDrag(p.origin,{x,y},dragThreshold(p.pointerType))){
         p.dragging=true;
         // Include all the initial jitter once the gesture becomes a drag.
         p.x=p.origin.x;p.y=p.origin.y;
@@ -256,7 +273,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
           const glazed=!p.exposed.some(shape=>insideShellPolygon(point.x/size.w,point.y/size.h,shape.boundary));
           if(glazed){
             p.sound=undefined;playCrunch();p.flakeDistance+=distance/samples;
-            if(p.flakeDistance>=12&&!window.matchMedia("(prefers-reduced-motion: reduce)").matches){
+            if(p.flakeDistance>=(coarsePointer()?30:12)&&!window.matchMedia("(prefers-reduced-motion: reduce)").matches){
               const layer=canvas.parentElement?.querySelector<HTMLElement>(".sq-flakes");
               const chips=shape.boundary.filter(v=>intact(v.x,v.y)).slice(0,3).map(v=>{
                 const dx=v.x-point.x,dy=v.y-point.y,length=Math.hypot(dx,dy)||1;
@@ -291,15 +308,14 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       const press=presses.get(e.pointerId);
       if (press && presses.delete(e.pointerId)) {
         if(e.type==="pointerup"&&!press.dragging&&!press.initialFoam&&!press.crackedOnDown)crack(press.origin.x,press.origin.y);
-        const settings=recoverySettings();
-        // Recover the complete smooth contribution, including its tails, not a disc.
-        let bounds:Region|null=null,n=0;
+        const settings=recoverySettings(),now=performance.now();
+        bakeRise(now);
+        // Queue the complete smooth contribution, tails included, for the shader to raise.
         const radius=press.pad.length*5;const area=region(r.dw,r.dh,(Math.min(...press.spots.map(p=>p.x))-radius)*r.dw/size.w,(Math.min(...press.spots.map(p=>p.y))-radius)*r.dh/size.h,(Math.max(...press.spots.map(p=>p.x))+radius)*r.dw/size.w,(Math.max(...press.spots.map(p=>p.y))+radius)*r.dh/size.h);
         let bx0=r.dw,by0=r.dh,bx1=-1,by1=-1;const before=press.before;
-        for(let y=area.y0;y<=area.y1;y++)for(let x=area.x0;x<=area.x1;x++){const i=y*r.dw+x;const depth=(r.dent[i]??0)-(before[i]??0);if(depth!==0){scanIdx[n]=i;scanDepth[n++]=depth;if(x<bx0)bx0=x;if(x>bx1)bx1=x;if(y<by0)by0=y;if(y>by1)by1=y;}}
-        if(n)bounds={x0:bx0,y0:by0,x1:bx1,y1:by1};
+        for(let y=area.y0;y<=area.y1;y++)for(let x=area.x0;x<=area.x1;x++){const i=y*r.dw+x;const depth=(r.dent[i]??0)-(before[i]??0);if(depth!==0){r.rise[i]=(r.rise[i]??0)+depth*settings.fraction;if(x<bx0)bx0=x;if(x>bx1)bx1=x;if(y<by0)by0=y;if(y>by1)by1=y;}}
         beforePool.push(before);
-        recoveries.push({start:performance.now(),...settings,lastFactor:1,bounds:bounds??undefined,idx:scanIdx.slice(0,n),depth:scanDepth.slice(0,n)});
+        if(bx1>=0){const b={x0:bx0,y0:by0,x1:bx1,y1:by1};r.dirtyRise(b);rise={start:now,duration:settings.duration,bounds:union(rise?.bounds??null,b)};}
         if (!presses.size) released = performance.now();
         schedule();
       }
@@ -346,6 +362,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     if (reduce) {
       clearTransient.current();
       r.dent.fill(0);
+      r.rise.fill(0);r.dirtyRise(region(r.dw,r.dh,0,0,r.dw-1,r.dh-1));
       r.glaze.fill(0);
       r.coating.getContext("2d")?.clearRect(0,0,r.coating.width,r.coating.height);
       r.dirtyHeight(region(r.dw,r.dh,0,0,r.dw-1,r.dh-1));r.dirtyCoating(0,0,r.width,r.height);r.resetAmount=1;

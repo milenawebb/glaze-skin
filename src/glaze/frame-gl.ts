@@ -1,4 +1,4 @@
-import { canvasDpr, coarsePointer } from "./touch";
+import { canvasDpr, coarsePointer, coatingScale, mapSize } from "./touch";
 /**
  * Raw WebGL renderer for the squishy frame. A CPU height map (Float32Array,
  * in unit-frame coordinates) stores permanent dents; it is uploaded as a texture each
@@ -18,7 +18,7 @@ precision highp float;
 precision mediump float;
 #endif
 uniform vec2 uRes; uniform vec4 uIns; uniform float uRo; uniform float uRi;
-uniform sampler2D uDent; uniform sampler2D uGlaze; uniform float uFace; uniform float uReset;
+uniform sampler2D uDent; uniform sampler2D uRise; uniform float uRiseK; uniform sampler2D uGlaze; uniform float uFace; uniform float uReset;
 uniform vec3 uWaxBlue; uniform vec3 uWaxMilk; uniform vec3 uWaxYellow;
 uniform vec3 uFoam; uniform vec3 uPore; uniform vec3 uSprinklePink;
 uniform vec3 uSprinkleRed; uniform vec3 uSprinkleGreen;
@@ -33,7 +33,8 @@ float prof(vec2 p, out float amp){
   float a=max(-sdO(p),0.); float b=max(sdI(p),0.); float w=a+b+1e-3; float t=a/w;
   amp=min(w,64.)/64.; float x=clamp(4.*t*(1.-t),0.,1.); return pow(x,.55);
 }
-float dent0(vec2 p){ return (texture2D(uDent, p/uRes).r*4.-.5)*uReset; }
+// Rise-back runs here: uRise holds what still has to rise, uRiseK eases 0 to -1.
+float dent0(vec2 p){ vec2 q=p/uRes; return ((texture2D(uDent,q).r*4.-.5)+(texture2D(uRise,q).r*4.-.5)*uRiseK)*uReset; }
 float dent(vec2 p){
   float s=dent0(p)*.25;
   s+=(dent0(p+vec2(3.,0.))+dent0(p-vec2(3.,0.))+dent0(p+vec2(0.,3.))+dent0(p-vec2(0.,3.)))*.125;
@@ -171,6 +172,11 @@ export interface FrameRenderer {
   resize(w: number, h: number, insets: { l: number; t: number; r: number; b: number }): void;
   render(): void;
   dirtyHeight(bounds: Region): void;
+  /** Pending rise-back contribution, shader-eased by riseK (0 to -1). */
+  dirtyRise(bounds: Region): void;
+  rise: Float32Array;
+  riseK: number;
+  onRestore?: () => void;
   dirtyCoating(x0:number,y0:number,x1:number,y1:number): void;
   resetAmount: number;
   updatePalette(): void;
@@ -202,48 +208,58 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
     if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) ?? "shader");
     return s;
   };
-  let prog: WebGLProgram;
-  try {
-    const program = gl.createProgram();
-    if (!program) return null;
-    prog = program;
-    gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS));
-    gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
-    gl.linkProgram(prog);
-    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return null;
-  } catch {
-    return null;
-  }
-  gl.useProgram(prog);
-  const buf = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
-  const loc = gl.getAttribLocation(prog, "aPos");
-  gl.enableVertexAttribArray(loc);
-  gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  let prog!: WebGLProgram, buf: WebGLBuffer|null=null, tex: WebGLTexture|null=null, glazeTex: WebGLTexture|null=null, riseTex: WebGLTexture|null=null;
   const uniforms=new Map<string,WebGLUniformLocation|null>();
   const u = (n: string) => {if(!uniforms.has(n))uniforms.set(n,gl.getUniformLocation(prog,n));return uniforms.get(n)??null;};
-  const uRes = u("uRes"), uIns = u("uIns"), uRo = u("uRo"), uRi = u("uRi"), uFace = u("uFace");
-  gl.uniform1i(u("uDent"), 0);
-  gl.uniform1i(u("uGlaze"), 1);
-  gl.enable(gl.BLEND);
-  gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-
-  const tex = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, tex);
-  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-
-  const glazeTex = gl.createTexture();
-  gl.activeTexture(gl.TEXTURE1);
-  gl.bindTexture(gl.TEXTURE_2D, glazeTex);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const linear=()=>{
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  };
+  /** Builds every GL resource; runs again after a lost context is restored. */
+  const setup = () => {
+    try {
+      const program = gl.createProgram();
+      if (!program) return false;
+      prog = program;
+      gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS));
+      gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return false;
+    } catch {
+      return false;
+    }
+    uniforms.clear();
+    gl.useProgram(prog);
+    buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(prog, "aPos");
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    gl.uniform1i(u("uDent"), 0);
+    gl.uniform1i(u("uGlaze"), 1);
+    gl.uniform1i(u("uRise"), 2);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL,gl.NONE);
+    gl.activeTexture(gl.TEXTURE2); riseTex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, riseTex); linear();
+    gl.activeTexture(gl.TEXTURE1); glazeTex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, glazeTex); linear();
+    gl.activeTexture(gl.TEXTURE0); tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex); linear();
+    return true;
+  };
+  if (!setup()) return null;
+  let lost = false;
+  canvas.addEventListener("webglcontextlost", (e) => { e.preventDefault(); lost = true; });
+  canvas.addEventListener("webglcontextrestored", () => {
+    lost = false;
+    if (!setup()) return;
+    r.resize(r.width, r.height, lastInsets);
+    r.onRestore?.();
+  });
+  let lastInsets = { l: 0, t: 0, r: 0, b: 0 };
   const palette = [
     ["uWaxBlue", "--sq-wax-blue"], ["uWaxMilk", "--sq-wax-milk"], ["uWaxYellow", "--sq-wax-yellow"],
     ["uFoam", "--sq-foam"], ["uPore", "--sq-foam-pore"], ["uSprinklePink", "--sq-sprinkle-pink"],
@@ -258,23 +274,26 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
   let currentMono = 0, fromMono = 0, targetMono = 0;
   const coating = document.createElement("canvas");
   // Reused upload buffers: no per-frame allocations, and no 2D readbacks.
-  const heightScratch=gl2?new Float32Array(512*512):new Uint8Array(512*512);
+  const size=mapSize(coarsePointer());
+  const heightScratch=gl2?new Float32Array(size*size):new Uint8Array(size*size);
   const coatScratch=document.createElement("canvas");
   const snapshots=Array.from({length:8},()=>document.createElement("canvas"));let snapshotIndex=0;
-  gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL,gl.NONE);
-  let heightDirty:Region|null=null, coatDirty:Region|null=null;
+  let heightDirty:Region|null=null, coatDirty:Region|null=null, riseDirty:Region|null=null;
   let fullUpload=true;
 
   const material=document.createElement("canvas");let materialJob=0;
   const r: FrameRenderer = {
     resetAmount:1,
     dirtyHeight(bounds){heightDirty=union(heightDirty,bounds);},
+    dirtyRise(bounds){riseDirty=union(riseDirty,bounds);},
+    riseK:0,
     dirtyCoating(x0,y0,x1,y1){const scale=coating.width/r.width;coatDirty=union(coatDirty,region(coating.width,coating.height,x0*scale-2,y0*scale-2,x1*scale+2,y1*scale+2));},
-    dent: new Float32Array(512*512),
-    glaze: new Float32Array(512*512),
+    dent: new Float32Array(size*size),
+    rise: new Float32Array(size*size),
+    glaze: new Float32Array(size*size),
     coating,
-    dw: 512,
-    dh: 512,
+    dw: size,
+    dh: size,
     width: 1,
     height: 1,
     face: 0,
@@ -297,46 +316,53 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
     paletteAnimating() { return performance.now() - paletteStart < COLOR_FADE_MS; },
     resize(w, h, ins) {
       r.updatePalette();
-      r.width=w; r.height=h;
+      r.width=w; r.height=h; lastInsets=ins;
       const dpr = canvasDpr(window.devicePixelRatio || 1, coarsePointer());
       const bw=Math.max(1,Math.round(w*dpr)),bh=Math.max(1,Math.round(h*dpr));
       if(canvas.width!==bw)canvas.width=bw;
       if(canvas.height!==bh)canvas.height=bh;
-      if (coating.width !== canvas.width || coating.height !== canvas.height) {
-        coating.width=canvas.width; coating.height=canvas.height;
+      const cs=coatingScale(coarsePointer()),cw=Math.max(1,Math.round(canvas.width*cs)),ch=Math.max(1,Math.round(canvas.height*cs));
+      if (coating.width !== cw || coating.height !== ch) {
+        coating.width=cw; coating.height=ch;
       }
       gl.viewport(0, 0, canvas.width, canvas.height);
-      gl.uniform2f(uRes, w, h);
-      gl.uniform4f(uIns, ins.l, ins.t, ins.r, ins.b);
-      gl.uniform1f(uRo, FRAME.outerRadius);
-      gl.uniform1f(uRi, FRAME.innerRadius);
+      gl.uniform2f(u("uRes"), w, h);
+      gl.uniform4f(u("uIns"), ins.l, ins.t, ins.r, ins.b);
+      gl.uniform1f(u("uRo"), FRAME.outerRadius);
+      gl.uniform1f(u("uRi"), FRAME.innerRadius);
       fullUpload=true;
     },
     render() {
+      if (lost || gl.isContextLost()) return;
       const t = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : Math.min(1, (performance.now() - paletteStart) / COLOR_FADE_MS);
       currentMono = fromMono + (targetMono - fromMono) * t;
       gl.uniform1f(u("uMono"), currentMono);
       gl.uniform1f(u("uSprinkles"), 1 - currentMono);
       currentColors = targetColors.map((color, i) => color.map((value, j) => (fromColors[i]?.[j] ?? value) + (value - (fromColors[i]?.[j] ?? value)) * t));
       palette.forEach((pair, i) => { const color = currentColors[i]; if (pair[0] && color) gl.uniform3f(u(pair[0]), color[0] ?? 0, color[1] ?? 0, color[2] ?? 0); });
-      gl.uniform1f(uFace, r.face);
+      gl.uniform1f(u("uFace"), r.face);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, tex);
       gl.uniform1f(u("uReset"),r.resetAmount);
       // Height data already lives in normalized coordinates: retain its texture.
       // Linear texture sampling gives the same bilinear surface at every DPR.
-      if(fullUpload){
-        if(gl2)gl2.texImage2D(gl2.TEXTURE_2D,0,gl2.R16F,r.dw,r.dh,0,gl2.RED,gl2.FLOAT,null);
-        else gl.texImage2D(gl.TEXTURE_2D,0,gl.LUMINANCE,r.dw,r.dh,0,gl.LUMINANCE,gl.UNSIGNED_BYTE,null);
-        heightDirty=region(r.dw,r.dh,0,0,r.dw-1,r.dh-1);
-      }
-      if(heightDirty){
-        const b=heightDirty,w=b.x1-b.x0+1,h=b.y1-b.y0+1;
+      gl.uniform1f(u("uRiseK"),r.riseK);
+      const upload=(data:Float32Array,dirty:Region|null)=>{
+        if(fullUpload){
+          if(gl2)gl2.texImage2D(gl2.TEXTURE_2D,0,gl2.R16F,r.dw,r.dh,0,gl2.RED,gl2.FLOAT,null);
+          else gl.texImage2D(gl.TEXTURE_2D,0,gl.LUMINANCE,r.dw,r.dh,0,gl.LUMINANCE,gl.UNSIGNED_BYTE,null);
+          dirty=region(r.dw,r.dh,0,0,r.dw-1,r.dh-1);
+        }
+        if(!dirty)return;
+        // Only the changed rectangle is converted and uploaded.
+        const b=dirty,w=b.x1-b.x0+1,h=b.y1-b.y0+1;
         const values=heightScratch;
-        for(let y=0;y<h;y++)for(let x=0;x<w;x++){const value=((r.dent[(y+b.y0)*r.dw+x+b.x0]??0)+.5)/4;values[y*w+x]=gl2?value:Math.round(value*255);}
+        for(let y=0;y<h;y++)for(let x=0;x<w;x++){const value=((data[(y+b.y0)*r.dw+x+b.x0]??0)+.5)/4;values[y*w+x]=gl2?value:Math.round(value*255);}
         gl.texSubImage2D(gl.TEXTURE_2D,0,b.x0,b.y0,w,h,gl2?gl2.RED:gl.LUMINANCE,gl2?gl.FLOAT:gl.UNSIGNED_BYTE,values);
-        heightDirty=null;
-      }
+      };
+      upload(r.dent,heightDirty);heightDirty=null;
+      gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,riseTex);
+      upload(r.rise,riseDirty);riseDirty=null;
       gl.activeTexture(gl.TEXTURE1);
       gl.bindTexture(gl.TEXTURE_2D,glazeTex);
       if(fullUpload){gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,coating.width,coating.height,0,gl.RGBA,gl.UNSIGNED_BYTE,null);coatDirty=region(coating.width,coating.height,0,0,coating.width-1,coating.height-1);}
@@ -371,7 +397,7 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
       return image;
     },
     destroy() {
-      clearTimeout(materialJob);gl.deleteTexture(tex);
+      clearTimeout(materialJob);gl.deleteTexture(tex);gl.deleteTexture(riseTex);
       gl.deleteTexture(glazeTex);
       gl.deleteBuffer(buf);
       gl.deleteProgram(prog);

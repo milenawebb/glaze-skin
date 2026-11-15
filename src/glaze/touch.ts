@@ -28,4 +28,7 @@ export function coarsePointer() {
   return typeof window !== "undefined" && phoneRendering(typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches, window.innerWidth, navigator.maxTouchPoints || 0);
 }
 export function canvasDpr(dpr: number, coarse: boolean) { return Math.min(dpr || 1, coarse ? 1.5 : 2); }
-export function flyingLimit(coarse: boolean) { return coarse ? 20 : 40; }
+export function flyingLimit(coarse: boolean) { return coarse ? 12 : 40; }
+/** Phones keep height and crack maps at half resolution. */
+export function mapSize(coarse: boolean) { return coarse ? 256 : 512; }
+export function coatingScale(coarse: boolean) { return coarse ? .5 : 1; }

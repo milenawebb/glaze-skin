@@ -39,7 +39,7 @@ describe("phone speed caps", () => {
   it("uses phone limits below 768px or on any touch-capable device", async () => {
     const { phoneRendering,canvasDpr,flyingLimit }=await import("./touch");
     expect(canvasDpr(3,phoneRendering(false,767))).toBe(1.5);
-    expect(flyingLimit(phoneRendering(false,1024,5))).toBe(20);
+    expect(flyingLimit(phoneRendering(false,1024,5))).toBe(12);
     expect(phoneRendering(false,768,0)).toBe(false);
   });
   it("caps canvas resolution at 1.5 on touch devices and 2 on desktop", async () => {
@@ -48,9 +48,16 @@ describe("phone speed caps", () => {
     expect(canvasDpr(3, false)).toBe(2);
     expect(canvasDpr(1, true)).toBe(1);
   });
-  it("allows about 20 flying pieces on phones and 40 on desktop", async () => {
+  it("allows 12 flying pieces on phones and 40 on desktop", async () => {
     const { flyingLimit } = await import("./touch");
-    expect(flyingLimit(true)).toBe(20);
+    expect(flyingLimit(true)).toBe(12);
     expect(flyingLimit(false)).toBe(40);
+  });
+});
+describe("phone map resolution", () => {
+  it("halves the height map and crack mask on phones only", async () => {
+    const { mapSize, coatingScale } = await import("./touch");
+    expect(mapSize(true)).toBe(256); expect(mapSize(false)).toBe(512);
+    expect(coatingScale(true)).toBe(.5); expect(coatingScale(false)).toBe(1);
   });
 });
