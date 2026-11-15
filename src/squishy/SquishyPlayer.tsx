@@ -65,6 +65,7 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
   const colorRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!colorOpen) return;
+    colorRef.current?.querySelector<HTMLButtonElement>('.sq-color-choices [aria-pressed="true"]')?.focus();
     const outside = (e: PointerEvent) => { if (e.target instanceof Node && !colorRef.current?.contains(e.target)) setColorOpen(false); };
     const escape = (e: KeyboardEvent) => { if (e.key === "Escape") { setColorOpen(false); colorRef.current?.querySelector<HTMLButtonElement>(".sq-color-toggle")?.focus(); } };
     window.addEventListener("pointerdown", outside);
@@ -81,7 +82,11 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-    const resize = new ResizeObserver(() => setCompact(root.getBoundingClientRect().width < 480));
+    const resize = new ResizeObserver(() => {
+      const nextCompact = root.getBoundingClientRect().width < 480;
+      setCompact(nextCompact);
+      if (!nextCompact) setColorOpen(false);
+    });
     resize.observe(root);
     return () => resize.disconnect();
   }, []);
@@ -175,7 +180,7 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
       <div ref={colorRef} className="sq-frame-colors" role="group" aria-label="Squishy colors">
         <button type="button" className="sq-candy sq-squish sq-color-toggle" data-swatch={color} aria-label={`Choose color: ${color}`} title={`Choose color: ${color}`} aria-expanded={colorOpen} onClick={() => setColorOpen((open) => !open)}><span className="sq-candy-face sq-squish-body" /></button>
         <div className="sq-color-choices" data-open={colorOpen || undefined}>
-          {COLORS.map((choice) => <button key={choice} type="button" className="sq-candy sq-squish" data-swatch={choice} aria-label={`Color: ${choice}`} title={`Color: ${choice}`} aria-pressed={color === choice} onClick={() => { setColor(choice); persist(choice, sounds); setColorOpen(false); }}><span className="sq-candy-face sq-squish-body" /></button>)}
+          {COLORS.map((choice) => <button key={choice} type="button" className="sq-candy sq-squish" data-swatch={choice} aria-label={`Color: ${choice}`} title={`Color: ${choice}`} aria-pressed={color === choice} onClick={() => { setColor(choice); persist(choice, sounds); setColorOpen(false); if (compact) colorRef.current?.querySelector<HTMLButtonElement>(".sq-color-toggle")?.focus(); }}><span className="sq-candy-face sq-squish-body" /></button>)}
         </div>
       </div>
       <div className="sq-frame-actions">
