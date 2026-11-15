@@ -22,3 +22,9 @@ export function faceExpression(presses: number, sinceRelease: number, reducedMot
   if (presses > 0) return 1;
   return reducedMotion ? 0 : Math.pow(Math.max(0, 1 - sinceRelease / 1000), 2);
 }
+/** Phones and tablets (coarse pointers) draw at most 1.5x; desktop at most 2x. */
+export function coarsePointer() {
+  return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
+}
+export function canvasDpr(dpr: number, coarse: boolean) { return Math.min(dpr || 1, coarse ? 1.5 : 2); }
+export function flyingLimit(coarse: boolean) { return coarse ? 20 : 40; }

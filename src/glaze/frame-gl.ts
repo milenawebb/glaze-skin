@@ -1,3 +1,4 @@
+import { canvasDpr, coarsePointer } from "./touch";
 /**
  * Raw WebGL renderer for the squishy frame. A CPU height map (Float32Array,
  * in unit-frame coordinates) stores permanent dents; it is uploaded as a texture each
@@ -297,7 +298,7 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
     resize(w, h, ins) {
       r.updatePalette();
       r.width=w; r.height=h;
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = canvasDpr(window.devicePixelRatio || 1, coarsePointer());
       const bw=Math.max(1,Math.round(w*dpr)),bh=Math.max(1,Math.round(h*dpr));
       if(canvas.width!==bw)canvas.width=bw;
       if(canvas.height!==bh)canvas.height=bh;

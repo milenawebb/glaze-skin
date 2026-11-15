@@ -17,7 +17,7 @@ import type { GlazeColor } from "./preferences";
 import { DEFAULT_GLAZE_STYLE, monoStyleAmount, type GlazeStyle } from "./glaze-style";
 import { region, resetAmount, RESET_MS, type Region } from "./regions";
 
-interface Press { pad:FingerPad; before:Float32Array; x: number; y: number; origin: {x:number;y:number}; dragging:boolean; pointerType:string; exposed:ShellBreak[]; initialFoam:boolean; start: number; radius: number; pressure: number | null; sound: ((depth: number) => void) | undefined; foam: boolean; spots: {x:number;y:number}[]; flakeDistance:number }
+interface Press { crackedOnDown:boolean; pad:FingerPad; before:Float32Array; x: number; y: number; origin: {x:number;y:number}; dragging:boolean; pointerType:string; exposed:ShellBreak[]; initialFoam:boolean; start: number; radius: number; pressure: number | null; sound: ((depth: number) => void) | undefined; foam: boolean; spots: {x:number;y:number}[]; flakeDistance:number }
 
 /** WebGL squishy frame. Dents stay until `resetKey` changes. */
 export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_GLAZE_STYLE, onFallback }: { resetKey: number; color?: GlazeColor; glazeStyle?: GlazeStyle; onFallback: () => void }) {
@@ -223,7 +223,9 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       const pad=fingerPad(e.pointerType);
       if(foam)stampFingertip(r,x,y,pad,fingerDepth(0,pressure),1);else stampDent(r,x,y,radius,immediateDepth(1),1);
       smoothDents(r,x-radius*2.2,y-radius*2.2,x+radius*2.2,y+radius*2.2);
-      presses.set(e.pointerId, { pad,before,x, y, origin:{x,y},dragging:false,pointerType:e.pointerType,exposed:damage.filter(d=>d.hole).map(d=>d.shape),initialFoam:foam,start: e.timeStamp, radius, pressure, sound: foam?playSquelch(immediateDepth(1)):undefined, foam, spots:[{x,y}],flakeDistance:20 });
+      // Fresh glaze shows its first crack lines immediately; click vs drag only decides what follows.
+      const crackedOnDown=!foam&&!cracked.some(c=>insideShellPolygon(x/size.w,y/size.h,c.shape.boundary))&&crack(x,y)==="crack";
+      presses.set(e.pointerId, { crackedOnDown,pad,before,x, y, origin:{x,y},dragging:false,pointerType:e.pointerType,exposed:damage.filter(d=>d.hole).map(d=>d.shape),initialFoam:foam,start: e.timeStamp, radius, pressure, sound: foam?playSquelch(immediateDepth(1)):undefined, foam, spots:[{x,y}],flakeDistance:20 });
       resetRef.current = null;r.resetAmount=1;
 
       vibratePress();
@@ -288,7 +290,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     const up = (e: PointerEvent) => {
       const press=presses.get(e.pointerId);
       if (press && presses.delete(e.pointerId)) {
-        if(e.type==="pointerup"&&!press.dragging&&!press.initialFoam)crack(press.origin.x,press.origin.y);
+        if(e.type==="pointerup"&&!press.dragging&&!press.initialFoam&&!press.crackedOnDown)crack(press.origin.x,press.origin.y);
         const settings=recoverySettings();
         // Recover the complete smooth contribution, including its tails, not a disc.
         let bounds:Region|null=null,n=0;

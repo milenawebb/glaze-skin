@@ -1,3 +1,4 @@
+import { coarsePointer, flyingLimit } from "./touch";
 /** Crack paths are generated once and shared by the mask and removable chips. */
 export interface ShellPoint { x: number; y: number }
 export interface ShellBreak { boundary: ShellPoint[]; plates: ShellPoint[][]; cracks: ShellPoint[][]; arcs: ShellPoint[][]; removed: Set<number> }
@@ -100,7 +101,7 @@ export function peelShell(layer: HTMLElement,image:HTMLCanvasElement,shape:Shell
     // One substantial chunk, three midsize flakes, and eight crumbs/dust specks.
     for(let i=0;i<12;i++){
       jobs.push(()=>{if(generation!==debrisGeneration||!layer.isConnected)return;
-      const flying=layer.getElementsByClassName("sq-shell-plate");while(flying.length>=MAX_FLYING_PIECES){const oldest=flying[0] as HTMLCanvasElement|undefined;if(!oldest)break;oldest.getAnimations().forEach(a=>a.cancel());recyclePiece(oldest);}
+      const flying=layer.getElementsByClassName("sq-shell-plate");const cap=flyingLimit(coarsePointer());while(flying.length>=cap){const oldest=flying[0] as HTMLCanvasElement|undefined;if(!oldest)break;oldest.getAnimations().forEach(a=>a.cancel());recyclePiece(oldest);}
       const crumb=i>=4,size=i===0?span*.44:i<4?span*(.1+Math.random()*.12):.35+Math.random()*2;
       let origin=center;
       if(i>0){for(let attempt=0;attempt<20;attempt++){const candidate={x:center.x+(Math.random()-.5)*span,y:center.y+(Math.random()-.5)*span};if(insideShellPolygon(candidate.x,candidate.y,poly)){origin=candidate;break;}}}

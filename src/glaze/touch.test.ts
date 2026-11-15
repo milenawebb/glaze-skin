@@ -35,3 +35,16 @@ describe("phone and tablet frame rules", () => {
     expect(dentRadius("pen")).toBe(16);
   });
 });
+describe("phone speed caps", () => {
+  it("caps canvas resolution at 1.5 on touch devices and 2 on desktop", async () => {
+    const { canvasDpr } = await import("./touch");
+    expect(canvasDpr(3, true)).toBe(1.5);
+    expect(canvasDpr(3, false)).toBe(2);
+    expect(canvasDpr(1, true)).toBe(1);
+  });
+  it("allows about 20 flying pieces on phones and 40 on desktop", async () => {
+    const { flyingLimit } = await import("./touch");
+    expect(flyingLimit(true)).toBe(20);
+    expect(flyingLimit(false)).toBe(40);
+  });
+});

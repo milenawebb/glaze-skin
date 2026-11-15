@@ -38,16 +38,40 @@ function getCtx(): AudioContext | null {
       master.type = "highpass";
       master.frequency.value = 150;
       master.connect(ctx.destination);
+      ctx.onstatechange = notifyBlocked;
     } catch { ctx = null; master = null; return null; }
   }
   return ctx;
+}
+
+let attempted = false;
+let gesturesBound = false;
+const blockedListeners = new Set<(blocked: boolean) => void>();
+/** True only after a tap tried to unlock and audio is still not running. */
+export function getSoundsBlocked() { return enabled && attempted && !!ctx && ctx.state !== "running"; }
+export function onSoundsBlockedChange(fn: (blocked: boolean) => void) { blockedListeners.add(fn); return () => { blockedListeners.delete(fn); }; }
+function notifyBlocked() { const b = getSoundsBlocked(); blockedListeners.forEach((fn) => fn(b)); }
+/** iPhone silent switch: Safari 17+ plays Web Audio like video sound. */
+function playbackSession() {
+  try { const session = (navigator as unknown as { audioSession?: { type: string } }).audioSession; if (session) session.type = "playback"; } catch { /* Unsupported. */ }
+}
+/** Keep retrying on every tap until the context runs; resume when the page returns. */
+function bindGestures() {
+  if (gesturesBound || typeof window === "undefined") return;
+  gesturesBound = true;
+  const retry = () => { if (enabled && ctx?.state !== "running") unlockSounds(); };
+  for (const type of ["pointerdown", "touchend", "click"]) window.addEventListener(type, retry, { capture: true, passive: true });
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && enabled && ctx) void ctx.resume().catch(() => {}).then(notifyBlocked); });
 }
 
 export function unlockSounds() {
   if (!enabled) return;
   const c = getCtx();
   if (!c) return;
-  void c.resume().catch(() => {});
+  playbackSession();
+  attempted = true;
+  void c.resume().catch(() => {}).then(notifyBlocked);
+  window.setTimeout(notifyBlocked, 400);
   const unlock = c.createBufferSource();
   unlock.buffer = c.createBuffer(1, 1, c.sampleRate);
   if (!master) return;
@@ -64,8 +88,11 @@ export function setSoundsEnabled(on: boolean, unlock = true) {
     active.clear();
     crunches.clear();
     lastCrunch = -Infinity;
+    notifyBlocked();
     return;
   }
+  playbackSession();
+  bindGestures();
   const c = getCtx();
   if (!c) return;
   if (unlock) unlockSounds();
