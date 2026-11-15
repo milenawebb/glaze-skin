@@ -14,6 +14,7 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
   const kick = useRef<() => void>(() => {});
   const resetRef = useRef<{ start: number; snap: Float32Array } | null>(null);
   const [ready, setReady] = useState(false);
+  const handRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current!;
@@ -101,7 +102,50 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
     const stopTouch = (e: TouchEvent) => {
       if (e.cancelable) e.preventDefault();
     };
+    // Custom hand cursor (mouse / pen only).
+    const hand = handRef.current!;
+    const fine = window.matchMedia("(hover: hover) and (pointer: fine)");
+    let hx = 0, hy = 0, hraf = 0, shown = false;
+    const placeHand = () => {
+      hraf = 0;
+      hand.style.transform = `translate3d(${hx - 20}px, ${hy - 47}px, 0)`;
+    };
+    const showHand = (on: boolean) => {
+      if (on === shown) return;
+      shown = on;
+      hand.toggleAttribute("data-shown", on);
+      canvas.toggleAttribute("data-hand", on);
+    };
+    const hover = (e: PointerEvent) => {
+      if (e.pointerType === "touch" || !fine.matches || document.fullscreenElement) return showHand(false);
+      const { x, y } = local(e);
+      const on = presses.has(e.pointerId) || isOnRing(x, y, size.w, size.h, INSETS);
+      showHand(on);
+      if (!on) return;
+      hx = x;
+      hy = y;
+      if (!hraf) hraf = requestAnimationFrame(placeHand);
+    };
+    const leave = (e: PointerEvent) => {
+      if (!presses.has(e.pointerId)) showHand(false);
+    };
+    const hideHand = () => showHand(false);
+    const handDown = (e: PointerEvent) => {
+      if (shown && presses.has(e.pointerId)) hand.setAttribute("data-pressed", "");
+    };
+    const handUp = (e: PointerEvent) => {
+      hand.removeAttribute("data-pressed");
+      hover(e);
+    };
+    canvas.addEventListener("pointermove", hover);
+    canvas.addEventListener("pointerleave", leave);
+    canvas.addEventListener("pointerup", handUp);
+    canvas.addEventListener("pointercancel", handUp);
+    window.addEventListener("blur", hideHand);
+    document.addEventListener("mouseleave", hideHand);
+    document.addEventListener("fullscreenchange", hideHand);
     canvas.addEventListener("pointerdown", down);
+    canvas.addEventListener("pointerdown", handDown);
     canvas.addEventListener("pointermove", move);
     canvas.addEventListener("pointerup", up);
     canvas.addEventListener("pointercancel", up);
@@ -111,6 +155,15 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
     canvas.addEventListener("touchend", stopTouch, { passive: false });
     return () => {
       ro.disconnect();
+      cancelAnimationFrame(hraf);
+      canvas.removeEventListener("pointermove", hover);
+      canvas.removeEventListener("pointerleave", leave);
+      canvas.removeEventListener("pointerup", handUp);
+      canvas.removeEventListener("pointercancel", handUp);
+      canvas.removeEventListener("pointerdown", handDown);
+      window.removeEventListener("blur", hideHand);
+      document.removeEventListener("mouseleave", hideHand);
+      document.removeEventListener("fullscreenchange", hideHand);
       cancelAnimationFrame(raf);
       canvas.removeEventListener("pointerdown", down);
       canvas.removeEventListener("pointermove", move);
@@ -139,5 +192,19 @@ export function SquishyFrame({ resetKey, onFallback }: { resetKey: number; onFal
     kick.current();
   }, [resetKey]);
 
-  return <canvas ref={canvasRef} className="sq-canvas" data-ready={ready || undefined} aria-hidden="true" />;
+  return (
+    <>
+      <canvas ref={canvasRef} className="sq-canvas" data-ready={ready || undefined} aria-hidden="true" />
+      <div ref={handRef} className="sq-hand" aria-hidden="true">
+        <svg viewBox="0 0 40 48" width="40" height="48">
+          <g className="sq-hand-pose">
+            <path className="sq-hand-skin" d="M8 6c0-3 3-5 6-4l3 1c2-2 5-2 7 0 2-1 5-1 7 1 3 0 5 2 5 5v8c0 6-3 10-8 12l-2 1v13a6 6 0 0 1-12 0V26c-4-2-6-6-6-10z" />
+            <path className="sq-hand-line" d="M24 3v9M31 4v8M17 3v9" />
+            <ellipse className="sq-hand-cheek" cx="27" cy="20" rx="3" ry="2" />
+            <ellipse className="sq-hand-tip" cx="20" cy="43" rx="4.6" ry="3.4" />
+          </g>
+        </svg>
+      </div>
+    </>
+  );
 }
