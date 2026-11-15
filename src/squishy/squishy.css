@@ -34,7 +34,8 @@
   --sq-popup-surface: rgb(255 255 255 / 0.9);
   --sq-popup-shadow: 0 5px 16px rgb(36 20 40 / 0.2);
   --sq-popup-outline: rgb(74 35 56 / 0.4);
-  --sq-caption-surface: rgb(0 0 0 / 0.75);
+  --sq-caption-surface: rgb(42 20 32 / 0.78);
+  --sq-caption-font: "Nunito", var(--sq-font);
   --sq-liquid-ink: #4a1e35;
   --sq-liquid-surface: rgb(255 255 255 / 0.55);
   --sq-liquid-active: rgb(255 255 255 / 0.55);
@@ -57,6 +58,7 @@
 
   position: relative;
   display: block;
+  container-type: inline-size;
   box-sizing: border-box;
   width: min(100%, calc(70vh * var(--sq-ar, 1.7778) + 60px));
   margin-inline: auto;
@@ -249,9 +251,11 @@
 .sq-root:not([data-compact]) .sq-time::after { display: none; }
 .sq-row-captions { position: absolute; z-index: 2; bottom: 12px; left: 8%; right: 8%; text-align: center; pointer-events: none; transition: bottom 200ms ease; }
 .sq-root[data-row-visible] .sq-row-captions { bottom: 82px; }
-.sq-row-captions span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; width: fit-content; max-width: 100%; margin: 2px auto; padding: 4px 8px; border-radius: 8px; background: var(--sq-caption-surface); color: var(--sq-video-text); white-space: pre-line; font: 16px/1.4 sans-serif; }
+.sq-row-captions span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; width: fit-content; max-width: 100%; margin: 2px auto; padding: 6px 14px; border-radius: 12px; background: var(--sq-caption-surface); color: var(--sq-video-text); white-space: pre-line; font: 600 20px/1.25 var(--sq-caption-font); }
+@container (max-width: 800px) { .sq-row-captions span { font-size: 18px; } }
 .sq-root[data-compact][data-row-visible] .sq-row-captions { bottom: 44px; }
-.sq-root[data-compact] .sq-row-captions span { font-size: 12px; line-height: 14px; padding: 0 6px; }
+.sq-root[data-compact] .sq-row-captions span { font-size: 16px; }
+.sq-root[data-compact][data-row-visible] .sq-row-captions[data-above-play] { bottom: calc(50% + 36px); }
 
 /* Squish press: dent + squash, driven by --sq-s from squish.ts */
 .sq-squish-body,

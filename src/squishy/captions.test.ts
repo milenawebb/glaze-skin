@@ -1,5 +1,15 @@
 import { expect, it } from "vitest";
-import { overlayCaptionText, CAPTIONS_DEFAULT_ON, loadHiddenCaptionTrack, observeCaptionCues } from "./captions";
+import { overlayCaptionText, CAPTIONS_DEFAULT_ON, loadHiddenCaptionTrack, observeCaptionCues, captionsAbovePlay } from "./captions";
+
+it("places two phone lines above visible centered play when they cannot fit below", () => {
+  expect(captionsAbovePlay(true, true, true, 52, 172)).toBe(true);
+  expect(captionsAbovePlay(true, true, true, 52, 400)).toBe(false);
+});
+it("keeps captions near the bottom when controls hide or only one line is present", () => {
+  expect(captionsAbovePlay(true, false, true, 52, 172)).toBe(false);
+  expect(captionsAbovePlay(true, true, false, 32, 172)).toBe(false);
+  expect(captionsAbovePlay(false, true, true, 52, 172)).toBe(false);
+});
 
 it("starts captions ON by default", () => { expect(CAPTIONS_DEFAULT_ON).toBe(true); });
 it("selects the Mux subtitle loader while keeping the native track hidden", () => {

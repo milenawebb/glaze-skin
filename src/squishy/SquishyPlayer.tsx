@@ -6,7 +6,7 @@ import { SquishyFrame } from "./SquishyFrame";
 import { crackCrust } from "./crust";
 import { useSquishAll } from "./squish";
 import { nextPlaybackRate, POPUP_SPEEDS, VOLUME_CLOSE_MS, CONTROLS_IDLE_MS, controlsVisible } from "./controls";
-import { CAPTIONS_DEFAULT_ON, observeCaptionCues, isCaptionEngine } from "./captions";
+import { CAPTIONS_DEFAULT_ON, observeCaptionCues, isCaptionEngine, captionsAbovePlay } from "./captions";
 import "./squishy.css";
 
 export const squishy = createPlayer({ features: videoFeatures });
@@ -396,7 +396,27 @@ function SpeedButton({ compact, open, setOpen }: { compact: boolean; open: boole
 /** Hidden native tracks supply the skin's single caption overlay on every size. */
 function RowCaptions({ rootRef, enabled }: { rootRef: { current: HTMLDivElement | null }; enabled: boolean }) {
   const [cues, setCues] = useState("");
+  const captionRef = useRef<HTMLDivElement>(null);
+  const [abovePlay, setAbovePlay] = useState(false);
   const media = useMedia();
+  useEffect(() => {
+    const root = rootRef.current;
+    const caption = captionRef.current;
+    const stage = root?.querySelector<HTMLElement>(".sq-stage");
+    const text = caption?.querySelector("span");
+    if (!root || !caption || !stage || !text) return;
+    const place = () => {
+      const lineHeight = Number.parseFloat(getComputedStyle(text).lineHeight);
+      const twoLines = text.getBoundingClientRect().height > lineHeight + 12 + 1;
+      setAbovePlay(captionsAbovePlay(root.hasAttribute("data-compact"), root.hasAttribute("data-row-visible"), twoLines, text.getBoundingClientRect().height, stage.clientHeight));
+    };
+    const resize = new ResizeObserver(place);
+    resize.observe(stage); resize.observe(text);
+    const changes = new MutationObserver(place);
+    changes.observe(root, { attributes: true, attributeFilter: ["data-compact", "data-row-visible"] });
+    place();
+    return () => { resize.disconnect(); changes.disconnect(); };
+  }, [rootRef, cues, enabled]);
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
@@ -416,7 +436,7 @@ function RowCaptions({ rootRef, enabled }: { rootRef: { current: HTMLDivElement 
     attach();
     return () => { observer.disconnect(); detach?.(); };
   }, [rootRef, enabled, media]);
-  return enabled && cues ? <div className="sq-row-captions" aria-live="off"><span>{cues}</span></div> : null;
+  return enabled && cues ? <div ref={captionRef} className="sq-row-captions" data-above-play={abovePlay || undefined} aria-live="off"><span>{cues}</span></div> : null;
 }
 
 function FullscreenPill() {
