@@ -27,8 +27,11 @@ uniform vec3 uMonoColor; uniform float uMono;
 uniform float uSprinkles;
 varying vec2 vUv;
 float sdRR(vec2 p, vec2 c, vec2 hs, float r){ vec2 q=abs(p-c)-hs+r; return length(max(q,0.))+min(max(q.x,q.y),0.)-r; }
-float sdO(vec2 p){ return sdRR(p, uRes*.5, uRes*.5, uRo); }
-float sdI(vec2 p){ vec2 a=uIns.xy; vec2 b=uRes-uIns.zw; return sdRR(p,(a+b)*.5,(b-a)*.5,uRi); }
+// Smooth inside distance: a hard max(q.x,q.y) makes a mitred diagonal ridge at each corner.
+float smaxk(float a,float b,float k){ float h=clamp(.5-.5*(b-a)/k,0.,1.); return mix(b,a,h)+k*h*(1.-h); }
+float sdRRs(vec2 p, vec2 c, vec2 hs, float r, float k){ vec2 q=abs(p-c)-hs+r; return length(max(q,0.))+min(smaxk(q.x,q.y,k),0.)-r; }
+float sdO(vec2 p){ return sdRRs(p, uRes*.5, uRes*.5, uRo, 12.); }
+float sdI(vec2 p){ vec2 a=uIns.xy; vec2 b=uRes-uIns.zw; return sdRRs(p,(a+b)*.5,(b-a)*.5,uRi,12.); }
 float prof(vec2 p, out float amp){
   float a=max(-sdO(p),0.); float b=max(sdI(p),0.); float w=a+b+1e-3; float t=a/w;
   amp=min(w,64.)/64.; float x=clamp(4.*t*(1.-t),0.,1.); return pow(x,.55);

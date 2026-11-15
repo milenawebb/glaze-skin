@@ -457,3 +457,4 @@
 }
 
 .sq-root[data-compact] .sq-stage { border-radius: 20px; }
+.sq-canvas, .sq-flakes { clip-path: inset(0 round 46px); }

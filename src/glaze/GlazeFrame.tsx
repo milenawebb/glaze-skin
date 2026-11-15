@@ -80,7 +80,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       }
       const ctx=r.coating.getContext("2d");if(!ctx)return;
       const scale=r.coating.width/size.w;
-      ctx.save();ctx.scale(scale,scale);ctx.beginPath();ctx.rect(0,0,size.w,size.h);
+      ctx.save();ctx.scale(scale,scale);ctx.beginPath();if(ctx.roundRect)ctx.roundRect(0,0,size.w,size.h,46);else ctx.rect(0,0,size.w,size.h);
       for(const b of protectedCache)ctx.rect(b.x,b.y,b.w,b.h);
       ctx.clip("evenodd");ctx.scale(1/scale,1/scale);paintCoating(r.coating,size.w,shape,hole,progress);ctx.restore();
       const points=hole?shape.boundary:[...shape.cracks,...shape.arcs].flat();

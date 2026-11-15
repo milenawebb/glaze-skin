@@ -403,7 +403,6 @@ function ReplayBubble({ replay }: { replay: () => void }) {
         onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); e.stopPropagation(); if (!e.repeat) go(); } }}
         onKeyUp={(e) => { if (e.key === " ") e.preventDefault(); }}>
         <span className="sq-center-bubble sq-squish-body"><svg className="sq-play-icon" viewBox="0 0 24 24" aria-hidden="true">{REPLAY_ICON}</svg></span>
-        <span className="sq-replay-text">Again?</span>
       </button>
     </div>
   );
