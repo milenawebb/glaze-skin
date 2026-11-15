@@ -48,4 +48,5 @@ use the editor.
 - Each fixed option in preferences.ts derives its internal glaze style; color and material interpolate together without modifying shared coating, dent or recovery maps, so selection never resets damage or playback.
 - The sounds prop is a startup fallback beneath saved viewer preferences; mount preloads recordings without resume, and player window-capture unlock runs before control/frame presses so suspended audio can schedule the first clip.
 - Demo preview sizes live outside the skin and resize one stable player instance; the skin's player-width observer selects compact controls so preview modes cannot reset playback or damage.
+- Control activity listeners belong on the video stage, never the frame container; player leave clears activity while paused state and stage keyboard focus retain visibility.
 <!-- AGENT-MEMORY:END -->

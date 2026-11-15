@@ -9,6 +9,7 @@ describe("playback speed", () => {
 it("offers the four requested popup speeds in order", () => { expect(POPUP_SPEEDS).toEqual([0.5, 1, 1.5, 2]); });
 it("delays volume dismissal by 300ms", () => { expect(VOLUME_CLOSE_MS).toBe(300); });
 it("hides idle playing controls after 2000ms", () => { expect(CONTROLS_IDLE_MS).toBe(2000); expect(controlsVisible(false, false, false, false)).toBe(false); });
+it("paused controls stay visible with no video activity", () => { expect(controlsVisible(true, false, false, false)).toBe(true); });
 it("keeps controls visible when paused, active, in a popup, or keyboard focused", () => {
   expect(controlsVisible(true, false, false, false)).toBe(true);
   expect(controlsVisible(false, true, false, false)).toBe(true);
