@@ -98,6 +98,25 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
   const visible = paused || active;
   useSquishAll(rootRef);
 
+  // Focus rings are for keyboard navigation only: any pointer use marks <html>
+  // so the skin's :focus-visible rules stay off until a navigation key is pressed.
+  useEffect(() => {
+    const nav = (k: string) =>
+      k === "Tab" || k === "Enter" || k === "Escape" || k === "Home" || k === "End" ||
+      k === "PageUp" || k === "PageDown" || k.startsWith("Arrow");
+    const onKey = (e: KeyboardEvent) => {
+      if (nav(e.key)) document.documentElement.removeAttribute("data-sq-pointer");
+    };
+    const onPointer = () => document.documentElement.setAttribute("data-sq-pointer", "");
+    window.addEventListener("keydown", onKey, true);
+    window.addEventListener("pointerdown", onPointer, true);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("pointerdown", onPointer, true);
+    };
+  }, []);
+
+
   return (
     <Container
       ref={rootRef}

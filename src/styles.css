@@ -159,7 +159,7 @@
 }
 
 @layer components {
-  .demo { min-height: 100vh; background: var(--color-background); padding: 32px 16px 48px; font-family: var(--font-display); }
+  .demo { min-height: 100vh; background: var(--color-background); padding: 32px max(28px, 5vw) 48px; font-family: var(--font-display); overflow-x: clip; }
   .demo-title { text-align: center; font-size: 2.5rem; font-weight: 700; color: var(--color-foreground); margin-bottom: 20px; }
   .demo > .sq-root, .demo-placeholder { max-width: 960px; }
   .demo-placeholder { margin-inline: auto; aspect-ratio: 900 / 632; width: 100%; }
