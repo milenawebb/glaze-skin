@@ -1,3 +1,5 @@
+- [x] Restyle controls/popups as milky pink glass and remove the seek background panel without changing layout or glaze.
+- [x] Render captions once from hidden text tracks; verify CC, animated caption clearance, 4.98:1 minimum glass contrast, stable seek width, playback, frame cracking and Reset in Chromium on desktop and phone. Physical-device rendering remains unverified.
 - [x] Implement two-step frame cracking/peeling with smooth full-resolution holes and satin foam.
 - [x] Add immediate dents and uneven partial slow rise; verify individual crack/shatter/squish clips, Reset, playback, phone/reduced-motion behavior and keyboard-only focus in Chromium. Physical-device performance remains unverified.
 - [x] Restyle video controls as neutral liquid glass with compact popups and keyboard-only demo focus rings.

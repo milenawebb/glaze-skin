@@ -6,6 +6,7 @@ import { SquishyFrame } from "./SquishyFrame";
 import { crackCrust } from "./crust";
 import { useSquishAll } from "./squish";
 import { nextPlaybackRate, POPUP_SPEEDS, VOLUME_CLOSE_MS, CONTROLS_IDLE_MS, controlsVisible } from "./controls";
+import { overlayCaptionText } from "./captions";
 import "./squishy.css";
 
 export const squishy = createPlayer({ features: videoFeatures });
@@ -52,6 +53,7 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
   const [volumeOpen, setVolumeOpen] = useState(false);
   const [speedOpen, setSpeedOpen] = useState(false);
   const [keyboardFocus, setKeyboardFocus] = useState(false);
+  const [captionsOn, setCaptionsOn] = useState(false);
   const paused = usePlayer((s) => s.paused);
   const [crust, setCrust] = useState({ play: true, tube: true });
 
@@ -138,7 +140,12 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
       aria-label={`${label} — Squishy player`}
       onPointerMove={poke}
       onPointerDown={() => { setKeyboardFocus(false); poke(); }}
-      onKeyDown={() => { setKeyboardFocus(true); poke(); }}
+      onKeyDown={(e) => {
+        setKeyboardFocus(true); poke();
+        if (e.key.toLowerCase() === "c" && !e.altKey && !e.ctrlKey && !e.metaKey && !e.repeat) {
+          e.preventDefault(); setCaptionsOn((on) => !on);
+        }
+      }}
       onFocus={() => { setKeyboardFocus(!document.documentElement.hasAttribute("data-sq-pointer")); poke(); }}
       onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setKeyboardFocus(false); }}
     >
@@ -150,7 +157,7 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
         }
       }}>
         {children}
-        {!compact && <RowCaptions rootRef={rootRef} />}
+        <RowCaptions rootRef={rootRef} enabled={captionsOn} />
         <div className="sq-controls" data-visible={visible || undefined}>
           <div className="sq-row">
             <BunPlay
@@ -171,7 +178,7 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
             }
           />
             <VolumeButton compact={compact} open={volumeOpen && !compact} setOpen={setVolumeOpen} />
-            <CaptionsPill />
+            <CaptionsPill on={captionsOn} toggle={() => setCaptionsOn((on) => !on)} />
             <SpeedButton compact={compact} open={speedOpen && !compact} setOpen={setSpeedOpen} />
             <FullscreenPill />
           </div>
@@ -186,7 +193,6 @@ export function SquishySkin({ children, resetKey, label }: { children: ReactNode
       <Hotkey keys="ArrowDown" action="volumeStep" value={-0.2} />
       <Hotkey keys="f" action="toggleFullscreen" />
       <Hotkey keys="m" action="toggleMuted" />
-      <Hotkey keys="c" action="toggleSubtitles" />
     </Container>
   );
 }
@@ -333,9 +339,7 @@ function VolumeButton({ compact, open, setOpen }: { compact: boolean; open: bool
   );
 }
 
-function CaptionsPill() {
-  const store = usePlayer();
-  const on = usePlayer((s) => s.subtitlesShowing);
+function CaptionsPill({ on, toggle }: { on: boolean; toggle: () => void }) {
   const { pressed, handlers } = usePress();
   return (
     <button
@@ -346,7 +350,7 @@ function CaptionsPill() {
       aria-pressed={on}
       aria-keyshortcuts="c"
       {...handlers}
-      onClick={() => store.toggleSubtitles()}
+      onClick={toggle}
     >
       <span className="sq-phone-face">CC</span>
     </button>
@@ -389,22 +393,33 @@ function SpeedButton({ compact, open, setOpen }: { compact: boolean; open: boole
   );
 }
 
-/** Desktop cues share the native track state, but can move smoothly above the row. */
-function RowCaptions({ rootRef }: { rootRef: { current: HTMLDivElement | null } }) {
-  const [cues, setCues] = useState<string[]>([]);
+/** Hidden native tracks supply the skin's single caption overlay on every size. */
+function RowCaptions({ rootRef, enabled }: { rootRef: { current: HTMLDivElement | null }; enabled: boolean }) {
+  const [cues, setCues] = useState("");
   useEffect(() => {
+    let tracks: TextTrackList | undefined;
     const update = () => {
       const video = rootRef.current?.querySelector("video");
       if (!video) return;
-      const text = Array.from(video.textTracks).filter((track) => track.mode === "showing")
-        .flatMap((track) => Array.from(track.activeCues ?? []).map((cue) => "text" in cue ? String(cue.text).replace(/<[^>]*>/g, "") : ""));
-      setCues((old) => old.join("\n") === text.join("\n") ? old : text);
+      if (tracks !== video.textTracks) {
+        tracks?.removeEventListener("change", update);
+        tracks?.removeEventListener("addtrack", update);
+        tracks = video.textTracks;
+        tracks.addEventListener("change", update);
+        tracks.addEventListener("addtrack", update);
+      }
+      const text = overlayCaptionText(video.textTracks, enabled);
+      setCues((old) => old === text ? old : text);
     };
     const timer = window.setInterval(update, 100);
     update();
-    return () => window.clearInterval(timer);
-  }, [rootRef]);
-  return <div className="sq-row-captions" aria-live="off">{cues.map((cue, i) => <span key={i}>{cue}</span>)}</div>;
+    return () => {
+      window.clearInterval(timer);
+      tracks?.removeEventListener("change", update);
+      tracks?.removeEventListener("addtrack", update);
+    };
+  }, [rootRef, enabled]);
+  return enabled && cues ? <div className="sq-row-captions" aria-live="off"><span>{cues}</span></div> : null;
 }
 
 function FullscreenPill() {
