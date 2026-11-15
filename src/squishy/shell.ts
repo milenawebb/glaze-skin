@@ -1,103 +1,77 @@
-/** Small CPU polygons only at break time; the frame and pores remain GPU-rendered. */
+/** Crack paths are generated once and shared by the mask and removable chips. */
 export interface ShellPoint { x: number; y: number }
-export interface ShellBreak { boundary: ShellPoint[]; plates: ShellPoint[][] }
+export interface ShellBreak { boundary: ShellPoint[]; plates: ShellPoint[][]; cracks: ShellPoint[][]; arcs: ShellPoint[][]; removed: Set<number> }
 export const SHELL_BREAK_MS = 600;
-export function framePressStage(glazed: boolean, cracked: boolean) {
-  return !glazed ? "foam" : cracked ? "shatter" : "crack";
-}
+export function framePressStage(glazed: boolean, cracked: boolean) { return !glazed ? "foam" : cracked ? "shatter" : "crack"; }
 
-function clip(poly: ShellPoint[], nx: number, ny: number, limit: number) {
-  const out: ShellPoint[] = [];
-  for (let i = 0; i < poly.length; i++) {
-    const a = poly[i], b = poly[(i + 1) % poly.length];
-    if (!a || !b) continue;
-    const da = a.x * nx + a.y * ny - limit, db = b.x * nx + b.y * ny - limit;
-    if (da <= 0) out.push(a);
-    if ((da <= 0) !== (db <= 0)) {
-      const t = da / (da - db);
-      out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
-    }
-  }
-  return out;
+function jagged(a: ShellPoint, b: ShellPoint, random: () => number, bend = 1.5) {
+  const length = Math.hypot(b.x-a.x,b.y-a.y), steps = Math.max(2,Math.ceil(length/(4+random()*4)));
+  return Array.from({length:steps+1},(_,i)=>{
+    const t=i/steps, jitter=i===0||i===steps?0:(random()-.5)*bend*2;
+    return {x:a.x+(b.x-a.x)*t-(b.y-a.y)/length*jitter,y:a.y+(b.y-a.y)*t+(b.x-a.x)/length*jitter};
+  });
 }
-
 export function createShellBreak(x: number, y: number, radius: number, random = Math.random): ShellBreak {
-  const count = 3 + Math.min(3, Math.floor(random() * 4));
-  const offset = random() * Math.PI * 2;
-  // A mildly irregular convex boundary leaves a substantial jagged cut edge.
-  const boundary = Array.from({ length: 8 }, (_, i) => {
-    const a = i * Math.PI * 2 / 8;
-    const r = radius * (0.63 + random() * 0.35);
-    return { x: x + Math.cos(a) * r, y: y + Math.sin(a) * r };
+  const count=5+Math.min(3,Math.floor(random()*4)), offset=random()*Math.PI*2, center={x,y};
+  const rays=Array.from({length:count},(_,i)=>{
+    const angle=offset+(i+(random()-.5)*.35)*Math.PI*2/count;
+    const length=20+random()*Math.min(40,Math.max(0,radius-20));
+    return jagged(center,{x:x+Math.cos(angle)*length,y:y+Math.sin(angle)*length},random);
   });
-  const seeds = Array.from({ length: count }, (_, i) => {
-    const a = offset + i * Math.PI * 2 / count;
-    const r = radius * (0.25 + random() * 0.3);
-    return { x: x + Math.cos(a) * r, y: y + Math.sin(a) * r };
-  });
-  const plates = seeds.map((a, i) => seeds.reduce((poly, b, j) => i === j ? poly : clip(poly, b.x - a.x, b.y - a.y, (b.x * b.x + b.y * b.y - a.x * a.x - a.y * a.y) / 2), boundary));
-  return { boundary, plates };
+  const cracks=[...rays];
+  rays.forEach((ray,i)=>{if(i%3!==0)return;const start=ray[Math.floor(ray.length*.55)], end=ray.at(-1);if(!start||!end)return;cracks.push(jagged(start,{x:start.x+(end.x-start.x)*.35-(end.y-start.y)*.5,y:start.y+(end.y-start.y)*.35+(end.x-start.x)*.5},random));});
+  const arcs:ShellPoint[][]=[], plates:ShellPoint[][]=[];
+  const inner=rays.map(ray=>ray[Math.max(1,Math.floor((ray.length-1)*.45))]??center);
+  for(let i=0;i<count;i++){
+    const ray=rays[i], next=rays[(i+1)%count], a=inner[i], b=inner[(i+1)%count];if(!ray||!next||!a||!b)continue;
+    const arc=jagged(a,b,random,1.2), outer=jagged(ray.at(-1)??a,next.at(-1)??b,random,2.5);
+    const ai=ray.indexOf(a), bi=next.indexOf(b);
+    plates.push([...ray.slice(0,ai+1),...arc.slice(1),...next.slice(0,bi).reverse()]);
+    plates.push([...ray.slice(ai),...outer.slice(1),...next.slice(bi).reverse(),...arc.slice().reverse()]);
+    // Two incomplete arc runs: gaps prevent a closed spider-web outline.
+    if(i!==0&&i!==Math.floor(count/2)){
+      // Leave a small open gap at one radial junction: no triangle closes.
+      const open=arc.slice(1,-1);if(open.length>1)arcs.push(open);
+    }
+  }
+  const boundary=rays.flatMap((ray,i)=>jagged(ray.at(-1)??center,rays[(i+1)%count]?.at(-1)??center,random,2.5));
+  return {boundary,plates,cracks,arcs,removed:new Set()};
 }
-
 export function insideShellPolygon(x: number, y: number, poly: ShellPoint[]) {
-  let inside = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const a = poly[i], b = poly[j];
-    if (a && b && (a.y > y) !== (b.y > y) && x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x) inside = !inside;
-  }
-  return inside;
+  let inside=false;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+    const a=poly[i],b=poly[j];if(a&&b&&(a.y>y)!==(b.y>y)&&x<(b.x-a.x)*(y-a.y)/(b.y-a.y)+a.x)inside=!inside;
+  }return inside;
 }
-
-/** Textured canvas quads carry the actual shell color and attached sprinkles away. */
-export function peelShell(layer: HTMLElement, image: HTMLCanvasElement, shape: ShellBreak, x: number, y: number, radius: number) {
-  for (const [i, poly] of shape.plates.entries()) {
-    const piece = document.createElement("canvas");
-    piece.className = "sq-shell-plate";
-    piece.width = image.width; piece.height = image.height;
-    piece.style.width = `${radius * 2}px`; piece.style.height = `${radius * 2}px`;
-    piece.style.left = `${x - radius}px`; piece.style.top = `${y - radius}px`;
-    const ctx = piece.getContext("2d");
-    if (!ctx || !poly.length) continue;
-    const scale = image.width / (radius * 2);
-    ctx.scale(scale, scale);
-    ctx.beginPath();
-    for (const [j, p] of poly.entries()) {
-      if (j === 0) ctx.moveTo(p.x - x + radius, p.y - y + radius);
-      else ctx.lineTo(p.x - x + radius, p.y - y + radius);
-    }
-    ctx.closePath(); ctx.clip();
-    ctx.drawImage(image, 0, 0, radius * 2, radius * 2);
-    layer.appendChild(piece);
-    const direction = (i - (shape.plates.length - 1) / 2) * 9;
-    const anim = piece.animate([
-      { transform: "translate(0,0) rotateX(0deg) rotate(0deg)", opacity: 1 },
-      { transform: `translate(${direction * .25}px,-7px) rotateX(24deg) rotate(${direction * .3}deg)`, opacity: 1, offset: .35 },
-      { transform: `translate(${direction}px,64px) rotateX(55deg) rotate(${direction * 2}deg)`, opacity: 0 },
-    ], { duration: SHELL_BREAK_MS, easing: "cubic-bezier(.3,.15,.65,1)", fill: "forwards" });
-    anim.onfinish = () => piece.remove();
+/** Only one to three still-attached chips nearest the actual press are removed. */
+export function takeShellChips(shape: ShellBreak,x:number,y:number,random=Math.random) {
+  const count=1+Math.min(2,Math.floor(random()*3));
+  const candidates=shape.plates.map((poly,index)=>({poly,index,distance:Math.min(...poly.map(p=>Math.hypot(p.x-x,p.y-y)))})).filter(p=>!shape.removed.has(p.index));
+  candidates.sort((a,b)=>Number(insideShellPolygon(x,y,b.poly))-Number(insideShellPolygon(x,y,a.poly))||a.distance-b.distance);
+  const touching=candidates.filter(p=>insideShellPolygon(x,y,p.poly)||p.distance<5).slice(0,count);
+  touching.forEach(p=>shape.removed.add(p.index));return touching.map(p=>p.poly);
+}
+export function createCrackTrail(a:ShellPoint,b:ShellPoint,random=Math.random) {
+  const path=jagged(a,b,random), cracks=[path];
+  const length=Math.hypot(b.x-a.x,b.y-a.y),spacing=15+random()*10;
+  for(let d=spacing;d<length;d+=spacing){const t=d/length,start={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};cracks.push(jagged(start,{x:start.x-(b.y-a.y)/length*(7+random()*6),y:start.y+(b.x-a.x)/length*(7+random()*6)},random));}
+  return {boundary:[],plates:[],cracks,arcs:[],removed:new Set<number>()};
+}
+/** Textured chips preserve the original crack geometry and material. */
+export function peelShell(layer: HTMLElement,image:HTMLCanvasElement,shape:ShellBreak,x:number,y:number,radius:number) {
+  for(const [i,poly] of shape.plates.entries()){
+    const piece=document.createElement("canvas");piece.className="sq-shell-plate";piece.width=image.width;piece.height=image.height;
+    piece.style.width=`${radius*2}px`;piece.style.height=`${radius*2}px`;piece.style.left=`${x-radius}px`;piece.style.top=`${y-radius}px`;
+    const ctx=piece.getContext("2d");if(!ctx||!poly.length)continue;
+    ctx.scale(image.width/(radius*2),image.height/(radius*2));ctx.beginPath();poly.forEach((p,j)=>j===0?ctx.moveTo(p.x-x+radius,p.y-y+radius):ctx.lineTo(p.x-x+radius,p.y-y+radius));ctx.closePath();ctx.clip();ctx.drawImage(image,0,0,radius*2,radius*2);layer.appendChild(piece);
+    const direction=(i-(shape.plates.length-1)/2)*9;
+    const anim=piece.animate([{transform:"translate(0,0) rotateX(0deg) rotate(0deg)",opacity:1},{transform:`translate(${direction*.25}px,-7px) rotateX(24deg) rotate(${direction*.3}deg)`,opacity:1,offset:.35},{transform:`translate(${direction}px,64px) rotateX(55deg) rotate(${direction*2}deg)`,opacity:0}],{duration:SHELL_BREAK_MS,easing:"cubic-bezier(.3,.15,.65,1)",fill:"forwards"});anim.onfinish=()=>piece.remove();
   }
 }
-/** Full screen-resolution antialiased coating mask: red holes, green fissures. */
-export function paintCoating(canvas: HTMLCanvasElement, width: number, shape: ShellBreak, hole: boolean, progress = 1) {
-  const ctx=canvas.getContext("2d"); if (!ctx) return;
-  const scale=canvas.width/width;
-  ctx.save(); ctx.scale(scale,scale);
-  if(hole){
-    ctx.globalCompositeOperation="lighter";
-    ctx.fillStyle=`rgba(255,0,0,${progress})`;
-    ctx.beginPath(); shape.boundary.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y)); ctx.closePath(); ctx.fill();
-  } else {
-    ctx.strokeStyle="rgb(0,255,0)"; ctx.lineWidth=.85; ctx.lineJoin="round"; ctx.lineCap="round";
-    for(const poly of shape.plates){
-      ctx.beginPath();
-      poly.forEach((p,i)=>{
-        const next=poly[(i+1)%poly.length]; if(!next)return;
-        const mid={x:(p.x+next.x)/2+Math.sin(p.x*3)*1.1,y:(p.y+next.y)/2+Math.cos(p.y*2)*1.1};
-        const end={x:p.x+(next.x-p.x)*progress,y:p.y+(next.y-p.y)*progress};
-        ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+(mid.x-p.x)*Math.min(1,progress*2),p.y+(mid.y-p.y)*Math.min(1,progress*2));ctx.lineTo(end.x,end.y);
-        if(i%2===0){ctx.moveTo(mid.x,mid.y);ctx.lineTo(mid.x+Math.sin(i+mid.y)*4*progress,mid.y+Math.cos(i+mid.x)*6*progress);}
-      });ctx.stroke();
-    }
-  }
-  ctx.restore();
+/** Red holes and green fissures, rasterized only when damage changes. */
+export function paintCoating(canvas:HTMLCanvasElement,width:number,shape:ShellBreak,hole:boolean,progress=1) {
+ const ctx=canvas.getContext("2d");if(!ctx)return;ctx.save();ctx.scale(canvas.width/width,canvas.width/width);
+ if(hole){ctx.globalCompositeOperation="lighter";ctx.fillStyle=`rgba(255,0,0,${progress})`;ctx.beginPath();shape.boundary.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));ctx.closePath();ctx.fill();}
+ else {ctx.strokeStyle="rgb(0,255,0)";ctx.lineJoin="round";ctx.lineCap="round";for(const path of [...shape.cracks,...shape.arcs])for(let i=1;i<path.length;i++){const a=path[i-1],b=path[i];if(!a||!b)continue;ctx.lineWidth=.18+1.1*(1-i/path.length);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}}
+ ctx.restore();
 }

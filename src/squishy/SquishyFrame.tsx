@@ -6,14 +6,14 @@ import { dentDepth, dentRadius, faceExpression, frameInsets, pressureScale } fro
 
 import { breakGlaze, hasGlaze } from "./glaze";
 
-import { createShellBreak, peelShell, SHELL_BREAK_MS, paintCoating, insideShellPolygon, framePressStage, type ShellBreak } from "./shell";
+import { createShellBreak, createCrackTrail, takeShellChips, peelShell, SHELL_BREAK_MS, paintCoating, insideShellPolygon, framePressStage, type ShellBreak } from "./shell";
 
 import { recoverySettings, recoveryFactor, immediateDepth } from "./recovery";
 import type { SquishyColor } from "./preferences";
 import { DEFAULT_GLAZE_STYLE, monoStyleAmount, type GlazeStyle } from "./glaze-style";
 const RESET_MS = 1500;
 
-interface Press { x: number; y: number; start: number; radius: number; pressure: number | null; sound: ((depth: number) => void) | undefined; spots: {x:number;y:number}[] }
+interface Press { x: number; y: number; start: number; radius: number; pressure: number | null; sound: ((depth: number) => void) | undefined; spots: {x:number;y:number}[]; trailDistance:number; branchSpacing:number }
 
 /** WebGL squishy frame. Dents stay until `resetKey` changes. */
 export function SquishyFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_GLAZE_STYLE, onFallback }: { resetKey: number; color?: SquishyColor; glazeStyle?: GlazeStyle; onFallback: () => void }) {
@@ -42,6 +42,22 @@ export function SquishyFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT
     const breaks: { x: number; y: number; radius: number; start: number; duration: number; shape: ShellBreak }[] = [];
 
     const cracked: { x:number; y:number; radius:number; shape:ShellBreak; removed:boolean; start:number; drawn:boolean }[]=[];
+    const protectedRects = () => {
+      const bounds=canvas.getBoundingClientRect();
+      return Array.from(canvas.parentElement?.querySelectorAll<HTMLElement>(".sq-frame-colors, .sq-frame-actions, .sq-stage")??[]).map(el=>{const b=el.getBoundingClientRect();return {x:b.left-bounds.left-3,y:b.top-bounds.top-3,w:b.width+6,h:b.height+6};});
+    };
+    const safe = (x:number,y:number) => {
+      const insets=frameInsets(size.w), faceY=size.h-insets.b/2;
+      return isOnRing(x,y,size.w,size.h,insets) && Math.hypot((x-size.w/2)/43,(y-faceY)/24)>1 && !protectedRects().some(b=>x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h);
+    };
+    const paint = (shape:ShellBreak,hole:boolean,progress=1) => {
+      const ctx=r.coating.getContext("2d");if(!ctx)return;
+      const scale=r.coating.width/size.w;
+      ctx.save();ctx.scale(scale,scale);ctx.beginPath();ctx.rect(0,0,size.w,size.h);
+      for(const b of protectedRects())ctx.rect(b.x,b.y,b.w,b.h);
+      ctx.moveTo(size.w/2+43,size.h-frameInsets(size.w).b/2);ctx.ellipse(size.w/2,size.h-frameInsets(size.w).b/2,43,24,0,0,Math.PI*2);
+      ctx.clip("evenodd");ctx.scale(1/scale,1/scale);paintCoating(r.coating,size.w,shape,hole,progress);ctx.restore();
+    };
     const recoveries: { start:number; duration:number; fraction:number; cells:{i:number;depth:number}[] }[]=[];
     clearTransient.current=()=>{breaks.length=0;cracked.length=0;recoveries.length=0;canvas.parentElement?.querySelectorAll(".sq-shell-plate").forEach(p=>p.remove());};
     const loop = (now: number) => {
@@ -55,8 +71,7 @@ export function SquishyFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT
         if(now-rec.start>=rec.duration)recoveries.splice(j,1);
       }
       for(const c of cracked) if(!c.removed && !c.drawn){
-        const progress=Math.min(1,(now-c.start)/220);
-        paintCoating(r.coating,size.w,c.shape,false,progress);c.drawn=progress===1;
+        paint(c.shape,false);c.drawn=true;
       }
       for (const p of presses.values()) {
         const held = (now - p.start) / 1000;
@@ -71,7 +86,7 @@ export function SquishyFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT
         if (!b) continue;
         const t = Math.min(1, (now - b.start) / b.duration);
         breakGlaze(r, b.x, b.y, b.radius, Math.min(1,t/.35), b.shape.boundary);
-        paintCoating(r.coating,size.w,b.shape,true,Math.min(1,t/.35));
+        paint(b.shape,true,Math.min(1,t/.35));
         if (t === 1) breaks.splice(i, 1);
       }
       const rs = resetRef.current;
@@ -116,21 +131,30 @@ export function SquishyFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT
       return { x: e.clientX - rect.left, y: e.clientY - rect.top };
     };
     const crack = (x:number,y:number,pointerType:string,dragging=false) => {
-      const existing=cracked.find(c=>!c.removed && insideShellPolygon(x,y,c.shape.boundary));
+      if(!safe(x,y))return "foam";
+      const existing=cracked.find(c=>insideShellPolygon(x,y,c.shape.boundary));
       if(framePressStage(hasGlaze(r,x,y),Boolean(existing))==="foam")return "foam";
       if(existing){
-        if(dragging)return "cracked";
-        existing.removed=true;
+        const before=new Set(existing.shape.removed);
+        const plates=takeShellChips(existing.shape,x,y).filter(poly=>{
+          if(poly.every(p=>safe(p.x,p.y)))return true;
+          const index=existing.shape.plates.indexOf(poly);if(!before.has(index))existing.shape.removed.delete(index);
+          return false;
+        });
+        if(!plates.length)return "cracked";
         const reduce=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        if(reduce){breakGlaze(r,existing.x,existing.y,existing.radius,1,existing.shape.boundary);paintCoating(r.coating,size.w,existing.shape,true);}
-        else {
+        for(const poly of plates){
+          const shape={...existing.shape,boundary:poly,plates:[poly]};
+          if(reduce){breakGlaze(r,existing.x,existing.y,existing.radius,1,poly);paint(shape,true);}
+          else {
           const layer=canvas.parentElement?.querySelector<HTMLElement>(".sq-flakes");
-          if(layer)peelShell(layer,r.snapshot(existing.x,existing.y,existing.radius),existing.shape,existing.x,existing.y,existing.radius);
-          breaks.push({x:existing.x,y:existing.y,radius:existing.radius,start:performance.now(),duration:SHELL_BREAK_MS,shape:existing.shape});
+          if(layer)peelShell(layer,r.snapshot(existing.x,existing.y,existing.radius),shape,existing.x,existing.y,existing.radius);
+          breaks.push({x:existing.x,y:existing.y,radius:existing.radius,start:performance.now(),duration:SHELL_BREAK_MS,shape});
+          }
         }
-        playShatter();return "shatter";
+        if(dragging)playCrunch();else playShatter();return "shatter";
       }
-      const radius=dentRadius(pointerType)*2.1;
+      const radius=60;
       cracked.push({x,y,radius,shape:createShellBreak(x,y,radius),removed:false,start:performance.now(),drawn:false});
       if(dragging)playCrunch();else playCrack();
       return "crack";
@@ -146,7 +170,7 @@ export function SquishyFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT
       const result=crack(x,y,e.pointerType);
       const radius=dentRadius(e.pointerType);
       stampDent(r,x,y,radius,immediateDepth(1),1);
-      presses.set(e.pointerId, { x, y, start: performance.now(), radius, pressure, sound: result==="foam"?playSquelch(immediateDepth(1)):undefined, spots:[{x,y}] });
+      presses.set(e.pointerId, { x, y, start: performance.now(), radius, pressure, sound: result==="foam"?playSquelch(immediateDepth(1)):undefined, spots:[{x,y}],trailDistance:0,branchSpacing:15+Math.random()*10 });
       resetRef.current = null;
 
       vibratePress();
@@ -159,8 +183,18 @@ export function SquishyFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT
       const held = (performance.now() - p.start) / 1000;
       p.pressure = pressureScale(e);
       const depth = dentDepth(held, p.pressure);
-      if (Math.hypot(x - p.x, y - p.y) > 0 && isOnRing(x, y, size.w, size.h, frameInsets(size.w))) crack(x, y, e.pointerType, true);
       const dist = Math.hypot(x - p.x, y - p.y);
+      if(dist>0){
+        const trail=createCrackTrail({x:p.x,y:p.y},{x,y});paint(trail,false);
+        p.trailDistance+=dist;
+        if(dist<15&&p.trailDistance>=p.branchSpacing){
+          const branch=createCrackTrail({x,y},{x:x-(y-p.y)/dist*12,y:y+(x-p.x)/dist*12});paint(branch,false);
+          p.trailDistance=0;p.branchSpacing=15+Math.random()*10;
+        }
+        // Sample longer moves too, so a fast finger leaves no skipped cracked regions.
+        const samples=Math.ceil(dist/18);
+        for(let i=1;i<=samples;i++){const t=i/samples;const tx=p.x+(x-p.x)*t,ty=p.y+(y-p.y)*t;if(safe(tx,ty))crack(tx,ty,e.pointerType,true);}
+      }
       const steps = Math.max(1, Math.ceil(dist / 3));
       for (let s = 1; s <= steps; s++) {
         const t = s / steps;

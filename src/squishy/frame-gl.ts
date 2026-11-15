@@ -124,7 +124,7 @@ void main(){
   vec3 foam=mix(uFoam,uPore,pore*.18)+(fiber-.5)*.012;
   vec3 shell=wax(p);
   // Pale 3–4px cut edges glow softly and cast a shadow on exposed foam.
-  shell=mix(shell,uWaxMilk,cut*.65);
+  shell=mix(shell,uWaxMilk,cut*.28);
   vec3 col=mix(shell,foam,hole);
   float lum=dot(col,vec3(.299,.587,.114));
   col=mix(vec3(lum),col,1.+.3*d)*(1.-.07*d);
@@ -154,8 +154,9 @@ void main(){
   if(uSprinkles>0.) c=mix(c,sprinkles(p,c,coat),uSprinkles);
   float crack=texture2D(uGlaze,p/uRes).g*coat;
   float crackShadow=texture2D(uGlaze,(p-vec2(.8,.9))/uRes).g*coat;
-  c*=1.-crackShadow*.35;
-  c=mix(c,uWaxMilk,crack*.85);
+  vec3 glazeTint=mix(shell,uMonoColor,uMono);
+  c=mix(c,glazeTint*.48,crack*.7);
+  c=mix(c,mix(glazeTint,uWaxMilk,.32),max(0.,crackShadow-crack)*.65);
   // Face paint is carried by whichever layer remains, so peeling cannot erase it.
   c=face(p,c);
   float alpha=a*(.9+.08*pr);
