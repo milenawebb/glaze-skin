@@ -98,8 +98,9 @@ describe("recorded Squishy sounds", () => {
   it.each(["mouse", "touch"])("starts no sound when a %s press is released", async (pointerType) => {
     await enable();
     const control = document.createElement("button");
+    document.body.appendChild(control);
     const detach = sounds.attachPressSounds(control);
-    const down = new Event("pointerdown");
+    const down = new Event("pointerdown", { bubbles: true });
     Object.assign(down, { button: 0, pointerType });
     control.dispatchEvent(down);
     expect(sources).toHaveLength(1);
@@ -108,5 +109,45 @@ describe("recorded Squishy sounds", () => {
     expect(sources).toHaveLength(1);
     expect(gains).toHaveLength(1);
     detach();
+    control.remove();
+  });
+  it("uses shatter for fresh glaze, then one quieter crack per ordinary press without repeats", async () => {
+    await enable();
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    sounds.playControlPress(true);
+    expect(sources[0].buffer.url).toMatch(/\/shatter-[12]\.mp3$/);
+    const shatterGain = gains.at(-1).gain.setTargetAtTime.mock.calls[0][0];
+    sounds.playControlPress(false);
+    const first = sources.at(-1).buffer.url;
+    expect(first).toMatch(/\/crack-[12]\.mp3$/);
+    expect(gains.at(-1).gain.setTargetAtTime.mock.calls[0][0]).toBeCloseTo(shatterGain * 0.75);
+    sounds.playControlPress(false);
+    expect(sources.at(-1).buffer.url).not.toBe(first);
+    expect(sources).toHaveLength(3);
+  });
+  it("uses fresh-glaze state before handlers run and stays silent on seek dragging and release", async () => {
+    await enable();
+    const control = document.createElement("div");
+    control.className = "sq-seek";
+    control.innerHTML = '<span class="sq-crust"></span>';
+    document.body.appendChild(control);
+    const detach = sounds.attachPressSounds(control);
+    const press = () => {
+      const event = new Event("pointerdown", { bubbles: true });
+      Object.assign(event, { button: 0 }); control.dispatchEvent(event);
+    };
+    press(); expect(sources).toHaveLength(1);
+    expect(sources[0].buffer.url).toMatch(/\/shatter-[12]\.mp3$/);
+    const glaze = control.querySelector<HTMLElement>(".sq-crust");
+    if (glaze) glaze.dataset["cracking"] = "1";
+    for (let i = 0; i < 10; i++) control.dispatchEvent(new Event("pointermove", { bubbles: true }));
+    window.dispatchEvent(new Event("pointerup")); expect(sources).toHaveLength(1);
+    press(); expect(sources).toHaveLength(2);
+    expect(sources[1].buffer.url).toMatch(/\/crack-[12]\.mp3$/);
+    window.dispatchEvent(new Event("pointerup"));
+    control.replaceChildren(); press();
+    expect(sources).toHaveLength(3);
+    expect(sources[2].buffer.url).toMatch(/\/crack-[12]\.mp3$/);
+    detach(); control.remove();
   });
 });

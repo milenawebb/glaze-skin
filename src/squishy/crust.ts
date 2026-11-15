@@ -1,4 +1,4 @@
-import { playCrack, playShatter } from "./sounds";
+import { playCrack } from "./sounds";
 import { vibrateBreak, vibrateCrack } from "./haptics";
 
 export function prefersReducedMotion() {
@@ -25,7 +25,6 @@ const SVG = "http://www.w3.org/2000/svg";
 export function crackCrust(crust: HTMLElement | null, layer: HTMLElement | null, opts: CrackOptions) {
   if (crust?.dataset["cracking"]) return;
   const dur = (opts.duration ?? 0.8) * 1000;
-  playShatter();
   if (!crust || !layer) return opts.onRemove();
   crust.dataset["cracking"] = "1";
   vibrateCrack();

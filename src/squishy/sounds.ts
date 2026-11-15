@@ -68,7 +68,7 @@ export function setSoundsEnabled(on: boolean) {
 
 export function getSoundsEnabled() { return enabled; }
 
-function recording(group: Group, depth = 0) {
+function recording(group: Group, depth = 0, volumeScale = 1) {
   if (!enabled || !ctx || ctx.state !== "running") return;
   const c = ctx;
   const choices = groups[group].map((url, index) => ({ buffer: buffers.get(url), index }))
@@ -79,7 +79,7 @@ function recording(group: Group, depth = 0) {
   const source = c.createBufferSource();
   const gain = c.createGain();
   const rate = 0.95 + Math.random() * 0.1;
-  const volume = 0.65 * (0.9 + Math.random() * 0.2);
+  const volume = 0.65 * volumeScale * (0.9 + Math.random() * 0.2);
   source.buffer = choice.buffer;
   source.connect(gain).connect(c.destination);
   const update = (amount: number) => {
@@ -107,6 +107,11 @@ export function playSqueeze(depth = 0) { return playSquelch(depth); }
 export function playCrack() { recording("crack"); }
 /** The whole play-button or seek-bar glaze shattering. */
 export function playShatter() { recording("shatter"); }
+/** Controls use a single clip; ordinary cracks are quieter than shattering. */
+export function playControlPress(glazed: boolean) {
+  if (glazed) playShatter();
+  else recording("crack", 0, 0.75);
+}
 /** Fresh frame-gloss drag only; shared limit also covers simultaneous fingers. */
 export function playCrunch() {
   if (!enabled || !ctx || ctx.currentTime - lastCrunch < 0.15) return;
@@ -123,45 +128,40 @@ export function playCrunch() {
 
 /** Sound-only press tracking for controls; visuals remain owned by squish.ts. */
 export function attachPressSounds(el: HTMLElement) {
-  let raf = 0, start = 0, held = false;
-  let update: ((depth: number) => void) | undefined;
-  const tick = () => {
-    update?.(Math.min(1, (performance.now() - start) / 2000));
-    if (held) raf = requestAnimationFrame(tick);
+  let held = false;
+  const belongs = (target: EventTarget | null) => target instanceof Node && el.contains(target);
+  const press = () => {
+    const glaze = el.querySelector<HTMLElement>(".sq-crust");
+    playControlPress(Boolean(glaze && !glaze.dataset["cracking"]));
   };
   const end = () => {
     if (!held) return;
     held = false;
-    cancelAnimationFrame(raf);
-    window.removeEventListener("pointerup", end);
-    window.removeEventListener("pointercancel", end);
+    window.removeEventListener("pointerup", end, true);
+    window.removeEventListener("pointercancel", end, true);
   };
   const down = (e: PointerEvent) => {
-    if (e.button > 0 || held) return;
+    if (!belongs(e.target) || e.button > 0 || held) return;
     held = true;
-    start = performance.now();
-    update = playSquelch();
-    if (update) raf = requestAnimationFrame(tick);
-    window.addEventListener("pointerup", end);
-    window.addEventListener("pointercancel", end);
+    press();
+    window.addEventListener("pointerup", end, true);
+    window.addEventListener("pointercancel", end, true);
   };
   const keyDown = (e: KeyboardEvent) => {
-    if (!e.repeat && (e.key === " " || e.key === "Enter" || (el.matches(".sq-seek") && e.key.startsWith("Arrow")))) {
+    if (belongs(e.target) && !held && !e.repeat && (e.key === " " || e.key === "Enter" || (el.matches(".sq-seek") && (e.key.startsWith("Arrow") || e.key === "Home" || e.key === "End")))) {
       held = true;
-      start = performance.now();
-      update = playSquelch();
-      if (update) raf = requestAnimationFrame(tick);
+      press();
     }
   };
-  el.addEventListener("pointerdown", down);
-  el.addEventListener("keydown", keyDown);
+  // Inspect glaze before React's handlers mark it cracking or remove it.
+  window.addEventListener("pointerdown", down, true);
+  window.addEventListener("keydown", keyDown, true);
   el.addEventListener("keyup", end);
   return () => {
-    cancelAnimationFrame(raf);
-    el.removeEventListener("pointerdown", down);
-    el.removeEventListener("keydown", keyDown);
+    window.removeEventListener("pointerdown", down, true);
+    window.removeEventListener("keydown", keyDown, true);
     el.removeEventListener("keyup", end);
-    window.removeEventListener("pointerup", end);
-    window.removeEventListener("pointercancel", end);
+    window.removeEventListener("pointerup", end, true);
+    window.removeEventListener("pointercancel", end, true);
   };
 }
