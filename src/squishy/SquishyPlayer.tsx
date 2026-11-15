@@ -290,7 +290,7 @@ function JellySeek({ crust, onCrack }: { crust: boolean; onCrack: CrackFn }) {
 function TimePill() {
   const t = usePlayer((s) => ({ c: s.currentTime, d: s.duration }));
   return (
-    <span className="sq-pill sq-time sq-squish sq-squish-body">
+    <span className="sq-pill sq-time sq-squish sq-squish-body" style={{ ["--sq-time-chars" as string]: fmt(t.d).length * 2 + 3 }}>
       <span className="sq-sr">Current time </span>
       {fmt(t.c)}
       <span aria-hidden="true"> / </span>

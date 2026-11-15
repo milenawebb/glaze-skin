@@ -48,8 +48,8 @@ export function attachSquish(el: HTMLElement): () => void {
   };
   const end = () => {
     el.removeAttribute("data-squish-pressed");
-    window.removeEventListener("pointerup", end);
-    window.removeEventListener("pointercancel", end);
+    window.removeEventListener("pointerup", end, true);
+    window.removeEventListener("pointercancel", end, true);
     if (!pressing) return;
     pressing = false;
     rel0 = performance.now();
@@ -60,8 +60,8 @@ export function attachSquish(el: HTMLElement): () => void {
     if (e.button > 0) return;
     const r = el.getBoundingClientRect();
     start(((e.clientX - r.left) / r.width) * 100, ((e.clientY - r.top) / r.height) * 100);
-    window.addEventListener("pointerup", end);
-    window.addEventListener("pointercancel", end);
+    window.addEventListener("pointerup", end, true);
+    window.addEventListener("pointercancel", end, true);
   };
   const key = (e: KeyboardEvent) => {
     if (e.repeat || e.target !== el || (e.key !== " " && e.key !== "Enter")) return;
@@ -77,8 +77,8 @@ export function attachSquish(el: HTMLElement): () => void {
     window.clearTimeout(keyTimer);
     el.removeEventListener("pointerdown", down);
     el.removeEventListener("keydown", key);
-    window.removeEventListener("pointerup", end);
-    window.removeEventListener("pointercancel", end);
+    window.removeEventListener("pointerup", end, true);
+    window.removeEventListener("pointercancel", end, true);
   };
 }
 

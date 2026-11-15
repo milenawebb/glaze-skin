@@ -1,3 +1,5 @@
+- [x] Restyle video controls as neutral liquid glass with compact popups and keyboard-only demo focus rings.
+- [x] Verify identical progress length/position through cracking/seeking, 36×90px volume popup, 28px speed rows, light/dark contrast, playback, volume, speed and phone layout in Chromium; 26 tests passed. Physical-device glass rendering remains unverified.
 - [x] Replace frame material with satin pastel wax, raised sprinkles and porous pink foam.
 - [x] Add thick Voronoi shell plates, persistent broken edges and gradual re-coating; verify dents, Reset, playback, phone layout and reduced motion in Chromium with 30 passing tests. Physical-phone frame rate remains unverified.
 - [x] Rework wider controls into one row with upward glass volume/speed popups; preserve phones.
