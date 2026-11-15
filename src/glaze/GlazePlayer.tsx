@@ -33,10 +33,12 @@ export function GlazePlayer({ playbackId, resetKey = 0, title = "Video", sounds 
       <GlazeSkin resetKey={resetKey} label={title} sounds={sounds}>
         <MuxVideo
           source={{ playbackId }}
-          poster={`https://image.mux.com/${playbackId}/thumbnail.webp?time=1`}
+          poster={`https://image.mux.com/${playbackId}/thumbnail.webp?time=1&width=1280`}
           playsInline
           crossOrigin="anonymous"
-        />
+        >
+          <track kind="captions" label="English" srcLang="en" src="/captions/glaze-asmr-demo.vtt" default />
+        </MuxVideo>
       </GlazeSkin>
     </Player>
   );
