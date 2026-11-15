@@ -110,7 +110,7 @@
 .sq-root[data-compact] .sq-frame-colors, .sq-root[data-compact] .sq-frame-actions { bottom: 55px; }
 .sq-root[data-compact] .sq-frame-colors { z-index: 8; }
 .sq-root[data-compact] .sq-color-toggle { display: grid; }
-.sq-root[data-compact] .sq-color-choices { display: none; position: absolute; top: 50%; left: 100%; translate: 0 -50%; width: 184px; padding: 4px; border-radius: 999px; background: var(--sq-liquid-refraction), var(--sq-liquid-surface); backdrop-filter: blur(10px); box-shadow: var(--sq-liquid-shadow); }
+.sq-root[data-compact] .sq-color-choices { display: none; position: absolute; top: 50%; left: 100%; translate: 0 -50%; width: 140px; padding: 4px; border-radius: 999px; background: var(--sq-liquid-refraction), var(--sq-liquid-surface); backdrop-filter: blur(10px); box-shadow: var(--sq-liquid-shadow); }
 .sq-root[data-compact] .sq-color-choices[data-open] { display: flex; animation: sq-flavors-open 180ms ease-out; }
 @keyframes sq-flavors-open { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
 .sq-root[data-compact] .sq-candy-face { width: 32px; height: 32px; }

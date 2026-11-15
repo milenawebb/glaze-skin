@@ -4,6 +4,7 @@
  * frame and lit in the fragment shader.
  */
 import { COLOR_FADE_MS } from "./preferences";
+import { rasterHeight } from "./damage";
 export const FRAME = { side: 30, top: 30, bottom: 96, outerRadius: 46, innerRadius: 16 };
 
 const VS = `attribute vec2 aPos; varying vec2 vUv;
@@ -85,7 +86,7 @@ vec3 sprinkles(vec2 p,vec3 col,float coat){
 float segment(vec2 p, vec2 a, vec2 b){
   vec2 v=b-a; return length(p-a-v*clamp(dot(p-a,v)/dot(v,v),0.,1.));
 }
-vec3 face(vec2 p, vec3 col){
+vec3 face(vec2 p, vec3 col, float hole){
   vec2 center=vec2(uRes.x*.5,uRes.y-uIns.w*.5);
   vec2 q=p-center;
   // Paint adheres to the same surface: the dent's slope stretches and bends it.
@@ -93,14 +94,15 @@ vec3 face(vec2 p, vec3 col){
   q+=slope*75.;
   q.y/=1.-dent(p)*.22;
   vec2 eye=vec2(abs(q.x)-18.,q.y+5.);
-  float open=1.-smoothstep(2.,3.,length(eye/vec2(1.,1.25)));
-  float closed=1.-smoothstep(1.1,2.1,min(segment(eye,vec2(-4.,2.),vec2(0.,-2.)),segment(eye,vec2(0.,-2.),vec2(4.,2.))));
+  float softness=hole*.5;
+  float open=1.-smoothstep(2.-softness,3.+softness,length(eye/vec2(1.,1.25)));
+  float closed=1.-smoothstep(1.1-softness,2.1+softness,min(segment(eye,vec2(-4.,2.),vec2(0.,-2.)),segment(eye,vec2(0.,-2.),vec2(4.,2.))));
   float eyes=mix(open,closed,uFace);
   float smile=(1.-smoothstep(.9,1.8,abs(length(q-vec2(0.,5.))-6.)))*smoothstep(5.,6.,q.y);
   vec2 cheek=vec2((abs(q.x)-29.)/8.,(q.y-4.)/4.);
   float blush=(1.-smoothstep(.4,1.,length(cheek)))*mix(.5,.85,uFace);
   col=mix(col,vec3(1.,.45,.65)*(.82+.18*dot(col,vec3(.333))),blush);
-  return mix(col,vec3(.29,.137,.22),max(eyes,smile)*.94);
+  return mix(col,vec3(.29,.137,.22),max(eyes,smile)*mix(.94,.84,hole));
 }
 void main(){
   vec2 p=vec2(vUv.x,1.-vUv.y)*uRes;
@@ -152,13 +154,13 @@ void main(){
     c=mix(c,monoColor,uMono);
   }
   if(uSprinkles>0.) c=mix(c,sprinkles(p,c,coat),uSprinkles);
+  c=face(p,c,hole);
   float crack=texture2D(uGlaze,p/uRes).g*coat;
   float crackShadow=texture2D(uGlaze,(p-vec2(.8,.9))/uRes).g*coat;
   vec3 glazeTint=mix(shell,uMonoColor,uMono);
   c=mix(c,glazeTint*.48,crack*.7);
   c=mix(c,mix(glazeTint,uWaxMilk,.32),max(0.,crackShadow-crack)*.65);
-  // Face paint is carried by whichever layer remains, so peeling cannot erase it.
-  c=face(p,c);
+  // Fissures cross the printed glaze face; the softer inside face remains below.
   float alpha=a*(.9+.08*pr);
   gl_FragColor=vec4(c*alpha,alpha);
 }`;
@@ -174,6 +176,8 @@ export interface FrameRenderer {
   coating: HTMLCanvasElement;
   dw: number;
   dh: number;
+  width: number;
+  height: number;
   face: number;
   mono: number;
   destroy(): void;
@@ -249,11 +253,13 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
   const coating = document.createElement("canvas");
   let bytes = new Uint8Array(0);
   const r: FrameRenderer = {
-    dent: new Float32Array(0),
-    glaze: new Float32Array(0),
+    dent: new Float32Array(512*512),
+    glaze: new Float32Array(512*512),
     coating,
-    dw: 0,
-    dh: 0,
+    dw: 512,
+    dh: 512,
+    width: 1,
+    height: 1,
     face: 0,
     mono: 0,
     updatePalette() {
@@ -274,41 +280,19 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
     paletteAnimating() { return performance.now() - paletteStart < COLOR_FADE_MS; },
     resize(w, h, ins) {
       r.updatePalette();
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      r.width=w; r.height=h;
+      const dpr = window.devicePixelRatio || 1;
       canvas.width = Math.max(1, Math.round(w * dpr));
       canvas.height = Math.max(1, Math.round(h * dpr));
       if (coating.width !== canvas.width || coating.height !== canvas.height) {
-        const previous = document.createElement("canvas"); previous.width=coating.width; previous.height=coating.height;
-        previous.getContext("2d")?.drawImage(coating,0,0);
         coating.width=canvas.width; coating.height=canvas.height;
-        coating.getContext("2d")?.drawImage(previous,0,0,coating.width,coating.height);
       }
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.uniform2f(uRes, w, h);
       gl.uniform4f(uIns, ins.l, ins.t, ins.r, ins.b);
       gl.uniform1f(uRo, FRAME.outerRadius);
       gl.uniform1f(uRi, FRAME.innerRadius);
-      const nw = Math.max(1, Math.ceil(w / 2)), nh = Math.max(1, Math.ceil(h / 2));
-      if (nw !== r.dw || nh !== r.dh) {
-        const next = new Float32Array(nw * nh);
-        const nextGlaze = new Float32Array(nw * nh);
-        if (r.dw && r.dh) {
-          for (let y = 0; y < nh; y++) {
-            const sy = Math.min(r.dh - 1, Math.floor((y * r.dh) / nh));
-            for (let x = 0; x < nw; x++) {
-              const i = sy * r.dw + Math.min(r.dw - 1, Math.floor((x * r.dw) / nw));
-              next[y * nw + x] = r.dent[i] ?? 0;
-              nextGlaze[y * nw + x] = r.glaze[i] ?? 0;
-            }
-          }
-        }
-        r.dent = next;
-        r.glaze = nextGlaze;
-
-        r.dw = nw;
-        r.dh = nh;
-        bytes = new Uint8Array(nw * nh);
-      }
+      bytes = new Uint8Array(canvas.width * canvas.height);
     },
     render() {
       const t = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : Math.min(1, (performance.now() - paletteStart) / COLOR_FADE_MS);
@@ -320,11 +304,12 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
       gl.uniform1f(uFace, r.face);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, tex);
+      const height = rasterHeight(r.dent,r.dw,r.dh,canvas.width,canvas.height);
       if (gl2) {
-        gl2.texImage2D(gl2.TEXTURE_2D, 0, gl2.R16F, r.dw, r.dh, 0, gl2.RED, gl2.FLOAT, r.dent);
+        gl2.texImage2D(gl2.TEXTURE_2D, 0, gl2.R16F, canvas.width, canvas.height, 0, gl2.RED, gl2.FLOAT, height);
       } else {
-        for (let i = 0; i < r.dent.length; i++) bytes[i] = Math.round((r.dent[i] ?? 0) * 255);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, r.dw, r.dh, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, bytes);
+        for (let i = 0; i < height.length; i++) bytes[i] = Math.round((height[i] ?? 0) * 255);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, canvas.width, canvas.height, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, bytes);
       }
       gl.activeTexture(gl.TEXTURE1);
       gl.bindTexture(gl.TEXTURE_2D, glazeTex);
@@ -369,14 +354,15 @@ export function isOnRing(x: number, y: number, w: number, h: number, ins: { l: n
 
 /** Press a soft gaussian dent into the height map. Dents only deepen, never spring back. */
 export function stampDent(r: FrameRenderer, cssX: number, cssY: number, radiusCss: number, depth: number, rate: number) {
-  const cx = cssX / 2, cy = cssY / 2, rad = radiusCss / 2;
+  const sx=r.dw/r.width, sy=r.dh/r.height;
+  const cx = cssX * sx, cy = cssY * sy, rad = radiusCss * Math.max(sx,sy);
   const ext = Math.ceil(rad * 2.2);
   const x0 = Math.max(0, Math.floor(cx - ext)), x1 = Math.min(r.dw - 1, Math.ceil(cx + ext));
   const y0 = Math.max(0, Math.floor(cy - ext)), y1 = Math.min(r.dh - 1, Math.ceil(cy + ext));
   const inv = 1 / (2 * rad * rad);
   for (let y = y0; y <= y1; y++) {
     for (let x = x0; x <= x1; x++) {
-      const dx = x - cx, dy = y - cy;
+      const dx = (x - cx)/sx*Math.max(sx,sy), dy = (y - cy)/sy*Math.max(sx,sy);
       const target = depth * Math.exp(-(dx * dx + dy * dy) * inv);
       const i = y * r.dw + x;
       const cur = r.dent[i] ?? 0;
@@ -387,8 +373,8 @@ export function stampDent(r: FrameRenderer, cssX: number, cssY: number, radiusCs
 
 /** Lightly blur a region of the height map so overlapping dents and grooves blend smoothly. */
 export function smoothDents(r: FrameRenderer, cssX0: number, cssY0: number, cssX1: number, cssY1: number) {
-  const x0 = Math.max(1, Math.floor(Math.min(cssX0, cssX1) / 2) - 2), x1 = Math.min(r.dw - 2, Math.ceil(Math.max(cssX0, cssX1) / 2) + 2);
-  const y0 = Math.max(1, Math.floor(Math.min(cssY0, cssY1) / 2) - 2), y1 = Math.min(r.dh - 2, Math.ceil(Math.max(cssY0, cssY1) / 2) + 2);
+  const x0 = Math.max(1, Math.floor(Math.min(cssX0, cssX1)*r.dw/r.width) - 2), x1 = Math.min(r.dw - 2, Math.ceil(Math.max(cssX0, cssX1)*r.dw/r.width) + 2);
+  const y0 = Math.max(1, Math.floor(Math.min(cssY0, cssY1)*r.dh/r.height) - 2), y1 = Math.min(r.dh - 2, Math.ceil(Math.max(cssY0, cssY1)*r.dh/r.height) + 2);
   if (x1 <= x0 || y1 <= y0) return;
   const w = r.dw, src = r.dent;
   const tmp = new Float32Array((x1 - x0 + 1) * (y1 - y0 + 1));

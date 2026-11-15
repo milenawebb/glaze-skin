@@ -17,8 +17,8 @@ describe("wax shell", () => {
       for(const arc of shape.arcs){expect(rays.flat().some(p=>p===arc[0])).toBe(false);expect(rays.flat().some(p=>p===arc.at(-1))).toBe(false);}
     }
   });
-  it("chips only one to three pieces and retains the rest for later presses",()=>{
-    for(const value of [0,.5,.999]){const shape=createShellBreak(80,80,60,()=>.5);const chips=takeShellChips(shape,80,80,()=>value);expect(chips).toHaveLength(1+Math.floor(value*3));expect(shape.removed.size).toBe(chips.length);expect(shape.plates.length).toBeGreaterThan(chips.length);expect(takeShellChips(shape,80,80,()=>0)).not.toContain(chips[0]);}
+  it("initial chipping removes at least two pieces spanning at least 20px",()=>{
+    for(const value of [0,.5,.999]){const shape=createShellBreak(80,80,60,()=>value);const chips=takeShellChips(shape,80,80,()=>0);expect(chips.length).toBeGreaterThanOrEqual(2);expect(chips.length).toBeLessThanOrEqual(3);const points=chips.flat();expect(Math.max(Math.max(...points.map(p=>p.x))-Math.min(...points.map(p=>p.x)),Math.max(...points.map(p=>p.y))-Math.min(...points.map(p=>p.y)))).toBeGreaterThanOrEqual(20);expect(takeShellChips(shape,80,80,()=>0)).not.toContain(chips[0]);}
   });
   it("drag trails join endpoints with side branches at 15–25px intervals",()=>{
     const trail=createCrackTrail({x:0,y:0},{x:100,y:0},()=>.5);

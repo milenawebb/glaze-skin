@@ -45,10 +45,27 @@ export function insideShellPolygon(x: number, y: number, poly: ShellPoint[]) {
 }
 /** Only one to three still-attached chips nearest the actual press are removed. */
 export function takeShellChips(shape: ShellBreak,x:number,y:number,random=Math.random) {
-  const count=1+Math.min(2,Math.floor(random()*3));
-  const candidates=shape.plates.map((poly,index)=>({poly,index,distance:Math.min(...poly.map(p=>Math.hypot(p.x-x,p.y-y)))})).filter(p=>!shape.removed.has(p.index));
+  const first=shape.removed.size===0;
+  const count=(first?2:1)+Math.min(first?1:2,Math.floor(random()*(first?2:3)));
+  const distance=(poly:ShellPoint[])=>Math.min(...poly.map((a,i)=>{const b=poly[(i+1)%poly.length]??a;const dx=b.x-a.x,dy=b.y-a.y,t=Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy)/(dx*dx+dy*dy||1)));return Math.hypot(a.x+t*dx-x,a.y+t*dy-y);}));
+  const candidates=shape.plates.map((poly,index)=>({poly,index,distance:distance(poly)})).filter(p=>!shape.removed.has(p.index));
   candidates.sort((a,b)=>Number(insideShellPolygon(x,y,b.poly))-Number(insideShellPolygon(x,y,a.poly))||a.distance-b.distance);
-  const touching=candidates.filter(p=>insideShellPolygon(x,y,p.poly)||p.distance<5).slice(0,count);
+  const nearby=candidates.filter(p=>insideShellPolygon(x,y,p.poly)||p.distance<5);
+  const extent=(items:typeof candidates)=>{const points=items.flatMap(p=>p.poly);return Math.max(Math.max(...points.map(p=>p.x))-Math.min(...points.map(p=>p.x)),Math.max(...points.map(p=>p.y))-Math.min(...points.map(p=>p.y)));};
+  if(first&&nearby.length>1){const anchor=nearby[0];if(anchor)nearby.sort((a,b)=>extent([anchor,b])-extent([anchor,a]));}
+  const touching=nearby.slice(0,count);
+  if(first){
+    const span=()=>{const points=touching.flatMap(p=>p.poly);return Math.max(...points.map(p=>p.x))-Math.min(...points.map(p=>p.x))>=20||Math.max(...points.map(p=>p.y))-Math.min(...points.map(p=>p.y))>=20;};
+    for(const next of candidates){
+      if(touching.length>=2&&span())break;
+      if(!touching.includes(next)&&touching.length<3)touching.push(next);
+    }
+    if(!span()){
+      const anchor=touching.slice(0,-1);
+      const larger=candidates.filter(p=>!anchor.includes(p)).sort((a,b)=>extent([...anchor,b])-extent([...anchor,a]))[0];
+      if(larger)touching.splice(touching.length-1,1,larger);
+    }
+  }
   touching.forEach(p=>shape.removed.add(p.index));return touching.map(p=>p.poly);
 }
 export function createCrackTrail(a:ShellPoint,b:ShellPoint,random=Math.random) {
