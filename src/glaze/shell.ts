@@ -124,7 +124,7 @@ export function peelShell(layer: HTMLElement,image:HTMLCanvasElement,shape:Shell
     }
   }
   // The first few pieces appear in this frame; the rest follow over the next frames.
-  runDebris(4);scheduleDebris();
+  runDebris(1);scheduleDebris();
 }
 function simpleShape(i:number){const sides=4+(i%2),a=Math.random()*Math.PI*2;return Array.from({length:sides},(_,k)=>{const t=a+k*Math.PI*2/sides,r=.7+Math.random()*.3;return {x:Math.cos(t)*r,y:Math.sin(t)*r};});}
 const canvasPool:HTMLCanvasElement[]=[];
@@ -147,13 +147,13 @@ function cleanPhonePieces(){
   if(phonePieces.size)cleanupFrame=requestAnimationFrame(cleanPhonePieces);
 }
 function recyclePiece(piece:HTMLCanvasElement){phonePieces.delete(piece);piece.remove();if(!canvasPool.includes(piece)&&canvasPool.length<MAX_FLYING_PIECES)canvasPool.push(piece);}
-function runDebris(max:number){const start=performance.now();let count=0;while(debrisJobs.length&&count<max&&performance.now()-start<5){debrisJobs.shift()?.();count++;}}
+function runDebris(max:number){const start=performance.now();let count=0;while(debrisJobs.length&&count<max&&performance.now()-start<4){debrisJobs.shift()?.();count++;}}
 const piecePool=Array.from({length:12},()=>[] as {shape:ShellPoint[];motion:ReturnType<typeof pieceMotion>}[]);
 let preparation=0;
 export function prepareShellDebris(){if(preparation)return;preparation=requestAnimationFrame(()=>{preparation=0;const start=performance.now();for(let i=0;i<12;i++){const pool=piecePool[i];if(pool&&pool.length<8)pool.push({shape:debrisPolygon({x:0,y:0},1,i),motion:pieceMotion(i>=4)});if(performance.now()-start>1)break;}if(piecePool.some(p=>p.length<8))prepareShellDebris();});}
 let debrisGeneration=0,debrisFrame=0;
 const debrisJobs:(()=>void)[]=[];
-function scheduleDebris(){if(debrisFrame)return;debrisFrame=requestAnimationFrame(()=>{debrisFrame=0;runDebris(14);if(debrisJobs.length)scheduleDebris();});}
+function scheduleDebris(){if(debrisFrame)return;debrisFrame=requestAnimationFrame(()=>{debrisFrame=0;runDebris(3);if(debrisJobs.length)scheduleDebris();});}
 export function cancelShellDebris(){debrisGeneration++;debrisJobs.length=0;cancelAnimationFrame(debrisFrame);debrisFrame=0;cancelAnimationFrame(cleanupFrame);cleanupFrame=0;for(const [piece,p] of phonePieces){p.anim.cancel();recyclePiece(piece);}}
 /** Red holes and green fissures, rasterized only when damage changes. */
 export function paintCoating(canvas:HTMLCanvasElement,width:number,shape:ShellBreak,hole:boolean,progress=1) {

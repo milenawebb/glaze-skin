@@ -1,10 +1,34 @@
 import { createFileRoute, ClientOnly } from "@tanstack/react-router";
-import { lazy, Suspense, useState, useRef } from "react";
+import React, { lazy, Suspense, useState, useRef } from "react";
 import { DemoSections } from "@/components/DemoSections";
 import { Button } from "@/components/ui/button";
 import { PREVIEW_MODES, PREVIEW_WIDTHS, PREVIEW_TRANSITION_MS, nextPreview, type PreviewMode } from "@/lib/demo-preview";
 
-const GlazePlayer = lazy(() => import("@/glaze").then((m) => ({ default: m.GlazePlayer })));
+const RELOAD_FLAG = "glaze-reloaded";
+
+function GlazeLoadError() {
+  return (
+    <div className="sq-load-error" role="alert">
+      <p>The glaze needs a refresh</p>
+      <Button onClick={() => { sessionStorage.removeItem(RELOAD_FLAG); window.location.reload(); }}>Refresh</Button>
+    </div>
+  );
+}
+
+// Stale copies after a publish can fail to load: retry once, reload once, then show a friendly message.
+const GlazePlayer = lazy(async () => {
+  const load = () => import("@/glaze").then((m) => ({ default: m.GlazePlayer as React.ComponentType<React.ComponentProps<typeof m.GlazePlayer>> }));
+  try {
+    const mod = await load().catch(() => new Promise<Awaited<ReturnType<typeof load>>>((resolve, reject) => setTimeout(() => load().then(resolve, reject), 500)));
+    try { sessionStorage.removeItem(RELOAD_FLAG); } catch { /* storage blocked */ }
+    return mod;
+  } catch {
+    let reloaded = true;
+    try { reloaded = sessionStorage.getItem(RELOAD_FLAG) === "1"; if (!reloaded) sessionStorage.setItem(RELOAD_FLAG, "1"); } catch { /* storage blocked */ }
+    if (!reloaded) { window.location.reload(); return new Promise<never>(() => {}); }
+    return { default: GlazeLoadError as never };
+  }
+});
 
 const PLAYBACK_ID = "AAprZsIykh7T29gtsNk02YhBrQRHXTj14ZxbWdc498wA";
 

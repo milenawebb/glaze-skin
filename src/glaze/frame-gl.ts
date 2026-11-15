@@ -384,15 +384,15 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-      if(capture||t<1){clearTimeout(materialJob);materialJob=window.setTimeout(()=>{material.width=canvas.width;material.height=canvas.height;material.getContext("2d")?.drawImage(canvas,0,0);},150);}
+      if(capture||t<1){clearTimeout(materialJob);materialJob=window.setTimeout(()=>{const copy=()=>{if(material.width!==canvas.width||material.height!==canvas.height){material.width=canvas.width;material.height=canvas.height;}const m=material.getContext("2d");m?.clearRect(0,0,material.width,material.height);m?.drawImage(canvas,0,0);};const idle=(window as Window&{requestIdleCallback?:(cb:()=>void,o?:{timeout:number})=>number}).requestIdleCallback;if(idle)idle(copy,{timeout:500});else copy();},150);}
 
     },
     snapshot(x, y, radius) {
       const image = snapshots[snapshotIndex++%snapshots.length] ?? document.createElement("canvas");
       // Local fragments are tiny textured quads; avoid full-frame canvas clones.
-      image.width = Math.ceil(radius * 4); image.height = image.width;
+      const side = Math.ceil(radius * 4); if (image.width !== side) { image.width = side; image.height = side; }
       const context = image.getContext("2d");context?.clearRect(0,0,image.width,image.height);
-      const scale = canvas.width / canvas.getBoundingClientRect().width;
+      const scale = canvas.width / (r.width || 1);
       context?.drawImage(material, (x - radius) * scale, (y - radius) * scale, radius * 2 * scale, radius * 2 * scale, 0, 0, image.width, image.height);
       return image;
     },

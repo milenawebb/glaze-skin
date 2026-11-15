@@ -209,13 +209,15 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
           return false;
         });
         if(!plates.length)return "cracked";
+        // One snapshot per break-off; pieces are cut from it over the next frames.
+        let snap:HTMLCanvasElement|null=null;
         for(const poly of plates){
           const shape={...pixelShape,boundary:poly,plates:[poly]};
           // Reduced motion: the piece fades away in place over ~200ms (the fade spans the first 35% of a break).
           if(reduced)breaks.push({x:existing.x,y:existing.y,radius:existing.radius,start:performance.now(),duration:REDUCED_FADE_MS/.35,shape:mapShell(shape,1/size.w,1/size.h)});
           else {
           const layer=canvas.parentElement?.querySelector<HTMLElement>(".sq-flakes");
-          if(layer)peelShell(layer,r.snapshot(existing.x*size.w,existing.y*size.h,existing.radius*size.w),shape,existing.x*size.w,existing.y*size.h,existing.radius*size.w);
+          if(layer){snap??=r.snapshot(existing.x*size.w,existing.y*size.h,existing.radius*size.w);peelShell(layer,snap,shape,existing.x*size.w,existing.y*size.h,existing.radius*size.w);}
           breaks.push({x:existing.x,y:existing.y,radius:existing.radius,start:performance.now(),duration:SHELL_BREAK_MS,shape:mapShell(shape,1/size.w,1/size.h)});
           }
         }
