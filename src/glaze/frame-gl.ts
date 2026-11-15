@@ -32,7 +32,7 @@ float prof(vec2 p, out float amp){
   float a=max(-sdO(p),0.); float b=max(sdI(p),0.); float w=a+b+1e-3; float t=a/w;
   amp=min(w,64.)/64.; float x=clamp(4.*t*(1.-t),0.,1.); return pow(x,.55);
 }
-float dent0(vec2 p){ return texture2D(uDent, p/uRes).r; }
+float dent0(vec2 p){ return texture2D(uDent, p/uRes).r*4.-.5; }
 float dent(vec2 p){
   float s=dent0(p)*.25;
   s+=(dent0(p+vec2(3.,0.))+dent0(p-vec2(3.,0.))+dent0(p+vec2(0.,3.))+dent0(p-vec2(0.,3.)))*.125;
@@ -115,7 +115,7 @@ void main(){
   vec3 N=normalize(vec3(-hx/(2.*e),-hy/(2.*e),1.));
   vec3 L=normalize(vec3(-.55,-.65,.75));
   vec3 V=vec3(0.,0.,1.);
-  float d=dent(p);
+  float signedDent=dent(p);float d=max(0.,signedDent);float bulge=max(0.,-signedDent);
   float amp; float pr=prof(p,amp);
   float hole=broken(p); float coat=1.-hole;
   float neighboring=(broken(p+vec2(4.,0.))+broken(p-vec2(4.,0.))+broken(p+vec2(0.,4.))+broken(p-vec2(0.,4.)))*.25;
@@ -136,7 +136,8 @@ void main(){
   sh+=(1.-smoothstep(0.,10.,si))*.2+under*.2;
   float nh=max(dot(N,normalize(L+V)),0.);
   // Broad satin reflection under a restrained clear-coat sheen, never foam shine.
-  float spec=coat*(pow(nh,8.)*.17+pow(nh,95.)*.2)+hole*pow(nh,3.)*.045;
+  float wall=max(0.,dent(p+vec2(-.55,-.65)*5.)-signedDent);
+  float spec=coat*(pow(nh,8.)*.17+pow(nh,95.)*.2)+hole*(pow(nh,3.)*.045+wall*.08+bulge*.12);
   float rim=clamp(dot(N.xy,vec2(.55,.65)),0.,1.);
   sh=clamp(sh+rim*.18,0.,.6);
   float thin=1.-pr*amp;
@@ -150,7 +151,7 @@ void main(){
     float streak=pow(nh,150.);
     float clearcoat=coat*(pow(nh,14.)*.22+streak*.62);
     float lip=coat*smoothstep(.03,.3,(broken(p+vec2(1.5,0.))+broken(p-vec2(1.5,0.))+broken(p+vec2(0.,1.5))+broken(p-vec2(0.,1.5)))*.25);
-    vec3 monoColor=base*(monoDiffuse*(1.-sh*.8)+.12)+vec3(1.)*(clearcoat+lip*.24);
+    vec3 monoColor=base*(monoDiffuse*(1.-sh*.8)+.12)+vec3(1.)*(clearcoat+lip*.24+hole*(wall*.05+bulge*.08));
     c=mix(c,monoColor,uMono);
   }
   if(uSprinkles>0.) c=mix(c,sprinkles(p,c,coat),uSprinkles);
@@ -307,6 +308,7 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, tex);
       const height = rasterHeight(r.dent,r.dw,r.dh,canvas.width,canvas.height);
+      for(let i=0;i<height.length;i++)height[i]=((height[i]??0)+.5)/4;
       if (gl2) {
         gl2.texImage2D(gl2.TEXTURE_2D, 0, gl2.R16F, canvas.width, canvas.height, 0, gl2.RED, gl2.FLOAT, height);
       } else {

@@ -45,7 +45,7 @@ use the editor.
 - Native tracks stay hidden; captions.ts selects the exposed HLS engine subtitle loader directly because the library bridge only loads showing tracks, and owns cuechange/timeupdate/source-safe listeners for the single overlay and local CC state.
 - Reserve the time display width from the duration and keep seek glaze absolutely overlaid, so time changes and cracking cannot shift the progress track.
 - Retain damage as normalized vectors and a unit-frame height field; CSS stretches during resize, then resize.ts schedules one idle rebuild after 100ms quiet, reusing WebGL resources. Only video is masked; buttons remain above damage.
-- Dent stamps and recovery contributions retain Gaussian tails without disc cutoffs; softly weighted CSS-space blur and incremental partial recovery prevent rings and preserve unrelated dents; Reset cancels recovery.
+- Foam fingertip lobes and signed bulges live in fingertip.ts; signed height encoding, Gaussian tails, CSS-space blur and contribution recovery preserve ring-free dents. Reset cancels recovery.
 - Clip all fracture paths against current glaze and retained holes before storage/replay; hole painting replaces fissure pixels, and pointer material transitions select foam squish versus glaze crunch so exposed areas only dent.
 - Classify frame gestures before fracture: release within the threshold uses two-step cracking, while drags retain overlapping jagged strip polygons without adding fissures; strip.ts owns threshold and widths for concrete tests.
 - Phone controls reuse one bottom glass row and an absolutely positioned top pill without duplicate media or buttons; captions stay above the bottom row while visible and near the bottom when hidden.

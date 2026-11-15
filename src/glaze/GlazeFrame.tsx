@@ -12,11 +12,12 @@ import { createGlazeStrip, isGlazeDrag, stripWidth } from "./strip";
 
 import { recoverySettings, recoveryFactor, immediateDepth } from "./recovery";
 import { settledResize } from "./resize";
+import { fingerPad, fingerDepth, stampFingertip, type FingerPad } from "./fingertip";
 import type { GlazeColor } from "./preferences";
 import { DEFAULT_GLAZE_STYLE, monoStyleAmount, type GlazeStyle } from "./glaze-style";
 const RESET_MS = 1500;
 
-interface Press { before:Float32Array; x: number; y: number; origin: {x:number;y:number}; dragging:boolean; pointerType:string; exposed:ShellBreak[]; initialFoam:boolean; start: number; radius: number; pressure: number | null; sound: ((depth: number) => void) | undefined; foam: boolean; spots: {x:number;y:number}[]; flakeDistance:number }
+interface Press { pad:FingerPad; before:Float32Array; x: number; y: number; origin: {x:number;y:number}; dragging:boolean; pointerType:string; exposed:ShellBreak[]; initialFoam:boolean; start: number; radius: number; pressure: number | null; sound: ((depth: number) => void) | undefined; foam: boolean; spots: {x:number;y:number}[]; flakeDistance:number }
 
 /** WebGL squishy frame. Dents stay until `resetKey` changes. */
 export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_GLAZE_STYLE, onFallback }: { resetKey: number; color?: GlazeColor; glazeStyle?: GlazeStyle; onFallback: () => void }) {
@@ -95,7 +96,8 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
         // A click keeps its press-down material choice; only actual drags switch voices.
         p.sound?.(dentDepth(held, p.pressure));
         const radius = p.radius + (p.pressure === null ? Math.min(held, 2) * 3 : 0);
-        stampDent(r, p.x, p.y, radius, Math.max(immediateDepth(1), dentDepth(held, p.pressure)), 0.18);
+        if(p.foam)stampFingertip(r,p.x,p.y,p.pad,fingerDepth(held,p.pressure),.18,p.dragging?1.6:1);
+        else stampDent(r, p.x, p.y, radius, Math.max(immediateDepth(1), dentDepth(held, p.pressure)), 0.18);
         const extent = radius * 2.2;
         smoothDents(r, p.x - extent, p.y - extent, p.x + extent, p.y + extent);
       }
@@ -208,9 +210,10 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       const foam=!intact(x,y);
       const radius=dentRadius(e.pointerType);
       const before=r.dent.slice();
-      stampDent(r,x,y,radius,immediateDepth(1),1);
+      const pad=fingerPad(e.pointerType);
+      if(foam)stampFingertip(r,x,y,pad,fingerDepth(0,pressure),1);else stampDent(r,x,y,radius,immediateDepth(1),1);
       smoothDents(r,x-radius*2.2,y-radius*2.2,x+radius*2.2,y+radius*2.2);
-      presses.set(e.pointerId, { before,x, y, origin:{x,y},dragging:false,pointerType:e.pointerType,exposed:damage.filter(d=>d.hole).map(d=>d.shape),initialFoam:foam,start: performance.now(), radius, pressure, sound: foam?playSquelch(immediateDepth(1)):undefined, foam, spots:[{x,y}],flakeDistance:20 });
+      presses.set(e.pointerId, { pad,before,x, y, origin:{x,y},dragging:false,pointerType:e.pointerType,exposed:damage.filter(d=>d.hole).map(d=>d.shape),initialFoam:foam,start: performance.now(), radius, pressure, sound: foam?playSquelch(immediateDepth(1)):undefined, foam, spots:[{x,y}],flakeDistance:20 });
       resetRef.current = null;
 
       vibratePress();
@@ -256,9 +259,12 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
         }
       }
       const steps = Math.max(1, Math.ceil(dist / 3));
+      if(p.dragging&&dist>0)p.pad.angle=Math.atan2(y-p.y,x-p.x)-Math.PI/2;
       for (let s = 1; s <= steps; s++) {
         const t = s / steps;
-        stampDent(r, p.x + (x - p.x) * t, p.y + (y - p.y) * t, p.radius - 1, depth * 0.85, 1);
+        const px=p.x+(x-p.x)*t,py=p.y+(y-p.y)*t;
+        if(!intact(px,py))stampFingertip(r,px,py,p.pad,fingerDepth(held,p.pressure),1,p.dragging?1.6:1);
+        else stampDent(r,px,py,p.radius-1,depth*.85,1);
       }
       const extent = p.radius * 2.2;
       smoothDents(r, Math.min(p.x, x) - extent, Math.min(p.y, y) - extent, Math.max(p.x, x) + extent, Math.max(p.y, y) + extent);
