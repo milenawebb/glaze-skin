@@ -12,7 +12,7 @@ import { prepareShellDebris, cancelShellDebris, createShellBreak, peelShell, SHE
 import { angularCell, maxPiece, chipPlates, chipRadius, snapRadius, snapToGlaze, ISLAND_SIZE } from "./chip";
 import { createGlazeStrip, dragThreshold, isGlazeDrag, stripWidth } from "./strip";
 
-import { recoverySettings, recoveryFactor, immediateDepth } from "./recovery";
+import { recoverySettings, recoveryFactor, immediateDepth, recoveryDelay } from "./recovery";
 import { settledResize } from "./resize";
 import { fingerPad, fingerDepth, stampFingertip, type FingerPad } from "./fingertip";
 import type { GlazeColor } from "./preferences";
@@ -84,6 +84,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     };
     let size = { w: 1, h: 1 };
     let raf = 0;
+    let riseTimer = 0;
     let resizing = false;
     let released = -1000;
     const breaks: { x: number; y: number; radius: number; start: number; duration: number; shape: ShellBreak }[] = [];
@@ -196,16 +197,19 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       r.render();
       const spent=performance.now()-frameStart;
       if(import.meta.env?.DEV&&spent>30)console.warn(`[glaze] slow frame: ${spent.toFixed(1)}ms`);
-      if (pose.active || pending.length || presses.size || breaks.length || rise || cracked.some(c=>!c.removed&&!c.drawn) || resetRef.current || r.face > 0 || r.paletteAnimating()) raf = requestAnimationFrame(loop);
+      if (pose.active || pending.length || presses.size || breaks.length || cracked.some(c=>!c.removed&&!c.drawn) || resetRef.current || r.face > 0 || r.paletteAnimating()) raf = requestAnimationFrame(loop);
+      else if (rise) riseTimer = window.setTimeout(() => { riseTimer = 0; schedule(); }, recoveryDelay(performance.now(), rise.start, rise.duration));
     };
     const schedule = () => {
+      clearTimeout(riseTimer); riseTimer = 0;
       if (!raf) raf = requestAnimationFrame(loop);
     };
     kick.current = schedule;
     const hintTimer = window.setInterval(() => {
       const pose = hint.tick(performance.now(), hintBlocked(), reduced);
       if (pose.count >= 3 && !pose.active && !pose.label) { clearInterval(hintTimer); return; }
-      schedule();
+      // A dismissed hint must not wake recovery or redraw an idle frame.
+      if (pose.active || pose.label || label?.hasAttribute("data-visible") || r.hint.depth || r.hint.glance) schedule();
     }, 100);
     root?.addEventListener("pointerdown", controlUse, true);
     root?.addEventListener("pointermove", controlUse, true);
@@ -443,6 +447,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       ro.disconnect();
       resizeJob.cancel();
       cancelAnimationFrame(raf);
+      clearTimeout(riseTimer);
       motion.removeEventListener("change", onMotion);
       canvas.removeEventListener("keydown", key);
       canvas.removeEventListener("contextmenu", noMenu);frameEl?.removeEventListener("contextmenu", noMenu);
