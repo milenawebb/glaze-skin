@@ -1,4 +1,3 @@
-import {timed} from "./profile";
 import { canvasDpr, coarsePointer, coatingScale, mapSize } from "./touch";
 /**
  * Raw WebGL renderer for the squishy frame. A CPU height map (Float32Array,
@@ -426,13 +425,13 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
         for(let y=0;y<h;y++)for(let x=0;x<w;x++){const value=((data[(y+b.y0)*r.dw+x+b.x0]??0)+.5)/4;values[y*w+x]=gl2?value:Math.round(value*255);}
         gl.texSubImage2D(gl.TEXTURE_2D,0,b.x0,b.y0,w,h,gl2?gl2.RED:gl.LUMINANCE,gl2?gl.FLOAT:gl.UNSIGNED_BYTE,values);
       };
-      timed("height upload",()=>upload(r.dent,heightDirty));heightDirty=null;
+      upload(r.dent,heightDirty);heightDirty=null;
       gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,riseTex);
-      timed("rise upload",()=>upload(r.rise,riseDirty));riseDirty=null;
+      upload(r.rise,riseDirty);riseDirty=null;
       gl.activeTexture(gl.TEXTURE1);
       gl.bindTexture(gl.TEXTURE_2D,glazeTex);
       if(fullUpload){gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,coating.width,coating.height,0,gl.RGBA,gl.UNSIGNED_BYTE,null);coatDirty=region(coating.width,coating.height,0,0,coating.width-1,coating.height-1);}
-      timed("coating upload",()=>{if(coatDirty){
+      if(coatDirty){
         const b=coatDirty,w=b.x1-b.x0+1,h=b.y1-b.y0+1;
         if(gl2){
           // WebGL2 uploads the dirty sub-rectangle straight from the canvas.
@@ -446,21 +445,10 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
         }
         coatDirty=null;
       }
-      });
       fullUpload=false;
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
-      timed("draw",()=>{
-        // Rasterize only the ring, not the transparent video-sized center.
-        const sx=canvas.width/r.width,sy=canvas.height/r.height,pad=FRAME.innerRadius+2;
-        const top=Math.ceil((lastInsets.t+pad)*sy),bottom=Math.ceil((lastInsets.b+pad)*sy);
-        const left=Math.ceil((lastInsets.l+pad)*sx),right=Math.ceil((lastInsets.r+pad)*sx);
-        gl.enable(gl.SCISSOR_TEST);
-        for(const [x,y,w,h] of [[0,0,canvas.width,bottom],[0,canvas.height-top,canvas.width,top],[0,bottom,left,canvas.height-top-bottom],[canvas.width-right,bottom,right,canvas.height-top-bottom]]){
-          if(w>0&&h>0){gl.scissor(x,y,w,h);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);}
-        }
-        gl.disable(gl.SCISSOR_TEST);
-      });
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     },
     snapshot(x, y, radius) {
