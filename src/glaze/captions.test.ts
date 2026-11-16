@@ -26,7 +26,7 @@ it("updates on cuechange and timeupdate, then removes listeners on detach", () =
 });
 it("disables a late generated stream track and only ever shows our own captions", () => {
   const video = document.createElement("video");
-  const tracks = Object.assign(new EventTarget(), { 0: undefined as EventTarget | undefined, length: 0 });
+  const tracks = Object.assign(new EventTarget(), { 0: undefined as EventTarget | undefined, 1: undefined as EventTarget | undefined, length: 0 });
   Object.defineProperty(video, "textTracks", { value: tracks });
   let text = "";
   const detach = observeCaptionCues(video, () => undefined, true, (value) => { text = value; });
