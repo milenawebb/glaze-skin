@@ -234,7 +234,7 @@
   @media (width < 560px) { .demo-code pre { padding: 56px 16px 16px; } .demo-content h2 { font-size: 26px; } }
   .demo-footer { text-align: center; font-size: 15px; padding-bottom: 8px; }
   .demo-footer a { text-decoration: underline; text-underline-offset: 3px; }
-  .demo-preview { position: relative; width: 100%; margin-inline: auto; transition-property: max-width; transition-timing-function: ease; }
+  .demo-preview { position: relative; width: 100%; margin-inline: auto; }
   .demo-preview[data-preview="Mobile"]::before { content: ""; position: absolute; inset: -8px; border: 1px solid var(--demo-outline); border-radius: 54px; pointer-events: none; }
   .demo-preview-tabs { display: flex; width: fit-content; max-width: 100%; margin: 0 auto 28px; padding: 4px; border: 1px solid var(--demo-outline); border-radius: 999px; gap: 2px; }
   @media (width < 768px) { .demo-preview-tabs { display: none; } }

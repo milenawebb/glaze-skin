@@ -239,7 +239,10 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       resizing=false;schedule();
     };
     const resizeJob=settledResize(rebuild);
+    const resizeNow=()=>{resizeJob.cancel();rebuild();};
+    root?.addEventListener("glaze:frame-resize-now",resizeNow);
     const ro = new ResizeObserver(() => {
+      if(size.w===canvas.clientWidth&&size.h===canvas.clientHeight)return;
       if(size.w===1){rebuild();return;}
       resizing=true;
       cancelAnimationFrame(raf);raf=0;
@@ -448,6 +451,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       root?.removeEventListener("webkitendfullscreen", fullscreenEnd, true);
       document.removeEventListener("fullscreenchange", schedule);
       ro.disconnect();
+      root?.removeEventListener("glaze:frame-resize-now",resizeNow);
       resizeJob.cancel();
       cancelAnimationFrame(raf);
       clearTimeout(riseTimer);

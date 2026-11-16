@@ -1,6 +1,7 @@
 import { Container, Hotkey, TimeSlider, createPlayer } from "@videojs/react";
 import { videoFeatures } from "@videojs/react/video";
 import { MuxVideo } from "@videojs/react/media/mux-video";
+import { flushSync } from "react-dom";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent as RKeyboardEvent, type ReactNode } from "react";
 import { GlazeFrame } from "./GlazeFrame";
 import { crackCrust } from "./crust";
@@ -121,7 +122,13 @@ export function GlazeSkin({ children, resetKey, label, sounds: startSounds = fal
       if (!nextCompact) setColorOpen(false);
     });
     resize.observe(root);
-    return () => resize.disconnect();
+    // Opt-in presentation handshake; ordinary resizing and embeds keep their existing path.
+    const resizeNow = () => {
+      flushSync(() => setCompact(root.clientWidth < 480));
+      root.dispatchEvent(new Event("glaze:frame-resize-now"));
+    };
+    root.addEventListener("glaze:resize-now", resizeNow);
+    return () => { resize.disconnect(); root.removeEventListener("glaze:resize-now", resizeNow); };
   }, []);
 
   useEffect(() => {
