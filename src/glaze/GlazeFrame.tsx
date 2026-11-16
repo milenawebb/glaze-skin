@@ -1,3 +1,4 @@
+import { createFrameHint } from "./hint";
 import { clipCrackPaths, mapShell } from "./damage";
 import { useEffect, useRef, useState } from "react";
 import { createFrameRenderer, isOnRing, smoothDents, stampDent, type FrameRenderer } from "./frame-gl";
@@ -27,6 +28,7 @@ interface Press { target:{x:number;y:number}|null; crackedOnDown:boolean; pad:Fi
 export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_GLAZE_STYLE, onFallback, onReset }: { resetKey: number; color?: GlazeColor; glazeStyle?: GlazeStyle; onFallback: () => void; onReset?: () => void }) {
   const onResetRef = useRef(onReset); onResetRef.current = onReset;
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const hintLabelRef = useRef<HTMLSpanElement>(null);
   const rendererRef = useRef<FrameRenderer | null>(null);
   const kick = useRef<() => void>(() => {});
   const clearTransient = useRef<() => void>(() => {});
@@ -47,6 +49,20 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     prepareShellDebris();
     setReady(true);
     const presses = new Map<number, Press>();
+    let storage: Storage | undefined;
+    try { storage = window.sessionStorage; } catch { /* Optional storage. */ }
+    const hint = createFrameHint(performance.now(), storage);
+    const root = canvas.parentElement;
+    const label = hintLabelRef.current;
+    if (label) label.textContent = coarsePointer() ? "Tap me" : "Press me";
+    let controlUntil = 0, nativeFullscreen = false;
+    const controlSelector = ".sq-controls, .sq-frame-tools, .sq-frame-colors, .sq-frame-actions, .sq-replay";
+    const controlUse = (e: Event) => { if (e.target instanceof Element && e.target.closest(controlSelector)) { controlUntil = performance.now() + 2000; schedule(); } };
+    const fullscreenStart = () => { nativeFullscreen = true; schedule(); };
+    const fullscreenEnd = () => { nativeFullscreen = false; schedule(); };
+    const hintBlocked = () => nativeFullscreen || Boolean(document.fullscreenElement) || document.visibilityState === "hidden" || performance.now() < controlUntil || Boolean(root?.querySelector(`${controlSelector.split(", ").map(s => `${s}:hover`).join(", ")}`)) || Boolean(document.activeElement instanceof Element && root?.contains(document.activeElement) && document.activeElement.closest(controlSelector));
+    const stopHint = () => { hint.stop(); if(label)label.removeAttribute("data-visible"); r.hint = { x: 0, y: 0, depth: 0, crack: 0, glance: 0, blink: 0, smile: 0 }; schedule(); };
+
     let size = { w: 1, h: 1 };
     let raf = 0;
     let resizing = false;
@@ -112,6 +128,11 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       refreshProtected();
       const deadline=performance.now()+6;
       while(pending.length&&performance.now()<deadline){const event=pending.shift();if(event)processEvent(event);if(event?.type==="pointermove")break;}
+      const pose = hint.tick(now, hintBlocked(), reduced);
+      const bottom = parseFloat(getComputedStyle(canvas.parentElement ?? canvas).paddingBottom) || 96;
+      const hx = size.w * pose.x, hy = size.h - bottom * .5;
+      r.hint = { x: hx, y: hy, depth: intact(hx,hy) ? pose.depth : 0, crack: intact(hx,hy) ? pose.crack : 0, glance: pose.glance, blink: pose.blink, smile: pose.smile };
+      label?.toggleAttribute("data-visible", pose.label);
       r.face = faceExpression(presses.size, now - released, reduced);
       // Only a uniform changes while dents rise; the maps are baked once at the end.
       if(rise){if(now-rise.start>=rise.duration)bakeRise(now,true);else r.riseK=riseK(now);}
@@ -152,12 +173,23 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       r.render();
       const spent=performance.now()-frameStart;
       if(import.meta.env?.DEV&&spent>30)console.warn(`[glaze] slow frame: ${spent.toFixed(1)}ms`);
-      if (pending.length || presses.size || breaks.length || rise || cracked.some(c=>!c.removed&&!c.drawn) || resetRef.current || r.face > 0 || r.paletteAnimating()) raf = requestAnimationFrame(loop);
+      if (pose.active || pending.length || presses.size || breaks.length || rise || cracked.some(c=>!c.removed&&!c.drawn) || resetRef.current || r.face > 0 || r.paletteAnimating()) raf = requestAnimationFrame(loop);
     };
     const schedule = () => {
       if (!raf) raf = requestAnimationFrame(loop);
     };
     kick.current = schedule;
+    const hintTimer = window.setInterval(() => {
+      const pose = hint.tick(performance.now(), hintBlocked(), reduced);
+      if (pose.count >= 3 && !pose.active && !pose.label) { clearInterval(hintTimer); return; }
+      schedule();
+    }, 100);
+    root?.addEventListener("pointerdown", controlUse, true);
+    root?.addEventListener("pointermove", controlUse, true);
+    root?.addEventListener("keydown", controlUse, true);
+    root?.addEventListener("webkitbeginfullscreen", fullscreenStart, true);
+    root?.addEventListener("webkitendfullscreen", fullscreenEnd, true);
+    document.addEventListener("fullscreenchange", schedule);
     // A lost GPU context (common on phones when video starts) restores from the retained maps.
     r.onRestore=()=>{fullUploadPending();schedule();};
     const fullUploadPending=()=>{r.dirtyHeight(region(r.dw,r.dh,0,0,r.dw-1,r.dh-1));r.dirtyCoating(0,0,size.w,size.h);};
@@ -347,6 +379,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       if(e.target instanceof Element && e.target.closest('button, [data-glaze-control]'))return;
       if(e.type==="pointerdown"){
         const {x,y}=local(e);if(!isOnRing(x,y,size.w,size.h,frameInsets(size.w)))return;
+        stopHint();
         e.preventDefault();canvas.setPointerCapture?.(e.pointerId);
       }
       if(e.type==="pointermove"){
@@ -358,6 +391,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     const key = (e: KeyboardEvent) => {
       if (e.altKey || e.ctrlKey || e.metaKey || e.repeat || resizing) return;
       if (e.key === "Enter") {
+        stopHint();
         e.preventDefault(); e.stopPropagation(); refreshProtected();
         for (let i = 0; i < 200; i++) {
           const x = Math.random() * size.w, y = Math.random() * size.h;
@@ -375,6 +409,13 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     canvas.addEventListener("pointercancel", queue);
     canvas.addEventListener("lostpointercapture", queue);
     return () => {
+      clearInterval(hintTimer);
+      root?.removeEventListener("pointerdown", controlUse, true);
+      root?.removeEventListener("pointermove", controlUse, true);
+      root?.removeEventListener("keydown", controlUse, true);
+      root?.removeEventListener("webkitbeginfullscreen", fullscreenStart, true);
+      root?.removeEventListener("webkitendfullscreen", fullscreenEnd, true);
+      document.removeEventListener("fullscreenchange", schedule);
       ro.disconnect();
       resizeJob.cancel();
       cancelAnimationFrame(raf);
@@ -400,5 +441,5 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     kick.current();
   }, [resetKey]);
 
-  return <canvas ref={canvasRef} className="sq-canvas" data-ready={ready || undefined} tabIndex={0} role="button" aria-label="Glaze frame, press Enter to crack, R to reset" aria-keyshortcuts="Enter r" />;
+  return <><span ref={hintLabelRef} className="sq-press-hint" aria-hidden="true">Press me</span><canvas ref={canvasRef} className="sq-canvas" data-ready={ready || undefined} tabIndex={0} role="button" aria-label="Glaze frame, press Enter to crack, R to reset" aria-keyshortcuts="Enter r" /></>;
 }

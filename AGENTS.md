@@ -53,9 +53,9 @@ use the editor.
 - Bottom-band buttons own deduplicated pointerup/click actions and per-instance squish listeners; capture-dismiss the compact picker to prevent outside taps damaging the frame.
 - Each fixed option in preferences.ts derives its internal glaze style; color and material interpolate together without modifying shared coating, dent or recovery maps, so selection never resets damage or playback.
 - The sounds prop is a startup fallback beneath saved viewer preferences; mount preloads recordings without resume, and player window-capture unlock runs before control/frame presses so suspended audio can schedule the first clip.
-- Demo preview sizes live outside the skin and resize one stable player; control activity listeners stay on the video stage only.
 - Phone video taps toggle controls on touch/pen pointerup, not click/down; ignore implicit touch leave so Safari cannot immediately undo the tap, and keep hidden rows non-interactive.
 - Compact flavor choices open horizontally beside the existing toggle in the bottom band above other player layers; demo-only preview tabs use viewport visibility independently of the skin's width.
 - Dent rise-back is a shader uniform over a rise map, baked once per press; phones halve map sizes and restore maps after GPU context loss.
 - chip.ts owns tap snapping, finger-sized break-offs, island and crumb rules; no cracks or pieces without glaze near the tap.
+- hint.ts schedules visit-scoped hints; ghost presses use transient shader uniforms, never retained maps.
 <!-- AGENT-MEMORY:END -->

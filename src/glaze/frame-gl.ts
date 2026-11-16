@@ -25,6 +25,7 @@ uniform vec3 uSprinkleRed; uniform vec3 uSprinkleGreen;
 uniform vec3 uSprinkleBlue; uniform vec3 uSprinkleYellow;
 uniform vec3 uMonoColor; uniform float uMono;
 uniform float uSprinkles;
+uniform vec4 uHint; uniform vec3 uHintFace;
 varying vec2 vUv;
 float sdRR(vec2 p, vec2 c, vec2 hs, float r){ vec2 q=abs(p-c)-hs+r; return length(max(q,0.))+min(max(q.x,q.y),0.)-r; }
 // Smooth inside distance: a hard max(q.x,q.y) makes a mitred diagonal ridge at each corner.
@@ -37,7 +38,7 @@ float prof(vec2 p, out float amp){
   amp=min(w,64.)/64.; float x=clamp(4.*t*(1.-t),0.,1.); return pow(x,.55);
 }
 // Rise-back runs here: uRise holds what still has to rise, uRiseK eases 0 to -1.
-float dent0(vec2 p){ vec2 q=p/uRes; return ((texture2D(uDent,q).r*4.-.5)+(texture2D(uRise,q).r*4.-.5)*uRiseK)*uReset; }
+float dent0(vec2 p){ vec2 q=p/uRes; vec2 delta=(p-uHint.xy)/vec2(12.,10.); float ghost=uHint.z*exp(-dot(delta,delta)*.5); return ((texture2D(uDent,q).r*4.-.5)+(texture2D(uRise,q).r*4.-.5)*uRiseK)*uReset+ghost; }
 float dent(vec2 p){
   float s=dent0(p)*.25;
   s+=(dent0(p+vec2(3.,0.))+dent0(p-vec2(3.,0.))+dent0(p+vec2(0.,3.))+dent0(p-vec2(0.,3.)))*.125;
@@ -98,12 +99,12 @@ vec3 face(vec2 p, vec3 col, float hole){
   vec2 slope=vec2(dent(p+vec2(2.,0.))-dent(p-vec2(2.,0.)),dent(p+vec2(0.,2.))-dent(p-vec2(0.,2.)));
   q+=slope*75.;
   q.y/=1.-dent(p)*.22;
-  vec2 eye=vec2(abs(q.x)-18.,q.y+5.);
+  vec2 eye=vec2(abs(q.x+uHintFace.x*2.4)-18.,q.y+5.-uHintFace.x);
   float softness=hole*.5;
   float open=1.-smoothstep(2.-softness,3.+softness,length(eye/vec2(1.,1.25)));
   float closed=1.-smoothstep(1.1-softness,2.1+softness,min(segment(eye,vec2(-4.,2.),vec2(0.,-2.)),segment(eye,vec2(0.,-2.),vec2(4.,2.))));
-  float eyes=mix(open,closed,uFace);
-  float smile=(1.-smoothstep(.9,1.8,abs(length(q-vec2(0.,5.))-6.)))*smoothstep(5.,6.,q.y);
+  float eyes=mix(open,closed,max(uFace,uHintFace.y));
+  float smile=(1.-smoothstep(.9,1.8,abs(length(q-vec2(0.,5.))-6.-uHintFace.z*1.3)))*smoothstep(5.,6.,q.y);
   vec2 cheek=vec2((abs(q.x)-29.)/8.,(q.y-4.)/4.);
   float blush=(1.-smoothstep(.4,1.,length(cheek)))*mix(.5,.85,uFace);
   col=mix(col,vec3(1.,.45,.65)*(.82+.18*dot(col,vec3(.333))),blush);
@@ -182,7 +183,10 @@ void main(){
     c=min(c,vec3(1.));
   }
   c=face(p,c,hole);
-  float crack=texture2D(uGlaze,p/uRes).g*coat*uReset;
+  vec2 hq=p-uHint.xy;
+  float hair=min(segment(hq,vec2(-5.,-2.),vec2(0.,1.)),segment(hq,vec2(0.,1.),vec2(5.,-1.)));
+  float ghostCrack=(1.-smoothstep(.15,.65,hair))*uHint.w*coat;
+  float crack=max(texture2D(uGlaze,p/uRes).g*coat*uReset,ghostCrack*.55);
   float crackShadow=texture2D(uGlaze,(p-vec2(.8,.9))/uRes).g*coat*uReset;
   vec3 glazeTint=mix(shell,uMonoColor,uMono);
   c=mix(c,glazeTint*.72,crack*.6);
@@ -214,6 +218,8 @@ export interface FrameRenderer {
   width: number;
   height: number;
   face: number;
+  /** Temporary hint uniforms, never part of retained damage. */
+  hint: { x: number; y: number; depth: number; crack: number; glance: number; blink: number; smile: number };
   mono: number;
   destroy(): void;
 }
@@ -321,6 +327,7 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
     width: 1,
     height: 1,
     face: 0,
+    hint: { x: 0, y: 0, depth: 0, crack: 0, glance: 0, blink: 0, smile: 0 },
     mono: 0,
     updatePalette() {
       const css = getComputedStyle(canvas);
@@ -365,6 +372,8 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
       currentColors = targetColors.map((color, i) => color.map((value, j) => (fromColors[i]?.[j] ?? value) + (value - (fromColors[i]?.[j] ?? value)) * t));
       palette.forEach((pair, i) => { const color = currentColors[i]; if (pair[0] && color) gl.uniform3f(u(pair[0]), color[0] ?? 0, color[1] ?? 0, color[2] ?? 0); });
       gl.uniform1f(u("uFace"), r.face);
+      gl.uniform4f(u("uHint"),r.hint.x,r.hint.y,r.hint.depth,r.hint.crack);
+      gl.uniform3f(u("uHintFace"),r.hint.glance,r.hint.blink,r.hint.smile);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, tex);
       gl.uniform1f(u("uReset"),r.resetAmount);

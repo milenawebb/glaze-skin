@@ -49,3 +49,4 @@
 - [x] Verify 360px controls, dents, crust cracking, and Reset in Chromium touch emulation; physical-device vibration and iOS Safari remain unverified.
 - [x] Replace the narrow-player layout with 14px top/sides, a 110px empty bottom band, and centered/top/bottom phone controls.
 - [x] Check phone playback visibility, squish/crust/Reset, and non-overlap at 360px, 390px, and 430px; preserve wider layouts (Chromium touch emulation).
+- [x] Add the gentle frame press hint with a one-time label, visit dismissal and reduced-motion behavior.
