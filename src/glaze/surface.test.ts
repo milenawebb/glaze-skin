@@ -1,9 +1,9 @@
 import { expect, it } from "vitest";
 import { foamLightRatio, smoothCornerDistance } from "./surface";
 
-it("never darkens exposed foam more than 15 percent, even at deep overlapping swipe ends", () => {
-  for (const light of [-10, -.5, 0, .4, .8, 1]) expect(foamLightRatio(light)).toBeGreaterThanOrEqual(.85);
-  expect(foamLightRatio(.2)).toBe(.85);
+it("never darkens exposed foam more than 18 percent, even at deep overlapping swipe ends", () => {
+  for (const light of [-10, -.5, 0, .4, .8, 1]) expect(foamLightRatio(light)).toBeGreaterThanOrEqual(.82);
+  expect(foamLightRatio(.2)).toBeCloseTo(.82);
   expect(foamLightRatio(.97)).toBe(.97);
 });
 

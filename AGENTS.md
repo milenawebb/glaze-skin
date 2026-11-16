@@ -45,7 +45,7 @@ use the editor.
 - Native tracks stay hidden; captions.ts selects the exposed HLS engine subtitle loader directly because the library bridge only loads showing tracks, and owns cuechange/timeupdate/source-safe listeners for the single overlay and local CC state.
 - Reserve the time display width from the duration and keep seek glaze absolutely overlaid, so time changes and cracking cannot shift the progress track.
 - Queue frame inputs for RAF; use local height/coating texSubImage2D and indexed holes. Replay normalized vectors only after 100ms settled resize; retain WebGL resources. Reset uses one shader fade for both maps.
-- Foam fingertip lobes and signed bulges live in fingertip.ts; signed height encoding, Gaussian tails, CSS-space blur and contribution recovery preserve ring-free dents. Reset cancels recovery.
+- Fingertip soft additions have a bounded sink; Gaussian tails and wider foam normal sampling round swipe ends, while relative light clamps preserve directional dents. Recovery and Reset remain independent.
 - Clip all fracture paths against current glaze and retained holes before storage/replay; hole painting replaces fissure pixels, and pointer material transitions select foam squish versus glaze crunch so exposed areas only dent.
 - Classify frame gestures before fracture: release within the threshold uses two-step cracking, while drags retain overlapping jagged strip polygons without adding fissures; strip.ts owns threshold and widths for concrete tests.
 - Phone controls (and .sq-frame-tools, display: contents when wide) reuse one bottom glass row and an absolutely positioned top pill without duplicate media or buttons; captions stay above the bottom row while visible and near the bottom when hidden.

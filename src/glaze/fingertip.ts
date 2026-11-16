@@ -1,7 +1,8 @@
 import {region,tailWeight,type Region} from "./regions";
 export interface FingerPad {angle:number;width:number;length:number}
 export function fingerPad(type:string,random=Math.random):FingerPad{const width=type==="touch"?32:24;return {width,length:width*1.4,angle:(random()-.5)*50*Math.PI/180};}
-export function fingerDepth(held:number,pressure:number|null){return (1+Math.min(1,Math.max(0,held)/2)*.5)*(pressure??1);}
+export const MAX_FINGER_DEPTH = 1.8;
+export function fingerDepth(held:number,pressure:number|null){return (1+Math.min(1,Math.max(0,held)/2)*.8)*(pressure??1);}
 export function fingertipHeight(dx:number,dy:number,pad:FingerPad,depth:number,stretch=1){
  return padHeight(dx,dy,Math.cos(pad.angle),Math.sin(pad.angle),2/pad.width,2/(pad.length*stretch),depth);
 }
@@ -15,8 +16,10 @@ export function stampFingertip(r:{dent:Float32Array;dw:number;dh:number;width:nu
  const c=Math.cos(pad.angle),s=Math.sin(pad.angle),iw=2/pad.width,il=2/(pad.length*stretch),sx=r.width/r.dw,sy=r.height/r.dh;
  for(let yy=bounds.y0;yy<=bounds.y1;yy++)for(let xx=bounds.x0;xx<=bounds.x1;xx++){
   const dx=xx*sx-x,dy=yy*sy-y;
-  const target=padHeight(dx,dy,c,s,iw,il,depth)*tailWeight(Math.hypot(dx,dy)/(extent/6)),i=yy*r.dw+xx,cur=r.dent[i]??0,delta=target-cur;
-  // A swept envelope, not repeated soft additions: stationary ends and overlaps cannot accumulate depth.
-  r.dent[i]=cur+(target>=0?Math.max(delta,0):Math.min(delta,0))*rate;
+  const shape=padHeight(dx,dy,c,s,iw,il,1)*tailWeight(Math.hypot(dx,dy)/(extent/6)),target=shape*depth,i=yy*r.dw+xx,cur=r.dent[i]??0,delta=target-cur;
+  // Soft additions approach a bounded sink instead of flattening repeated presses.
+  const limit=Math.abs(shape)*Math.max(depth,MAX_FINGER_DEPTH),soft=.04*Math.abs(target)*Math.max(0,1-Math.abs(cur)/Math.max(limit,1e-9));
+  const change=(target>=0?.5*(delta+Math.sqrt(delta*delta+soft*soft)):.5*(delta-Math.sqrt(delta*delta+soft*soft)))*rate;
+  r.dent[i]=target>=0?Math.max(cur,Math.min(limit,cur+change)):Math.min(cur,Math.max(-limit,cur+change));
  }
 }

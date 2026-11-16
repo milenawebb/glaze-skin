@@ -123,7 +123,9 @@ void main(){
   vec2 ia=uIns.xy, ib=uRes-uIns.zw;
   float a=clamp(.5-sdRR(p,uRes*.5,uRes*.5,uRo),0.,1.)*clamp(sdRR(p,(ia+ib)*.5,(ib-ia)*.5,uRi)+.5,0.,1.);
   if(a<=0.) discard;
-  float e=2.;
+  // Wider central differences on foam smooth the round groove end-cap normals.
+  // Coated surfaces keep their original sampling and fracture lighting.
+  float e=mix(2.,4.,broken(p));
   vec2 xp=p+vec2(e,0.), xm=p-vec2(e,0.), yp=p+vec2(0.,e), ym=p-vec2(0.,e);
   float bx=baseH(xp), ax=baseH(xm), by=baseH(yp), ay=baseH(ym);
   float hx=bx*(1.-.8*dent(xp))-ax*(1.-.8*dent(xm))-3.5*(broken(xp)-broken(xm));
@@ -174,11 +176,15 @@ void main(){
   }
   if(uSprinkles>0.) c=mix(c,sprinkles(p,c,coat),uSprinkles);
   // Foam uses a bounded relative light response, never cumulative gray saturation or shell shadows.
-  // Signed slopes reverse at a swipe end and formerly produced gray end caps.
-  // Use bounded depth shading instead, identical for tap and swipe envelopes.
-  float foamRatio=1.-.04*clamp(d,0.,1.);
+  // Restore directional slopes and bending satin highlights, bounded against
+  // the same undented surface so even overlapping end caps cannot turn gray.
+  float foamBase=clamp(dot(N0,L)*.38+.67,0.,1.)+.065;
+  float foamNH0=max(dot(N0,normalize(L+V)),0.);
+  float foamShade=min(clamp((d-dl)*1.4,0.,1.)*.08+rim*.07,.12);
+  float foamSheen=pow(nh,3.)*.045+wall*.08+bulge*.12;
+  float foamRatio=clamp((diff*(1.-foamShade)+.065+foamSheen-pow(foamNH0,3.)*.045)/foamBase,${1 - FOAM_DARKENING_LIMIT},1.08);
   vec3 cleanFoam=mix(foam,mix(mix(vec3(dot(uMonoColor,vec3(.299,.587,.114))),uMonoColor,.92),vec3(1.),.07),uMono);
-  c=mix(c,cleanFoam*(clamp(dot(N0,L)*.38+.67,0.,1.)+.065)*foamRatio,hole);
+  c=mix(c,cleanFoam*foamBase*foamRatio,hole);
   // Soft-toy light: follows the rounded outline and is sampled through the dent normal, so it bends into dents.
   {
     vec2 q=p+N.xy*10.;

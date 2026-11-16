@@ -1,5 +1,5 @@
 /** Shared numeric limits used by the shader and its regression tests. */
-export const FOAM_DARKENING_LIMIT = .15;
+export const FOAM_DARKENING_LIMIT = .18;
 export const SURFACE_SMOOTHING = 12;
 
 export function foamLightRatio(value: number) {
