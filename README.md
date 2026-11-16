@@ -13,7 +13,7 @@ Glaze is an ASMR squishy skin for Video.js v10. The frame around the video is a 
 ## Features
 
 - Four flavors: Rainbow candy, Strawberry candy, Lilac mono and Matcha mono
-- Crack, chip, strip and squish the frame with your finger, mouse or keyboard
+- Crack, chip, strip and squish the frame with your finger or mouse; use Enter to crack and R to reset with frame focus
 - Optional squish and crackle sounds (off by default, the demo turns them on)
 - Custom captions with a CC toggle
 - Playback speed control
@@ -59,19 +59,26 @@ export function App() {
 | Key | Action |
 | --- | --- |
 | `Space` or `K` | Play or pause (replay when the video has ended) |
-| `Left` / `Right` | Seek back or forward 5 seconds |
-| `Up` / `Down` | Volume up or down |
+| `Left` / `Right` | Seek back/forward 5 seconds |
+| `Up` / `Down` | Volume up/down 10 percentage points |
 | `M` | Mute or unmute |
 | `C` | Captions on or off |
-| `F` | Fullscreen |
+| `F` | Enter/exit fullscreen |
 | `Enter` (on the frame) | Crack the glaze |
 | `R` (on the frame) | Reset the frame |
 
+Keyboard (focus inside the player): Space or K play or pause, replay after ending · Left/Right seek back/forward 5 seconds · Up/Down volume up/down 10 percentage points · M mute/unmute · C captions on/off · F enter/exit fullscreen · Frame: Enter crack, R reset
+
+Use playback keys without Shift, Alt, Ctrl or Command. Space activates a focused button instead of playback and does nothing on the frame; K still controls playback there. On Seek, arrows seek 1 second, Shift+arrows and Page Up/Down seek 10 seconds, and Home/End go to the start/end. On Volume, arrows adjust by 1 percentage point and Home/End set minimum/maximum. In Speed, Up/Down move between choices and Home/End focus the first/last. Enter or Space activates buttons and sound cards. Escape closes Speed, Volume and the phone flavor picker; the browser handles leaving fullscreen. Tab/Shift+Tab move focus.
+
 ## Accessibility
 
-- Full keyboard support for playback, volume, captions, fullscreen and the frame itself
+- Keyboard playback, seeking, volume, captions and fullscreen, plus frame cracking and Reset, with the focus-specific rules above
 - Visible focus rings for keyboard users
-- Reduced motion: cracking, denting and the loading and replay states calm down when the viewer prefers less motion
+- Measured contrast in the tested bright/dark video and four-flavor glazed/stripped states: lowest text contrast 5.00:1; lowest essential icon contrast 4.81:1 (the stripped Rainbow face). Two-tone keyboard focus rings remain visible on light and dark surfaces. Flavor names are announced by buttons; decorative sprinkles and cheeks are not contrast indicators.
+- Reduced motion: cracking, chipping, stripping and denting remain available. Chips fade in place instead of flying; frame dents still deepen and rise back. Controls do not squash, the press-me hint shows only its label, loading uses an opacity pulse, replay fades in, and sound cards use a brief highlight without movement. Sound is unchanged.
+- Forced colors: controls and cards use system surfaces, text, borders and Highlight focus rings, without glass, blur or shadows.
+- Reduced transparency: control bars, popups and pills use solid pink surfaces instead of glass when your browser supports the preference.
 - Custom captions overlay, on by default, with a CC toggle
 
 ## Built with

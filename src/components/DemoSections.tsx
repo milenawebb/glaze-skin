@@ -1,5 +1,6 @@
 import { playPreview } from "@/glaze";
 import { useRef, useState } from "react";
+import { KEYBOARD_SUMMARY, KEYBOARD_SCOPE, MOTION_DESCRIPTION, CONTRAST_DESCRIPTION } from "@/lib/accessibility-copy";
 
 const USAGE = `import { GlazePlayer } from "glaze";
 
@@ -18,8 +19,12 @@ const FEATURES = [
   "Real ASMR sounds for every crack, crunch and squish, off by default",
   "Full controls: play, seek, volume, captions, speed and fullscreen in one glass bar",
   "A dedicated phone layout, with room to squish with your thumbs",
-  "Keyboard shortcuts: Space or K to play, arrows to seek and change volume, F, M and C",
-  "Accessible: visible keyboard focus, readable contrast, and calm, motion-free cracking for people who prefer reduced motion",
+  KEYBOARD_SUMMARY,
+  KEYBOARD_SCOPE,
+  CONTRAST_DESCRIPTION,
+  MOTION_DESCRIPTION,
+  "Forced colors: controls and cards use system surfaces, text, borders and Highlight focus rings, without glass, blur or shadows.",
+  "Reduced transparency: control bars, popups and pills use solid pink surfaces instead of glass when your browser supports the preference.",
 ];
 
 const PROPS = [
@@ -50,7 +55,7 @@ export function DemoSections() {
         <div className="demo-cards">
           {STEPS.map(s => <SoundCard key={s.title} step={s} />)}
         </div>
-        <p className="demo-keys">Keyboard: Space play · ← → skip · ↑ ↓ volume · M mute · C captions · F fullscreen</p>
+        <p className="demo-keys">{KEYBOARD_SUMMARY}</p>
         <p className="demo-note">Made a mess? Hit Reset and it's glazed and new again.</p>
       </section>
       <section aria-labelledby="inside-heading">

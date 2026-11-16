@@ -274,3 +274,13 @@ html:has(.glaze-embed), body:has(.glaze-embed) { background: transparent; overfl
 .embed-placeholder { width: 100%; aspect-ratio: 900 / 632; }
 .glaze-embed .sq-root .sq-frame-tools { position: absolute; z-index: 8; top: calc(100% + 8px); left: 50%; translate: -50% 0; display: flex; align-items: center; gap: 4px; height: 52px; padding: 4px; border-radius: 999px; background: var(--sq-liquid-refraction), var(--sq-liquid-surface); backdrop-filter: blur(10px) saturate(115%); box-shadow: var(--sq-liquid-shadow); max-width: calc(100% - 8px); }
 .glaze-embed .sq-root .sq-frame-colors, .glaze-embed .sq-root .sq-frame-actions { position: relative; inset: auto; translate: none; gap: 4px; align-items: center; }
+
+@media (forced-colors: active) {
+  .demo { background: Canvas; color: CanvasText; --demo-text: CanvasText; --demo-background: Canvas; --demo-tab-glass: ButtonFace; }
+  .demo *, .demo *::before, .demo *::after { backdrop-filter: none !important; box-shadow: none !important; text-shadow: none !important; }
+  .demo-card, .demo-code, .demo-table-wrap { background: Canvas !important; color: CanvasText; border: 1px solid CanvasText; }
+  .demo button, .demo-preview-tabs .demo-preview-tab { background: ButtonFace !important; color: ButtonText !important; border: 1px solid ButtonText !important; forced-color-adjust: none; }
+  .demo svg { stroke: ButtonText; opacity: 1; }
+  .demo :focus-visible { outline: 2px solid Highlight !important; outline-offset: 3px; }
+  .demo-sprinkles li::before { background: CanvasText; }
+}

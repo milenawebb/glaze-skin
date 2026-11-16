@@ -7,7 +7,7 @@ import { crackCrust } from "./crust";
 import { attachSquish, useSquish, useSquishAll } from "./squish";
 import { vibratePress } from "./haptics";
 import { attachFrameAction, CHOICE_GUARD_MS } from "./frame-control";
-import { POPUP_SPEEDS, VOLUME_CLOSE_MS, CONTROLS_IDLE_MS, controlsVisible, videoTapActivity } from "./controls";
+import { POPUP_SPEEDS, VOLUME_CLOSE_MS, CONTROLS_IDLE_MS, controlsVisible, videoTapActivity, isolateVolumeKey } from "./controls";
 import { CAPTIONS_DEFAULT_ON, observeCaptionCues, isCaptionEngine } from "./captions";
 import { COLORS, OPTIONS, readPreferences, savePreferences, type GlazeColor } from "./preferences";
 import { playCrack, getSoundsBlocked, onSoundsBlockedChange, setSoundsEnabled, unlockSounds } from "./sounds";
@@ -543,7 +543,7 @@ function VolumeButton({ compact, open, setOpen }: { compact: boolean; open: bool
             const volume = Number(e.target.value);
             store.setVolume(volume);
             store.setMuted(volume === 0);
-          }} onKeyDown={(e) => { if (e.key !== "Escape") e.stopPropagation(); }} />
+          }} onKeyDownCapture={isolateVolumeKey} />
       </div>}
     </div>
   );

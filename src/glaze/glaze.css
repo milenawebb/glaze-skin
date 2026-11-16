@@ -63,6 +63,9 @@
   --sq-color-matcha: #cbe6bc;
   --sq-color-lilac: #c9b9e9;
   --sq-color-ring: #fff;
+  --sq-focus-light: #f7b8d2;
+  --sq-focus-dark: #4a1e35;
+  --sq-solid-surface: #fce7f0;
   --sq-color-shadow: 0 3px 6px rgb(74 35 56 / 0.24);
 
   position: relative;
@@ -475,3 +478,41 @@
 :root:not([data-sq-pointer]) .sq-root .sq-pill.sq-btn:focus-visible,
 :root:not([data-sq-pointer]) .sq-root[data-compact] .sq-pill.sq-btn:focus-visible { box-shadow: 0 0 0 2px #F7B8D2, 0 0 10px 2px rgb(247 184 210 / 0.6); border-radius: 999px; }
 .sq-load-error button:focus-visible { outline: 2px solid var(--sq-liquid-ink, #3a1630); outline-offset: 2px; }
+
+/* Dark edges identify pale flavor choices; a light outer focus edge survives dark surroundings. */
+.sq-root .sq-frame-colors .sq-candy-face { border-color: var(--sq-liquid-ink); }
+.sq-root .sq-candy[data-swatch][aria-pressed="true"] .sq-candy-face { outline-color: var(--sq-liquid-ink); }
+:root:not([data-sq-pointer]) .sq-root :focus-visible,
+:root:not([data-sq-pointer]) .sq-root:focus-visible,
+:root:not([data-sq-pointer]) .sq-root .sq-pill.sq-btn:focus-visible,
+:root:not([data-sq-pointer]) .sq-root[data-compact] .sq-pill.sq-btn:focus-visible {
+  outline: 2px solid var(--sq-focus-dark); outline-offset: 0;
+  box-shadow: 0 0 0 4px var(--sq-focus-light);
+}
+:root:not([data-sq-pointer]) .sq-root .sq-canvas:focus-visible { outline: 2px solid var(--sq-focus-dark); outline-offset: 0; border-radius: 46px; filter: none; box-shadow: 0 0 0 4px var(--sq-focus-light); }
+
+@media (prefers-reduced-transparency: reduce) {
+  .sq-root { --sq-liquid-surface: var(--sq-solid-surface); --sq-liquid-active: var(--sq-solid-surface); --sq-liquid-refraction: linear-gradient(var(--sq-solid-surface), var(--sq-solid-surface)); --sq-caption-surface: var(--sq-liquid-ink); }
+  .sq-root .sq-row, .sq-root .sq-controls::before, .sq-root .sq-frame-tools,
+  .sq-root .sq-glass-panel, .sq-root .sq-pill, .sq-root .sq-bun-body,
+  .sq-root .sq-center-bubble, .sq-root .sq-color-choices, .sq-root .sq-press-hint,
+  .sq-root .sq-sound-hint { backdrop-filter: none !important; }
+}
+
+@media (forced-colors: active) {
+  .sq-root { --sq-liquid-ink: ButtonText; --sq-video-text: CanvasText; --sq-liquid-surface: ButtonFace; --sq-liquid-active: ButtonFace; --sq-liquid-refraction: none; --sq-liquid-shadow: none; --sq-liquid-text-shadow: none; --sq-color-ring: ButtonText; --sq-candy-surface: ButtonFace; }
+  .sq-root *, .sq-root *::before, .sq-root *::after { backdrop-filter: none !important; box-shadow: none !important; text-shadow: none !important; filter: none !important; }
+  .sq-root .sq-row, .sq-root .sq-controls::before, .sq-root .sq-frame-tools, .sq-root .sq-glass-panel,
+  .sq-root .sq-center-bubble, .sq-root .sq-candy-face, .sq-root .sq-bun-body,
+  .sq-root .sq-press-hint, .sq-root .sq-sound-hint { background: ButtonFace !important; color: ButtonText !important; border: 1px solid ButtonText !important; forced-color-adjust: none; }
+  .sq-root button, .sq-root input, .sq-root [role="slider"] { background: ButtonFace !important; color: ButtonText !important; border: 1px solid ButtonText !important; forced-color-adjust: none; }
+  .sq-root svg { color: ButtonText !important; }
+  .sq-root .sq-play-icon { fill: ButtonText; stroke: ButtonText; }
+  .sq-root .sq-row-captions span { background: Canvas; color: CanvasText; border: 1px solid CanvasText; }
+  .sq-root .sq-candy[aria-pressed="true"] .sq-candy-face { outline: 2px solid Highlight; }
+  :root:not([data-sq-pointer]) .sq-root :focus-visible,
+  :root:not([data-sq-pointer]) .sq-root:focus-visible,
+  :root:not([data-sq-pointer]) .sq-root .sq-pill.sq-btn:focus-visible,
+  :root:not([data-sq-pointer]) .sq-root[data-compact] .sq-pill.sq-btn:focus-visible,
+  :root:not([data-sq-pointer]) .sq-root .sq-canvas:focus-visible { outline: 2px solid Highlight !important; outline-offset: 2px; }
+}
