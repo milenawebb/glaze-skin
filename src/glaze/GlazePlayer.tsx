@@ -12,6 +12,7 @@ import { POPUP_SPEEDS, VOLUME_CLOSE_MS, CONTROLS_IDLE_MS, controlsVisible, video
 import { CAPTIONS_DEFAULT_ON, observeCaptionCues, isCaptionEngine } from "./captions";
 import { COLORS, OPTIONS, readPreferences, savePreferences, type GlazeColor } from "./preferences";
 import { playCrack, getSoundsBlocked, onSoundsBlockedChange, setSoundsEnabled, unlockSounds } from "./sounds";
+import { REPLAY_ARC, REPLAY_HEAD } from "./replay-glyph";
 import "./glaze.css";
 
 export const glaze = createPlayer({ features: videoFeatures });
@@ -384,6 +385,15 @@ function Crust({ className = "" }: { className?: string }) {
 
 const REPLAY_ICON = <path d="M12 5a7 7 0 1 1-6.6 4.7l1.9.6A5 5 0 1 0 12 7v3L7.5 6 12 2z" />;
 
+// Replay bubble glyph: one clockwise circular arrow, drawn as a stroked arc with a
+// filled head. Geometry and direction rules live in replay-glyph.ts with its tests.
+const REPLAY_GLYPH = (
+  <>
+    <path className="sq-replay-arc" d={REPLAY_ARC} />
+    <path className="sq-replay-head" d={REPLAY_HEAD} />
+  </>
+);
+
 /** Waiting (after 300ms) and ended flags from the media element; media events are caught in capture. */
 function useMediaFlags(rootRef: React.RefObject<HTMLElement | null>) {
   const [waiting, setWaiting] = useState(false);
@@ -429,7 +439,7 @@ function ReplayBubble({ replay }: { replay: () => void }) {
         onClick={go}
         onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); e.stopPropagation(); if (!e.repeat) go(); } }}
         onKeyUp={(e) => { if (e.key === " ") e.preventDefault(); }}>
-        <span className="sq-center-bubble sq-squish-body"><svg className="sq-play-icon" viewBox="0 0 24 24" aria-hidden="true">{REPLAY_ICON}</svg></span>
+        <span className="sq-center-bubble sq-squish-body"><svg className="sq-play-icon sq-replay-glyph" viewBox="0 0 24 24" aria-hidden="true">{REPLAY_GLYPH}</svg></span>
       </button>
     </div>
   );

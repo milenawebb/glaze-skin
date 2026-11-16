@@ -438,9 +438,13 @@
 .sq-center-bubble { position: relative; width: 56px; height: 56px; border-radius: 47% 53% 49% 51% / 52% 46% 54% 48%; display: grid; place-items: center; background: var(--sq-liquid-refraction), var(--sq-liquid-surface); backdrop-filter: blur(10px) saturate(115%) contrast(105%); box-shadow: var(--sq-liquid-shadow); }
 .sq-replay { pointer-events: auto; display: grid; justify-items: center; gap: 6px; padding: 0; border: 0; background: none; color: var(--sq-video-text); cursor: pointer; border-radius: 20px; }
 .sq-replay .sq-center-bubble { width: 64px; height: 64px; }
-.sq-replay .sq-play-icon { width: 32px; height: 32px; }
+/* Replay glyph: about 40% of the bubble, stroked arc plus a filled head in control plum. */
+.sq-root .sq-replay .sq-play-icon { width: 26px; height: 26px; }
+.sq-play-icon.sq-replay-glyph { fill: none; stroke: var(--sq-liquid-ink); stroke-linecap: round; }
+.sq-replay-glyph .sq-replay-head { fill: var(--sq-liquid-ink); stroke: var(--sq-liquid-ink); }
 .sq-replay-text { font: 600 13px/1.2 var(--sq-caption-font, system-ui); color: var(--sq-video-text); text-shadow: 0 1px 2px rgb(0 0 0 / 0.7), 0 0 8px rgb(0 0 0 / 0.5); }
 .sq-root[data-compact] .sq-replay .sq-center-bubble { width: 52px; height: 52px; }
+.sq-root[data-compact] .sq-replay .sq-play-icon { width: 21px; height: 21px; }
 .sq-root[data-compact] .sq-replay-text { font-size: 12px; }
 .sq-root[data-compact] .sq-center-bubble { width: 48px; height: 48px; }
 .sq-bun[data-loading] .sq-bun-body, .sq-wobble { animation: sq-jelly 1.6s ease-in-out infinite; }
@@ -508,6 +512,8 @@
   .sq-root button, .sq-root input, .sq-root [role="slider"] { background: ButtonFace !important; color: ButtonText !important; border: 1px solid ButtonText !important; forced-color-adjust: none; }
   .sq-root svg { color: ButtonText !important; }
   .sq-root .sq-play-icon { fill: ButtonText; stroke: ButtonText; }
+  .sq-root .sq-replay-glyph { fill: none; stroke: ButtonText; }
+  .sq-root .sq-replay-glyph .sq-replay-head { fill: ButtonText; stroke: ButtonText; }
   .sq-root .sq-row-captions span { background: Canvas; color: CanvasText; border: 1px solid CanvasText; }
   .sq-root .sq-candy[aria-pressed="true"] .sq-candy-face { outline: 2px solid Highlight; }
   :root:not([data-sq-pointer]) .sq-root :focus-visible,
