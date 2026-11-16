@@ -473,3 +473,4 @@
 /* Keyboard focus ring also on pill buttons, whose own shadow rules are more specific. */
 :root:not([data-sq-pointer]) .sq-root .sq-pill.sq-btn:focus-visible,
 :root:not([data-sq-pointer]) .sq-root[data-compact] .sq-pill.sq-btn:focus-visible { box-shadow: 0 0 0 2px #F7B8D2, 0 0 10px 2px rgb(247 184 210 / 0.6); border-radius: 999px; }
+.sq-load-error button:focus-visible { outline: 2px solid var(--sq-liquid-ink, #3a1630); outline-offset: 2px; }
