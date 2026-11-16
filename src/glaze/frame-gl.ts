@@ -38,7 +38,7 @@ float prof(vec2 p, out float amp){
   amp=min(w,64.)/64.; float x=clamp(4.*t*(1.-t),0.,1.); return pow(x,.55);
 }
 // Rise-back runs here: uRise holds what still has to rise, uRiseK eases 0 to -1.
-float dent0(vec2 p){ vec2 q=p/uRes; vec2 delta=(p-uHint.xy)/vec2(12.,10.); float ghost=uHint.z*exp(-dot(delta,delta)*.5); return ((texture2D(uDent,q).r*4.-.5)+(texture2D(uRise,q).r*4.-.5)*uRiseK)*uReset+ghost; }
+float dent0(vec2 p){ vec2 q=p/uRes; vec2 delta=(p-uHint.xy)/vec2(14.,12.); float ghost=uHint.z*exp(-dot(delta,delta)*.5); return ((texture2D(uDent,q).r*4.-.5)+(texture2D(uRise,q).r*4.-.5)*uRiseK)*uReset+ghost; }
 float dent(vec2 p){
   float s=dent0(p)*.25;
   s+=(dent0(p+vec2(3.,0.))+dent0(p-vec2(3.,0.))+dent0(p+vec2(0.,3.))+dent0(p-vec2(0.,3.)))*.125;
@@ -184,9 +184,9 @@ void main(){
   }
   c=face(p,c,hole);
   vec2 hq=p-uHint.xy;
-  float hair=min(segment(hq,vec2(-5.,-2.),vec2(0.,1.)),segment(hq,vec2(0.,1.),vec2(5.,-1.)));
+  float hair=min(min(segment(hq,vec2(-3.,-1.),vec2(-13.,-5.)),segment(hq,vec2(3.,-1.),vec2(12.,-6.))),segment(hq,vec2(1.,3.),vec2(4.,12.)));
   float ghostCrack=(1.-smoothstep(.15,.65,hair))*uHint.w*coat;
-  float crack=max(texture2D(uGlaze,p/uRes).g*coat*uReset,ghostCrack*.55);
+  float crack=max(texture2D(uGlaze,p/uRes).g*coat*uReset,ghostCrack*.7);
   float crackShadow=texture2D(uGlaze,(p-vec2(.8,.9))/uRes).g*coat*uReset;
   vec3 glazeTint=mix(shell,uMonoColor,uMono);
   c=mix(c,glazeTint*.72,crack*.6);

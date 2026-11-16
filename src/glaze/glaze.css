@@ -461,7 +461,11 @@
 .sq-root, .sq-root * { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 
 /* Discovery hint sits immediately above the printed face, outside the video. */
-.sq-press-hint { position: absolute; z-index: 7; left: 50%; bottom: 66px; translate: -50% 0; padding: 4px 10px; border-radius: 999px; white-space: nowrap; font: 500 12px/1.3 var(--sq-font); color: var(--sq-liquid-ink); background: var(--sq-liquid-refraction), var(--sq-liquid-surface); box-shadow: var(--sq-liquid-shadow); backdrop-filter: blur(8px); pointer-events: none; opacity: 0; transition: opacity 350ms ease; }
-.sq-press-hint[data-visible] { opacity: 1; }
-.sq-root[data-compact] .sq-press-hint { bottom: 73px; }
-@media (prefers-reduced-motion: reduce) { .sq-root .sq-press-hint { transition: opacity 350ms ease !important; } }
+.sq-press-hint { position: absolute; z-index: 40; left: 50%; top: 0; translate: -50% calc(-100% - 22px); padding: 8px 16px; border-radius: 999px; white-space: nowrap; font: 600 16px/1.25 var(--sq-font); color: var(--sq-liquid-ink); background: var(--sq-liquid-refraction), var(--sq-liquid-surface); box-shadow: var(--sq-liquid-shadow); backdrop-filter: blur(8px); pointer-events: none; opacity: 0; scale: .8; transition: opacity 300ms ease, scale 300ms ease; }
+.sq-press-hint::after { content: ""; position: absolute; left: 50%; top: 100%; width: 12px; height: 12px; translate: -50% -55%; rotate: 45deg; border-radius: 0 0 3px 0; background: var(--sq-liquid-surface); }
+.sq-press-hint[data-visible] { opacity: 1; scale: 1; animation: sq-hint-bounce 650ms cubic-bezier(.3,1.6,.5,1); }
+@keyframes sq-hint-bounce { 0% { scale: .7; } 55% { scale: 1.08; } 80% { scale: .97; } 100% { scale: 1; } }
+.sq-hint-finger, .sq-hint-ripple { position: absolute; z-index: 6; left: 0; top: 0; pointer-events: none; opacity: 0; will-change: transform, opacity; }
+.sq-hint-finger { width: 44px; height: 56px; border-radius: 50%; background: radial-gradient(ellipse at 50% 45%, rgb(122 70 120 / .25) 40%, rgb(122 70 120 / 0) 72%); filter: blur(3px); }
+.sq-hint-ripple { width: 56px; height: 56px; border-radius: 50%; border: 2px solid rgb(255 196 220 / .9); box-shadow: 0 0 10px rgb(255 196 220 / .7); }
+@media (prefers-reduced-motion: reduce) { .sq-root .sq-press-hint { transition: opacity 350ms ease !important; animation: none !important; scale: 1; } .sq-root .sq-hint-finger, .sq-root .sq-hint-ripple { display: none; } }

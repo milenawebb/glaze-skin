@@ -29,6 +29,8 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
   const onResetRef = useRef(onReset); onResetRef.current = onReset;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hintLabelRef = useRef<HTMLSpanElement>(null);
+  const hintFingerRef = useRef<HTMLSpanElement>(null);
+  const hintRippleRef = useRef<HTMLSpanElement>(null);
   const rendererRef = useRef<FrameRenderer | null>(null);
   const kick = useRef<() => void>(() => {});
   const clearTransient = useRef<() => void>(() => {});
@@ -53,15 +55,18 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     try { storage = window.sessionStorage; } catch { /* Optional storage. */ }
     const hint = createFrameHint(performance.now(), storage);
     const root = canvas.parentElement;
-    const label = hintLabelRef.current;
+    const label = hintLabelRef.current, finger = hintFingerRef.current, ripple = hintRippleRef.current;
+    let onScreen = false;
+    const io = typeof IntersectionObserver === "undefined" ? null : new IntersectionObserver(([entry]) => { onScreen = Boolean(entry?.isIntersecting); schedule(); }, { threshold: .5 });
+    if (io) io.observe(canvas); else onScreen = true;
     if (label) label.textContent = coarsePointer() ? "Tap me" : "Press me";
     let controlUntil = 0, nativeFullscreen = false;
     const controlSelector = ".sq-controls, .sq-frame-tools, .sq-frame-colors, .sq-frame-actions, .sq-replay";
     const controlUse = (e: Event) => { if (e.target instanceof Element && e.target.closest(controlSelector)) { controlUntil = performance.now() + 2000; schedule(); } };
     const fullscreenStart = () => { nativeFullscreen = true; schedule(); };
     const fullscreenEnd = () => { nativeFullscreen = false; schedule(); };
-    const hintBlocked = () => nativeFullscreen || Boolean(document.fullscreenElement) || document.visibilityState === "hidden" || performance.now() < controlUntil || Boolean(root?.querySelector(`${controlSelector.split(", ").map(s => `${s}:hover`).join(", ")}`)) || Boolean(document.activeElement instanceof Element && root?.contains(document.activeElement) && document.activeElement.closest(controlSelector));
-    const stopHint = () => { hint.stop(); if(label)label.removeAttribute("data-visible"); r.hint = { x: 0, y: 0, depth: 0, crack: 0, glance: 0, blink: 0, smile: 0 }; schedule(); };
+    const hintBlocked = () => !onScreen || nativeFullscreen || Boolean(document.fullscreenElement) || document.visibilityState === "hidden" || performance.now() < controlUntil || Boolean(root?.querySelector(`${controlSelector.split(", ").map(s => `${s}:hover`).join(", ")}`)) || Boolean(document.activeElement instanceof Element && root?.contains(document.activeElement) && document.activeElement.closest(controlSelector));
+    const stopHint = () => { hint.stop(); if(label)label.removeAttribute("data-visible"); if(finger)finger.style.opacity="0"; if(ripple)ripple.style.opacity="0"; r.hint = { x: 0, y: 0, depth: 0, crack: 0, glance: 0, blink: 0, smile: 0 }; schedule(); };
 
     let size = { w: 1, h: 1 };
     let raf = 0;
@@ -130,9 +135,12 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       while(pending.length&&performance.now()<deadline){const event=pending.shift();if(event)processEvent(event);if(event?.type==="pointermove")break;}
       const pose = hint.tick(now, hintBlocked(), reduced);
       const bottom = parseFloat(getComputedStyle(canvas.parentElement ?? canvas).paddingBottom) || 96;
-      const hx = size.w * pose.x, hy = size.h - bottom * .5;
+      const hx = size.w * .5 + pose.x * Math.min(1, size.w / 600), hy = size.h - bottom * .5;
       r.hint = { x: hx, y: hy, depth: intact(hx,hy) ? pose.depth : 0, crack: intact(hx,hy) ? pose.crack : 0, glance: pose.glance, blink: pose.blink, smile: pose.smile };
       label?.toggleAttribute("data-visible", pose.label);
+      if (label) { label.style.left = `${hx}px`; label.style.top = `${hy}px`; }
+      if (finger) { finger.style.opacity = String(pose.active ? pose.finger : 0); finger.style.transform = `translate(${hx}px, ${hy - pose.fingerY * 26}px) translate(-50%, -50%) scale(${1 - .06 * pose.depth / .52})`; }
+      if (ripple) { const t = pose.active ? pose.ripple : 0; ripple.style.opacity = t ? String((1 - t) * .8) : "0"; ripple.style.transform = `translate(${hx}px, ${hy}px) translate(-50%, -50%) scale(${.4 + t * 1.4})`; }
       r.face = faceExpression(presses.size, now - released, reduced);
       // Only a uniform changes while dents rise; the maps are baked once at the end.
       if(rise){if(now-rise.start>=rise.duration)bakeRise(now,true);else r.riseK=riseK(now);}
@@ -410,6 +418,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     canvas.addEventListener("lostpointercapture", queue);
     return () => {
       clearInterval(hintTimer);
+      io?.disconnect();
       root?.removeEventListener("pointerdown", controlUse, true);
       root?.removeEventListener("pointermove", controlUse, true);
       root?.removeEventListener("keydown", controlUse, true);
@@ -441,5 +450,5 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     kick.current();
   }, [resetKey]);
 
-  return <><span ref={hintLabelRef} className="sq-press-hint" aria-hidden="true">Press me</span><canvas ref={canvasRef} className="sq-canvas" data-ready={ready || undefined} tabIndex={0} role="button" aria-label="Glaze frame, press Enter to crack, R to reset" aria-keyshortcuts="Enter r" /></>;
+  return <><span ref={hintRippleRef} className="sq-hint-ripple" aria-hidden="true" /><span ref={hintFingerRef} className="sq-hint-finger" aria-hidden="true" /><span ref={hintLabelRef} className="sq-press-hint" aria-hidden="true">Press me</span><canvas ref={canvasRef} className="sq-canvas" data-ready={ready || undefined} tabIndex={0} role="button" aria-label="Glaze frame, press Enter to crack, R to reset" aria-keyshortcuts="Enter r" /></>;
 }
