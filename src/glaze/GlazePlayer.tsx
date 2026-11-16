@@ -504,13 +504,14 @@ function VolumeButton({ compact, open, setOpen }: { compact: boolean; open: bool
   const v = usePlayer((s) => ({ volume: s.volume, muted: s.muted }));
   const { handlers } = usePress();
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const escaped = useRef(false);
   const show = () => { clearTimeout(closeTimer.current); if (!compact) setOpen(true); };
   const close = () => { clearTimeout(closeTimer.current); closeTimer.current = setTimeout(() => setOpen(false), VOLUME_CLOSE_MS); };
   useEffect(() => () => clearTimeout(closeTimer.current), []);
   return (
     <div className="sq-volume" onPointerEnter={(e) => { if (e.pointerType !== "touch") show(); }} onPointerLeave={close}
-      onFocus={() => { if (!document.documentElement.hasAttribute("data-sq-pointer")) show(); }} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) close(); }}
-      onKeyDown={(e) => { if (e.key === "Escape" && open) { e.stopPropagation(); clearTimeout(closeTimer.current); setOpen(false); e.currentTarget.querySelector<HTMLButtonElement>(".sq-btn")?.focus(); } }}>
+      onFocus={() => { if (escaped.current) { escaped.current = false; return; } if (!document.documentElement.hasAttribute("data-sq-pointer")) show(); }} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) close(); }}
+      onKeyDown={(e) => { if (e.key === "Escape" && open) { e.stopPropagation(); clearTimeout(closeTimer.current); setOpen(false); escaped.current = true; e.currentTarget.querySelector<HTMLButtonElement>(".sq-btn")?.focus(); escaped.current = false; } }}>
       <button type="button" className="sq-pill sq-btn sq-icon sq-squish sq-squish-body"
         aria-label={v.muted ? "Unmute" : "Mute"} aria-pressed={v.muted}
         aria-keyshortcuts="m ArrowUp ArrowDown" {...handlers}
@@ -527,7 +528,7 @@ function VolumeButton({ compact, open, setOpen }: { compact: boolean; open: bool
             const volume = Number(e.target.value);
             store.setVolume(volume);
             store.setMuted(volume === 0);
-          }} onKeyDown={(e) => e.stopPropagation()} />
+          }} onKeyDown={(e) => { if (e.key !== "Escape") e.stopPropagation(); }} />
       </div>}
     </div>
   );

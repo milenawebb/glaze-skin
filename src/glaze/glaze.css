@@ -469,3 +469,7 @@
 .sq-hint-finger { width: 44px; height: 56px; border-radius: 50%; background: radial-gradient(ellipse at 50% 45%, rgb(74 30 72 / .25) 40%, rgb(74 30 72 / 0) 72%); filter: blur(3px); }
 .sq-hint-ripple { width: 56px; height: 56px; border-radius: 50%; border: 2px solid rgb(255 196 220 / .9); box-shadow: 0 0 10px rgb(255 196 220 / .7); }
 @media (prefers-reduced-motion: reduce) { .sq-root .sq-press-hint { transition: opacity 350ms ease !important; animation: none !important; scale: 1; } .sq-root .sq-hint-finger, .sq-root .sq-hint-ripple { display: none; } }
+
+/* Keyboard focus ring also on pill buttons, whose own shadow rules are more specific. */
+:root:not([data-sq-pointer]) .sq-root .sq-pill.sq-btn:focus-visible,
+:root:not([data-sq-pointer]) .sq-root[data-compact] .sq-pill.sq-btn:focus-visible { box-shadow: 0 0 0 2px #F7B8D2, 0 0 10px 2px rgb(247 184 210 / 0.6); border-radius: 999px; }
