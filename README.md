@@ -6,6 +6,8 @@
 
 [Live demo](https://glazevideo.com)
 
+See it live on a real site: [milenawebb.com/#glaze](https://milenawebb.com/#glaze). The demo video is streamed from [Mux](https://mux.com).
+
 ## What it is
 
 Glaze is an ASMR squishy skin for Video.js v10. The frame around the video is a glossy candy shell you can crack, chip and peel, with a soft squishy underneath that dents under your finger, plus optional ASMR sounds.
@@ -67,8 +69,6 @@ export function App() {
 | `Enter` (on the frame) | Crack the glaze |
 | `R` (on the frame) | Reset the frame |
 
-Keyboard (focus inside the player): Space or K play or pause, replay after ending · Left/Right seek back/forward 5 seconds · Up/Down volume up/down 10 percentage points · M mute/unmute · C captions on/off · F enter/exit fullscreen · Frame: Enter crack, R reset
-
 Use playback keys without Shift, Alt, Ctrl or Command. Space activates a focused button instead of playback and does nothing on the frame; K still controls playback there. On Seek, arrows seek 1 second, Shift+arrows and Page Up/Down seek 10 seconds, and Home/End go to the start/end. On Volume, arrows adjust by 1 percentage point and Home/End set minimum/maximum. In Speed, Up/Down move between choices and Home/End focus the first/last. Enter or Space activates buttons and sound cards. Escape closes Speed, Volume and the phone flavor picker; the browser handles leaving fullscreen. Tab/Shift+Tab move focus.
 
 ## Accessibility
@@ -79,7 +79,7 @@ Use playback keys without Shift, Alt, Ctrl or Command. Space activates a focused
 - Reduced motion: cracking, chipping, stripping and denting remain available. Chips fade in place instead of flying; frame dents still deepen and rise back. Controls do not squash, the press-me hint shows only its label, loading uses an opacity pulse, replay fades in, and sound cards use a brief highlight without movement. Sound is unchanged.
 - Forced colors: controls and cards use system surfaces, text, borders and Highlight focus rings, without glass, blur or shadows.
 - Reduced transparency: control bars, popups and pills use solid pink surfaces instead of glass when your browser supports the preference.
-- Custom captions overlay, on by default, with a CC toggle
+- Custom captions overlay, off by default, with a CC toggle (C key)
 
 ## Built with
 
@@ -92,8 +92,8 @@ Use playback keys without Shift, Alt, Ctrl or Command. Space activates a focused
 
 ## Credits
 
-Designed and built by [Milena Webb](https://milenawebb.com). The demo video, whispers and squish sounds were all custom made for Glaze.
+Designed and built by [Milena Webb](https://milenawebb.com). The demo video, ASMR whispers and all sounds were all custom made for Glaze.
 
 ## License
 
-Apache 2.0, see [LICENSE](LICENSE).
+Apache 2.0, the same license as Video.js. See [LICENSE](LICENSE).
