@@ -1,8 +1,8 @@
 import { canvasDpr, coarsePointer, coatingScale, mapSize } from "./touch";
 /**
  * Raw WebGL renderer for the squishy frame. A CPU height map (Float32Array,
- * in unit-frame coordinates) stores permanent dents; it is uploaded as a texture each
- * frame and lit in the fragment shader.
+ * in unit-frame coordinates) stores dents; changed rectangles are uploaded and
+ * lit in the fragment shader, with retained pixels outside recovering regions.
  */
 import { COLOR_FADE_MS } from "./preferences";
 import { FOAM_DARKENING_LIMIT, SURFACE_SMOOTHING } from "./surface";
@@ -223,7 +223,7 @@ void main(){
 
 export interface FrameRenderer {
   resize(w: number, h: number, insets: { l: number; t: number; r: number; b: number }): void;
-  render(): void;
+  render(recoveryBounds?: Region): void;
   dirtyHeight(bounds: Region): void;
   /** Pending rise-back contribution, shader-eased by riseK (0 to -1). */
   dirtyRise(bounds: Region): void;
@@ -250,7 +250,7 @@ export interface FrameRenderer {
 }
 
 export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | null {
-  const opts: WebGLContextAttributes = { premultipliedAlpha: true, antialias: false, alpha: true };
+  const opts: WebGLContextAttributes = { premultipliedAlpha: true, antialias: false, alpha: true, preserveDrawingBuffer: true };
   const gl2 = canvas.getContext("webgl2", opts) as WebGL2RenderingContext | null;
   const gl = (gl2 ?? canvas.getContext("webgl", opts)) as WebGLRenderingContext | null;
   if (!gl) return null;
@@ -335,6 +335,7 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
   const snapshots=Array.from({length:8},()=>document.createElement("canvas"));let snapshotIndex=0;
   let heightDirty:Region|null=null, coatDirty:Region|null=null, riseDirty:Region|null=null;
   let fullUpload=true;
+  let lastPresentation="";
 
   const material=document.createElement("canvas");let materialJob=0;
   // CPU-only shell colors for tiny flying fragments. Never read back the GPU frame.
@@ -401,8 +402,9 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
       gl.uniform1f(u("uRi"), FRAME.innerRadius);
       fullUpload=true;
     },
-    render() {
+    render(recoveryBounds) {
       if (lost || gl.isContextLost()) return;
+      const coatingChanged=Boolean(coatDirty);
       const t = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : Math.min(1, (performance.now() - paletteStart) / COLOR_FADE_MS);
       currentMono = fromMono + (targetMono - fromMono) * t;
       gl.uniform1f(u("uMono"), currentMono);
@@ -451,10 +453,23 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
         }
         coatDirty=null;
       }
-      fullUpload=false;
+      // Keep the exact shader lighting, but evaluate it only around recovering dents.
+      // Any non-recovery presentation change still redraws the whole frame.
+      const presentation=JSON.stringify([currentColors,currentMono,r.face,r.hint,r.resetAmount]);
+      const partial=recoveryBounds&&!fullUpload&&!coatingChanged&&presentation===lastPresentation;
+      if(partial){
+        const b=recoveryBounds,pad=32,dprX=canvas.width/r.width,dprY=canvas.height/r.height;
+        const x0=Math.max(0,Math.floor((b.x0/r.dw*r.width-pad)*dprX));
+        const x1=Math.min(canvas.width,Math.ceil(((b.x1+1)/r.dw*r.width+pad)*dprX));
+        const y0=Math.max(0,Math.floor((b.y0/r.dh*r.height-pad)*dprY));
+        const y1=Math.min(canvas.height,Math.ceil(((b.y1+1)/r.dh*r.height+pad)*dprY));
+        gl.enable(gl.SCISSOR_TEST);gl.scissor(x0,canvas.height-y1,x1-x0,y1-y0);
+      }else gl.disable(gl.SCISSOR_TEST);
+      fullUpload=false;lastPresentation=presentation;
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      gl.disable(gl.SCISSOR_TEST);
 
     },
     snapshot(x, y, radius) {

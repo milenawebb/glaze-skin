@@ -55,7 +55,7 @@ use the editor.
 - The sounds prop is a startup fallback beneath saved viewer preferences; mount preloads recordings without resume, and player window-capture unlock runs before control/frame presses so suspended audio can schedule the first clip.
 - Phone video taps toggle controls on touch/pen pointerup, not click/down; ignore implicit touch leave so Safari cannot immediately undo the tap, and keep hidden rows non-interactive.
 - Compact flavor choices open horizontally beside the existing toggle in the bottom band above other player layers; demo-only preview tabs use viewport visibility independently of the skin's width.
-- Dent rise-back is a shader uniform over a bounded rise map, baked locally once at completion; recovery-only redraws wait 50ms, pointer input cancels that wait, and dismissed hints never wake idle rendering. Phones halve map sizes and restore maps after GPU context loss.
+- Rise-back queues all signed dent depth to rest, uses 50ms shader updates and local final uploads; scissor retained pixels during recovery so unchanged lighting is not recomputed. Pointer input wakes immediately; phones halve maps and restore context loss.
 - chip.ts owns tap snapping, finger-sized break-offs, island and crumb rules; no cracks or pieces without glaze near the tap.
 - hint.ts schedules visit-scoped hints; ghost presses use transient shader uniforms, never retained maps.
 - Keep /embed presentation overrides outside the skin and scope its frame-ancestors header to that page, so the demo and package remain unchanged.

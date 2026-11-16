@@ -12,7 +12,7 @@ import { prepareShellDebris, cancelShellDebris, createShellBreak, peelShell, SHE
 import { angularCell, maxPiece, chipPlates, chipRadius, snapRadius, snapToGlaze, ISLAND_SIZE } from "./chip";
 import { createGlazeStrip, dragThreshold, isGlazeDrag, stripWidth } from "./strip";
 
-import { recoverySettings, recoveryFactor, immediateDepth, recoveryDelay } from "./recovery";
+import { bakeRecovery, queueRecovery, recoverySettings, recoveryFactor, immediateDepth, recoveryDelay } from "./recovery";
 import { settledResize } from "./resize";
 import { fingerPad, fingerDepth, stampFingertip, type FingerPad } from "./fingertip";
 import type { GlazeColor } from "./preferences";
@@ -134,7 +134,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     const bakeRise=(now:number,finish=false)=>{
       if(!rise){r.riseK=0;return;}
       const k=finish?-1:riseK(now),b=rise.bounds,remaining=Math.max(300,rise.duration-(now-rise.start));
-      for(let y=b.y0;y<=b.y1;y++)for(let x=b.x0;x<=b.x1;x++){const i=y*r.dw+x,l=r.rise[i]??0;if(l!==0){r.dent[i]=(r.dent[i]??0)+l*k;r.rise[i]=finish?0:l*(1+k);}}
+      bakeRecovery(r.dent,r.rise,r.dw,b,k,finish);
       r.dirtyHeight(b);r.dirtyRise(b);r.riseK=0;
       rise=finish?null:{start:now,duration:remaining,bounds:b};
     };
@@ -159,6 +159,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       if (ripple) { const t = pose.active ? pose.ripple : 0; ripple.style.opacity = t ? String((1 - t) * .8) : "0"; ripple.style.transform = `translate(${hx}px, ${hy}px) translate(-50%, -50%) scale(${.4 + t * 1.4})`; }
       r.face = faceExpression(presses.size, now - released, reduced);
       // Only a uniform changes while dents rise; the maps are baked once at the end.
+      const recoveryBounds=rise?.bounds;
       if(rise){if(now-rise.start>=rise.duration)bakeRise(now,true);else r.riseK=riseK(now);}
       for(const c of cracked) if(!c.removed && !c.drawn){
         paint(mapShell(c.shape,size.w,size.h),false);c.drawn=true;
@@ -194,7 +195,8 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
         }
       }
 
-      r.render();
+      const recoveryOnly=!pose.active&&!pending.length&&!presses.size&&!breaks.length&&!resetRef.current&&r.face===0&&!r.paletteAnimating();
+      r.render(recoveryOnly?recoveryBounds:undefined);
       const spent=performance.now()-frameStart;
       if(import.meta.env?.DEV&&spent>30)console.warn(`[glaze] slow frame: ${spent.toFixed(1)}ms`);
       if (pose.active || pending.length || presses.size || breaks.length || cracked.some(c=>!c.removed&&!c.drawn) || resetRef.current || r.face > 0 || r.paletteAnimating()) raf = requestAnimationFrame(loop);
@@ -391,10 +393,11 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
         bakeRise(now);
         // Queue the complete smooth contribution, tails included, for the shader to raise.
         const radius=press.pad.length*5;const area=region(r.dw,r.dh,(Math.min(...press.spots.map(p=>p.x))-radius)*r.dw/size.w,(Math.min(...press.spots.map(p=>p.y))-radius)*r.dh/size.h,(Math.max(...press.spots.map(p=>p.x))+radius)*r.dw/size.w,(Math.max(...press.spots.map(p=>p.y))+radius)*r.dh/size.h);
-        let bx0=r.dw,by0=r.dh,bx1=-1,by1=-1;const before=press.before;
-        for(let y=area.y0;y<=area.y1;y++)for(let x=area.x0;x<=area.x1;x++){const i=y*r.dw+x;const depth=(r.dent[i]??0)-(before[i]??0);if(depth!==0){r.rise[i]=(r.rise[i]??0)+depth*settings.fraction;if(x<bx0)bx0=x;if(x>bx1)bx1=x;if(y<by0)by0=y;if(y>by1)by1=y;}}
-        beforePool.push(before);
-        if(bx1>=0){const b={x0:bx0,y0:by0,x1:bx1,y1:by1};r.dirtyRise(b);rise={start:now,duration:settings.duration,bounds:union(rise?.bounds??null,b)};}
+        const completeArea=union(rise?.bounds??null,area);
+        const bounds=queueRecovery(r.dent,r.rise,r.dw,completeArea);
+        r.dirtyHeight(completeArea);r.dirtyRise(completeArea);
+        beforePool.push(press.before);
+        rise=bounds?{start:now,duration:settings.duration,bounds}:null;
         if (!presses.size) released = performance.now();
         schedule();
       }
