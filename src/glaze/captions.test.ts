@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { overlayCaptionText, CAPTIONS_DEFAULT_ON, loadHiddenCaptionTrack, observeCaptionCues } from "./captions";
 
-it("starts captions ON by default", () => { expect(CAPTIONS_DEFAULT_ON).toBe(true); });
+it("starts captions OFF by default", () => { expect(CAPTIONS_DEFAULT_ON).toBe(false); });
 it("selects the Mux subtitle loader while keeping the native track hidden", () => {
   const track = { mode: "disabled", language: "en", label: "English" } as TextTrack;
   const engine = { subtitleTrack: -1, subtitleTracks: [{ lang: "en", name: "English" }] };

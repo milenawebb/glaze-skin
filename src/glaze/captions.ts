@@ -1,5 +1,5 @@
 type CaptionTrack = { mode: TextTrackMode; kind: string; activeCues: ArrayLike<object> | null };
-export const CAPTIONS_DEFAULT_ON = true;
+export const CAPTIONS_DEFAULT_ON = false;
 
 export interface CaptionEngine {
   subtitleTrack: number;
