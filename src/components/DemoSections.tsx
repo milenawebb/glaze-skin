@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { playPreview } from "@/glaze";
+import { useRef, useState } from "react";
 
 const USAGE = `import { GlazePlayer } from "glaze";
 
@@ -31,9 +32,9 @@ const PROPS = [
 const icon = { viewBox: "0 0 32 32", "aria-hidden": true, className: "demo-card-icon" } as const;
 
 const STEPS = [
-  { title: "Crack", text: "Tap the glaze once and it cracks.", svg: <svg {...icon}><circle cx="16" cy="16" r="12" /><path d="M16 16 10 9M16 16l8-4M16 16l-2 9M16 16l7 6M12 11l-4 1" /></svg> },
-  { title: "Chip", text: "Tap again and the pieces break away. Or drag to strip it off.", svg: <svg {...icon}><path d="M5 20 12 8l7 6-4 9Z" /><path d="m22 8 4 3-3 3M24 19l3 2-2 3" /></svg> },
-  { title: "Squish", text: "Press the soft inside and it dents under your finger, then slowly puffs back up.", svg: <svg {...icon}><path d="M4 22c4 0 6-6 12-6s8 6 12 6" /><path d="M16 4v8m-3-3 3 3 3-3" /></svg> },
+  { title: "Crack", sound: "crack" as const, text: "Tap the glaze once and it cracks.", svg: <svg {...icon}><circle cx="16" cy="16" r="12" /><path d="M16 16 10 9M16 16l8-4M16 16l-2 9M16 16l7 6M12 11l-4 1" /></svg> },
+  { title: "Chip", sound: "shatter" as const, text: "Tap again and the pieces break away. Or drag to strip it off.", svg: <svg {...icon}><path d="M5 20 12 8l7 6-4 9Z" /><path d="m22 8 4 3-3 3M24 19l3 2-2 3" /></svg> },
+  { title: "Squish", sound: "squish" as const, text: "Press the soft inside and it dents under your finger, then slowly puffs back up.", svg: <svg {...icon}><path d="M4 22c4 0 6-6 12-6s8 6 12 6" /><path d="M16 4v8m-3-3 3 3 3-3" /></svg> },
 ];
 
 export function DemoSections() {
@@ -47,7 +48,7 @@ export function DemoSections() {
         <p className="demo-eyebrow">How to play</p>
         <h2 id="how-heading">Indulge your senses</h2>
         <div className="demo-cards">
-          {STEPS.map(s => <div key={s.title} className="demo-card">{s.svg}<h3>{s.title}</h3><p>{s.text}</p></div>)}
+          {STEPS.map(s => <SoundCard key={s.title} step={s} />)}
         </div>
         <p className="demo-keys">Keyboard: Space play · ← → skip · ↑ ↓ volume · M mute · C captions · F fullscreen</p>
         <p className="demo-note">Made a mess? Hit Reset and it's glazed and new again.</p>
@@ -74,5 +75,31 @@ export function DemoSections() {
         <a href="https://github.com/milenawebb/glaze-skin" target="_blank" rel="noopener noreferrer">GitHub</a> · Apache 2.0 · A sensory experience by <a href="https://milenawebb.com" target="_blank" rel="noopener noreferrer">Milena Webb</a>
       </footer>
     </div>
+  );
+}
+
+type Step = (typeof STEPS)[number];
+const speaker = <svg className="demo-card-speaker" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9Z" /><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" /></svg>;
+
+function SoundCard({ step }: { step: Step }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const press = () => {
+    playPreview(step.sound);
+    const el = ref.current;
+    if (!el) return;
+    el.removeAttribute("data-pressed");
+    void el.offsetWidth; // restart the effect on rapid presses
+    el.setAttribute("data-pressed", "");
+  };
+  return (
+    <button ref={ref} type="button" className="demo-card demo-sound-card" data-effect={step.title.toLowerCase()} aria-label={`Play the ${step.title.toLowerCase()} sound`} onClick={press} onAnimationEnd={e => { if (e.target === e.currentTarget) e.currentTarget.removeAttribute("data-pressed"); }}>
+      {speaker}
+      <span className="demo-card-art">
+        {step.svg}
+        {step.title === "Crack" && <svg className="demo-fx-cracks" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 24 10 12M24 24l16-6M24 24l-3 18M24 24l14 12M16 17l-8 2" /></svg>}
+        {step.title === "Chip" && <span className="demo-fx-flakes" aria-hidden="true"><i /><i /><i /><i /></span>}
+      </span>
+      <h3>{step.title}</h3><p>{step.text}</p>
+    </button>
   );
 }

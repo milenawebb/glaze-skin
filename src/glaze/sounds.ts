@@ -98,6 +98,10 @@ export function setSoundsEnabled(on: boolean, unlock = true) {
   const c = getCtx();
   if (!c) return;
   if (unlock) unlockSounds();
+  loadRecordings(c);
+}
+
+function loadRecordings(c: AudioContext) {
   if (!loading) {
     loading = Promise.all(Object.values(groups).flat().map(async (url) => {
       if (buffers.has(url)) return;
@@ -112,9 +116,9 @@ export function setSoundsEnabled(on: boolean, unlock = true) {
 
 export function getSoundsEnabled() { return enabled; }
 
-function recording(group: Group, depth = 0, volumeScale = 1) {
+function recording(group: Group, depth = 0, volumeScale = 1, force = false) {
   // A source scheduled during resume starts as soon as Safari's context runs.
-  if (!enabled || !ctx || !master || ctx.state === "closed") return;
+  if ((!enabled && !force) || !ctx || !master || ctx.state === "closed") return;
   if (ctx.state !== "running") void ctx.resume().catch(() => {}).then(notifyBlocked);
   const c = ctx;
   const choices = groups[group].map((url, index) => ({ buffer: buffers.get(url), index }))
@@ -170,6 +174,21 @@ export function playCrunch() {
     crunches.add(voice.source);
     lastCrunch = ctx.currentTime;
   }
+}
+
+/** A deliberate one-off preview (demo cards): plays even with sounds off and never changes the setting. */
+export function playPreview(group: "crack" | "shatter" | "squish") {
+  const c = getCtx();
+  if (!c || !master) return;
+  playbackSession();
+  void c.resume().catch(() => {});
+  const unlock = c.createBufferSource();
+  unlock.buffer = c.createBuffer(1, 1, c.sampleRate);
+  unlock.connect(master); unlock.onended = () => unlock.disconnect(); unlock.start();
+  const ready = groups[group].some((url) => buffers.has(url));
+  if (ready) { recording(group, 0, 1, true); return; }
+  loadRecordings(c);
+  void loading?.then(() => recording(group, 0, 1, true));
 }
 
 /** Sound-only press tracking for controls; visuals remain owned by squish.ts. */
