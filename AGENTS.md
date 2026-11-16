@@ -58,4 +58,5 @@ use the editor.
 - Dent rise-back is a shader uniform over a rise map, baked once per press; phones halve map sizes and restore maps after GPU context loss.
 - chip.ts owns tap snapping, finger-sized break-offs, island and crumb rules; no cracks or pieces without glaze near the tap.
 - hint.ts schedules visit-scoped hints; ghost presses use transient shader uniforms, never retained maps.
+- Keep /embed presentation overrides outside the skin and scope its frame-ancestors header to that page, so the demo and package remain unchanged.
 <!-- AGENT-MEMORY:END -->

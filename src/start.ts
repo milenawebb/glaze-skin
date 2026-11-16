@@ -2,6 +2,16 @@ import { createStart, createCsrfMiddleware, createMiddleware } from "@tanstack/r
 
 import { renderErrorPage } from "./lib/error-page";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
+import { setResponseHeader, removeResponseHeader } from "@tanstack/react-start/server";
+import { EMBED_FRAME_POLICY, isEmbedPage } from "./lib/embed-policy";
+
+const embedMiddleware = createMiddleware().server(async ({ pathname, next }) => {
+  if (isEmbedPage(pathname)) {
+    removeResponseHeader("X-Frame-Options");
+    setResponseHeader("Content-Security-Policy", EMBED_FRAME_POLICY);
+  }
+  return next();
+});
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
@@ -33,5 +43,5 @@ const csrfMiddleware = createCsrfMiddleware({
 // project did not intentionally replace it.
 export const startInstance = createStart(() => ({
   functionMiddleware: [attachSupabaseAuth],
-  requestMiddleware: [errorMiddleware, csrfMiddleware],
+  requestMiddleware: [errorMiddleware, csrfMiddleware, embedMiddleware],
 }));
