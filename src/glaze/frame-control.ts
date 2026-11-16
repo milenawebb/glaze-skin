@@ -1,7 +1,6 @@
-/** Activate on release without relying on iOS generating a compatibility click. */
-export function attachFrameAction(el: HTMLButtonElement, action: () => void) {
+/** One tap, one action: pointer presses act only on pointerup; click is kept for the keyboard only (detail 0). */
+export function attachFrameAction(el: HTMLButtonElement, action: () => void, blocked: () => boolean = () => false) {
   let press: { id: number; x: number; y: number } | undefined;
-  let lastRelease = -Infinity;
   const down = (e: PointerEvent) => {
     e.stopPropagation();
     if (e.button > 0) return;
@@ -11,13 +10,14 @@ export function attachFrameAction(el: HTMLButtonElement, action: () => void) {
     e.stopPropagation();
     const start = press; press = undefined;
     if (!start || start.id !== e.pointerId || Math.hypot(e.clientX-start.x,e.clientY-start.y)>12) return;
-    lastRelease = performance.now();
+    if (blocked()) return;
     action();
   };
   const cancel = () => { press = undefined; };
   const click = (e: MouseEvent) => {
     e.stopPropagation();
-    if (e.detail > 0 && performance.now()-lastRelease < 700) return;
+    // Pointer-made clicks (including ghost clicks landing on a newly shown button) never act.
+    if (e.detail > 0 || blocked()) return;
     action();
   };
   el.addEventListener("pointerdown", down);
@@ -31,3 +31,6 @@ export function attachFrameAction(el: HTMLButtonElement, action: () => void) {
     el.removeEventListener("click", click);
   };
 }
+
+/** Taps on the flavor dots are ignored this long after the row opens. */
+export const CHOICE_GUARD_MS = 350;

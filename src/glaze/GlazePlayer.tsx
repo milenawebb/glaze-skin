@@ -6,7 +6,7 @@ import { GlazeFrame } from "./GlazeFrame";
 import { crackCrust } from "./crust";
 import { attachSquish, useSquish, useSquishAll } from "./squish";
 import { vibratePress } from "./haptics";
-import { attachFrameAction } from "./frame-control";
+import { attachFrameAction, CHOICE_GUARD_MS } from "./frame-control";
 import { POPUP_SPEEDS, VOLUME_CLOSE_MS, CONTROLS_IDLE_MS, controlsVisible, videoTapActivity } from "./controls";
 import { CAPTIONS_DEFAULT_ON, observeCaptionCues, isCaptionEngine } from "./captions";
 import { COLORS, OPTIONS, readPreferences, savePreferences, type GlazeColor } from "./preferences";
@@ -73,6 +73,8 @@ export function GlazeSkin({ children, resetKey, label, sounds: startSounds = fal
   useEffect(() => { setSoundBlocked(getSoundsBlocked()); return onSoundsBlockedChange(setSoundBlocked); }, []);
   const [colorOpen, setColorOpen] = useState(false);
   const colorRef = useRef<HTMLDivElement>(null);
+  const colorOpenedAt = useRef(-Infinity);
+  const choiceBlocked = () => performance.now() - colorOpenedAt.current < CHOICE_GUARD_MS;
   useEffect(() => {
     if (!colorOpen) return;
     colorRef.current?.querySelector<HTMLButtonElement>('.sq-color-choices button')?.focus();
@@ -229,9 +231,9 @@ export function GlazeSkin({ children, resetKey, label, sounds: startSounds = fal
       {!fallback && <GlazeFrame resetKey={resetKey + localReset} color={color} glazeStyle={glazeStyle} onFallback={() => setFallback(true)} onReset={() => setLocalReset((n) => n + 1)} />}
       <div className="sq-frame-tools">
       <div ref={colorRef} className="sq-frame-colors" role="group" aria-label="Glaze colors">
-        <FrameButton className="sq-candy sq-squish sq-color-toggle" data-swatch={color} aria-label={`Choose color: ${OPTIONS[color].label}`} title={`Choose color: ${OPTIONS[color].label}`} aria-expanded={colorOpen} action={() => setColorOpen((open) => !open)}><span className="sq-candy-face sq-squish-body" /></FrameButton>
+        <FrameButton className="sq-candy sq-squish sq-color-toggle" data-swatch={color} aria-label={`Choose color: ${OPTIONS[color].label}`} title={`Choose color: ${OPTIONS[color].label}`} aria-expanded={colorOpen} action={() => setColorOpen((open) => { if (!open) colorOpenedAt.current = performance.now(); return !open; })}><span className="sq-candy-face sq-squish-body" /></FrameButton>
         <div className="sq-color-choices" data-open={colorOpen || undefined}>
-          {COLORS.filter(choice => !compact || choice !== color).map((choice) => <FrameButton key={choice} className="sq-candy sq-squish" data-swatch={choice} aria-label={OPTIONS[choice].label} title={OPTIONS[choice].label} aria-pressed={color === choice} action={() => { setColor(choice); persist(choice, sounds); setColorOpen(false); if (compact) colorRef.current?.querySelector<HTMLButtonElement>(".sq-color-toggle")?.focus(); }}><span className="sq-candy-face sq-squish-body" /></FrameButton>)}
+          {COLORS.filter(choice => !compact || choice !== color).map((choice) => <FrameButton key={choice} className="sq-candy sq-squish" data-swatch={choice} aria-label={OPTIONS[choice].label} title={OPTIONS[choice].label} aria-pressed={color === choice} blocked={choiceBlocked} action={() => { if (choice === color) { setColorOpen(false); return; } setColor(choice); persist(choice, sounds); setColorOpen(false); if (compact) colorRef.current?.querySelector<HTMLButtonElement>(".sq-color-toggle")?.focus(); }}><span className="sq-candy-face sq-squish-body" /></FrameButton>)}
         </div>
       </div>
       <div className="sq-frame-actions">
@@ -319,12 +321,13 @@ export function GlazeSkin({ children, resetKey, label, sounds: startSounds = fal
 }
 
 /** Bottom-band actions own release handling and feedback, including newly opened choices. */
-function FrameButton({ action, ...props }: Omit<React.ComponentPropsWithoutRef<"button">, "onClick"> & { action: () => void }) {
+function FrameButton({ action, blocked, ...props }: Omit<React.ComponentPropsWithoutRef<"button">, "onClick"> & { action: () => void; blocked?: () => boolean }) {
   const ref = useRef<HTMLButtonElement>(null);
   const latest = useRef(action); latest.current = action;
+  const isBlocked = useRef(blocked); isBlocked.current = blocked;
   useEffect(() => {
     const el=ref.current;if(!el)return;
-    const detachAction=attachFrameAction(el,()=>latest.current());
+    const detachAction=attachFrameAction(el,()=>latest.current(),()=>isBlocked.current?.()??false);
     const detachSquish=attachSquish(el);
     return ()=>{detachAction();detachSquish();};
   }, []);
