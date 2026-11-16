@@ -1,36 +1,92 @@
 # Glaze
 
-An ASMR squishy skin for Video.js
+![Glaze](public/glaze-logo-on-light.svg)
 
-This project was built with [Lovable](https://lovable.dev).
+**Crack the glaze. Squish the frame.**
 
-## Build with Lovable
+[Live demo](https://glazevideo.com)
 
-Open your project in the [Lovable editor](https://lovable.dev) and keep building.
+## What it is
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: connect the project to GitHub and every change made in Lovable is committed straight to your repository.
-- **Full ownership**: this code is yours. Push to your repository and your changes sync back into Lovable, ready for your next prompt.
+Glaze is an ASMR squishy skin for Video.js v10. The frame around the video is a glossy candy shell you can crack, chip and peel, with a soft squishy underneath that dents under your finger, plus optional ASMR sounds.
 
-## Development
+## Features
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+- Four flavors: Rainbow candy, Strawberry candy, Lilac mono and Matcha mono
+- Crack, chip, strip and squish the frame with your finger, mouse or keyboard
+- Optional squish and crackle sounds (off by default, the demo turns them on)
+- Custom captions with a CC toggle
+- Playback speed control
+- Loading and replay states
+- Keyboard shortcuts
+- Reduced motion support
+- A phone layout with finger-sized controls
 
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
+## Getting started
+
+```bash
+npm install
 npm run dev
 ```
 
-## Glaze skin settings
+Use the player in your own app:
 
-- `sounds`: start with squish sounds on (default `false`). A viewer's remembered sound-button choice overrides this starting setting.
-- The demo passes `sounds={true}`. Recordings preload on player mount, and the first player gesture resumes audio before its press sound is scheduled.
+```tsx
+import { GlazePlayer } from "./src/glaze";
 
-## Technology
+export function App() {
+  return (
+    <GlazePlayer
+      playbackId="IL8LEwPXBY4C2HldJqjKKjtO6y5aGkQXqVPWx5cuo01g"
+      title="My video"
+      sounds
+    />
+  );
+}
+```
 
-- TanStack Start
-- TypeScript
+### Props
+
+| Name | Type | Default | Description |
+| --- | --- | --- | --- |
+| `playbackId` | `string` | required | Mux playback ID for the video |
+| `title` | `string` | `"Video"` | Accessible label for the player |
+| `sounds` | `boolean` | `false` | Start with squish sounds on; a remembered viewer choice takes priority |
+| `resetKey` | `number` | `0` | Changing this number puffs the frame back to smooth and re-bakes the crust |
+
+## Keyboard shortcuts
+
+| Key | Action |
+| --- | --- |
+| `Space` or `K` | Play or pause (replay when the video has ended) |
+| `Left` / `Right` | Seek back or forward 5 seconds |
+| `Up` / `Down` | Volume up or down |
+| `M` | Mute or unmute |
+| `C` | Captions on or off |
+| `F` | Fullscreen |
+| `Enter` (on the frame) | Crack the glaze |
+| `R` (on the frame) | Reset the frame |
+
+## Accessibility
+
+- Full keyboard support for playback, volume, captions, fullscreen and the frame itself
+- Visible focus rings for keyboard users
+- Reduced motion: cracking, denting and the loading and replay states calm down when the viewer prefers less motion
+- Custom captions overlay, on by default, with a CC toggle
+
+## Built with
+
+- [Video.js v10](https://videojs.com) (`@videojs/react`)
 - React
+- TypeScript
+- TanStack Start
 - Tailwind CSS
+- WebGL
+
+## Credits
+
+Designed and built by [Milena Webb](https://milenawebb.com). The demo video, whispers and squish sounds were all custom made for Glaze.
+
+## License
+
+Apache 2.0, see [LICENSE](LICENSE).
