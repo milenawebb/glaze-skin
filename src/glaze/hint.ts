@@ -54,8 +54,6 @@ export function createFrameHint(now: number, storage?: Storage) {
         ...hintPose(elapsed, reduced),
         active: !stopped && !blocked && !reduced && elapsed < HINT_DURATION,
         label: !stopped && !blocked && time - labelStart < HINT_LABEL_MS,
-        // Pixel offset from the band centre: always just left of the face.
-        x: [-78, -86, -72][Math.max(0, count - 1)] ?? -78,
         count,
       };
     },

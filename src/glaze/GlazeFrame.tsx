@@ -68,6 +68,19 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     const hintBlocked = () => !onScreen || nativeFullscreen || Boolean(document.fullscreenElement) || document.visibilityState === "hidden" || performance.now() < controlUntil || Boolean(root?.querySelector(`${controlSelector.split(", ").map(s => `${s}:hover`).join(", ")}`)) || Boolean(document.activeElement instanceof Element && root?.contains(document.activeElement) && document.activeElement.closest(controlSelector));
     const stopHint = () => { hint.stop(); if(label)label.removeAttribute("data-visible"); if(finger)finger.style.opacity="0"; if(ripple)ripple.style.opacity="0"; r.hint = { x: 0, y: 0, depth: 0, crack: 0, glance: 0, blink: 0, smile: 0 }; schedule(); };
 
+    // Right of the face, at least 60px from any band button so it never reads as a button label.
+    let spotCache = { key: "", x: 0 };
+    const hintSpot = (cx: number, hy: number) => {
+      const key = `${size.w}x${size.h}`;
+      if (spotCache.key === key) return spotCache.x;
+      const base = canvas.getBoundingClientRect();
+      const buttons = Array.from(root?.querySelectorAll<HTMLElement>(".sq-frame-tools button, .sq-frame-colors button, .sq-frame-actions button") ?? []).map(b => b.getBoundingClientRect()).filter(b => b.width && Math.abs(b.top + b.height / 2 - base.top - hy) < 60).map(b => ({ l: b.left - base.left, r: b.right - base.left }));
+      const gap = (x: number) => Math.min(Infinity, ...buttons.map(b => x < b.l ? b.l - x : x > b.r ? x - b.r : 0));
+      const options = [72, 64, 84, 56, 96].map(d => cx + d);
+      const x = options.find(o => gap(o) >= 60) ?? options.reduce((a, b) => gap(b) > gap(a) ? b : a);
+      spotCache = { key, x };
+      return x;
+    };
     let size = { w: 1, h: 1 };
     let raf = 0;
     let resizing = false;
@@ -135,7 +148,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       while(pending.length&&performance.now()<deadline){const event=pending.shift();if(event)processEvent(event);if(event?.type==="pointermove")break;}
       const pose = hint.tick(now, hintBlocked(), reduced);
       const bottom = parseFloat(getComputedStyle(canvas.parentElement ?? canvas).paddingBottom) || 96;
-      const hx = size.w * .5 + pose.x * Math.min(1, size.w / 600), hy = size.h - bottom * .5;
+      const hy = size.h - bottom * .5, hx = hintSpot(size.w * .5, hy);
       r.hint = { x: hx, y: hy, depth: intact(hx,hy) ? pose.depth : 0, crack: intact(hx,hy) ? pose.crack : 0, glance: pose.glance, blink: pose.blink, smile: pose.smile };
       label?.toggleAttribute("data-visible", pose.label);
       if (label) { label.style.left = `${hx}px`; label.style.top = `${hy}px`; }

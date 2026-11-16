@@ -185,6 +185,8 @@ void main(){
   c=face(p,c,hole);
   vec2 hq=p-uHint.xy;
   float hair=min(min(segment(hq,vec2(-3.,-1.),vec2(-13.,-5.)),segment(hq,vec2(3.,-1.),vec2(12.,-6.))),segment(hq,vec2(1.,3.),vec2(4.,12.)));
+  vec2 hs=(hq-vec2(0.,5.))/vec2(15.,8.);
+  c*=1.-.32*uHint.z*exp(-dot(hs,hs)*.5)*smoothstep(-1.,7.,hq.y);
   float ghostCrack=(1.-smoothstep(.15,.65,hair))*uHint.w*coat;
   float crack=max(texture2D(uGlaze,p/uRes).g*coat*uReset,ghostCrack*.7);
   float crackShadow=texture2D(uGlaze,(p-vec2(.8,.9))/uRes).g*coat*uReset;
