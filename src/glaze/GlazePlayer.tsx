@@ -187,6 +187,20 @@ export function GlazeSkin({ children, resetKey, label, sounds: startSounds = fal
   const visible = ended || controlsVisible(paused, active, (!compact && volumeOpen) || speedOpen, keyboardFocus);
   useSquishAll(rootRef);
 
+  // While a popup is open, lift the captions above its top edge: measure the
+  // popup against the root and expose the clearance as a CSS variable.
+  const popupOpen = (volumeOpen && !compact) || speedOpen;
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    if (!popupOpen) { root.style.removeProperty("--sq-popup-clear"); return; }
+    const popup = root.querySelector<HTMLElement>(".sq-speed-menu, .sq-volume-slider");
+    const stage = root.querySelector<HTMLElement>(".sq-stage");
+    if (!popup || !stage) return;
+    const clearance = stage.getBoundingClientRect().bottom - popup.getBoundingClientRect().top + 8;
+    root.style.setProperty("--sq-popup-clear", `${Math.max(0, Math.round(clearance))}px`);
+  }, [popupOpen]);
+
   // Focus rings are for keyboard navigation only: any pointer use marks <html>
   // so the skin's :focus-visible rules stay off until a navigation key is pressed.
   useEffect(() => {
@@ -213,6 +227,7 @@ export function GlazeSkin({ children, resetKey, label, sounds: startSounds = fal
       data-fallback={fallback || undefined}
       data-compact={compact || undefined}
       data-row-visible={visible || undefined}
+      data-popup-open={popupOpen || undefined}
       data-color={color}
       data-glaze-style={glazeStyle}
       style={{ ["--sq-ar" as string]: String(ar) }}
