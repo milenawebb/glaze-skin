@@ -272,8 +272,9 @@ html:has(.glaze-embed), body:has(.glaze-embed) { background: transparent; overfl
 .embed-content { position: absolute; top: 0; left: 0; display: flow-root; transform-origin: top left; }
 .glaze-embed .sq-root { width: 100%; max-width: 900px; margin-bottom: 64px; overflow: visible; }
 .embed-placeholder { width: 100%; aspect-ratio: 900 / 632; }
-.glaze-embed .sq-root .sq-frame-tools { position: absolute; z-index: 8; top: calc(100% + 8px); left: 50%; translate: -50% 0; display: flex; align-items: center; gap: 4px; height: 52px; padding: 4px; border-radius: 999px; background: var(--sq-liquid-refraction), var(--sq-liquid-surface); backdrop-filter: blur(10px) saturate(115%); box-shadow: var(--sq-liquid-shadow); max-width: calc(100% - 8px); }
-.glaze-embed .sq-root .sq-frame-colors, .glaze-embed .sq-root .sq-frame-actions { position: relative; inset: auto; translate: none; gap: 4px; align-items: center; }
+.glaze-embed:not([data-layout="desktop"]) .sq-root .sq-frame-tools { position: absolute; z-index: 8; top: calc(100% + 8px); left: 50%; translate: -50% 0; display: flex; align-items: center; gap: 4px; height: 52px; padding: 4px; border-radius: 999px; background: var(--sq-liquid-refraction), var(--sq-liquid-surface); backdrop-filter: blur(10px) saturate(115%); box-shadow: var(--sq-liquid-shadow); max-width: calc(100% - 8px); }
+.glaze-embed:not([data-layout="desktop"]) .sq-root .sq-frame-colors, .glaze-embed:not([data-layout="desktop"]) .sq-root .sq-frame-actions { position: relative; inset: auto; translate: none; gap: 4px; align-items: center; }
+.glaze-embed[data-layout="desktop"] .sq-root { max-width: 960px; margin-bottom: 0; }
 
 @media (forced-colors: active) {
   .demo { background: Canvas; color: CanvasText; --demo-text: CanvasText; --demo-background: Canvas; --demo-tab-glass: ButtonFace; }

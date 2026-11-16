@@ -57,3 +57,4 @@
 
 - [x] Swipe-end gray fix kept (non-accumulating fingertip stamps, depth-based foam shading); performance and timing changes reverted at user request. 148 tests pass.
 - [x] Limit recovery-only redraws to 20Hz with immediate pointer wake-up and stop dismissed hint wake-ups after recovery. Existing bounded texSubImage2D uploads retained, no per-frame map upload added. Phone-browser comparison: 111 to 73 post-release draws, 35 to 23 long tasks, zero draws after settling; 150 tests pass and preview builds with no browser errors. Software rendering timings are not physical-phone guarantees.
+- [x] Add optional fine-pointer 960px desktop embed containment. Verified centered transparent fitting at 390x600 and 900x300, frame-band buttons, playback and Reset; coarse-pointer and default embeds keep the phone layout. Main page and skin unchanged; 154 tests pass and preview builds without browser errors.

@@ -1,7 +1,7 @@
 import { ClientOnly, createFileRoute } from "@tanstack/react-router";
 import { lazy, Suspense, useLayoutEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { embedFit } from "@/lib/embed-fit";
+import { embedFit, embedLayout } from "@/lib/embed-fit";
 
 const PLAYBACK_ID = "IL8LEwPXBY4C2HldJqjKKjtO6y5aGkQXqVPWx5cuo01g";
 const RELOAD_FLAG = "glaze-embed-reloaded";
@@ -37,6 +37,7 @@ const EmbedPlayer = lazy(async () => {
 });
 
 export const Route = createFileRoute("/embed")({
+  validateSearch: (search: Record<string, unknown>) => ({ layout: typeof search['layout'] === "string" ? search['layout'] : "" }),
   head: () => ({ meta: [
     { title: "Glaze player embed" },
     { name: "description", content: "The Glaze ASMR video player with crackable glaze, a squishy frame and English captions." },
@@ -55,14 +56,18 @@ function LoadingPlayer() {
 }
 
 function Embed() {
+  const { layout } = Route.useSearch();
   const viewport = useRef<HTMLElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const fitted = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const outer = viewport.current, inner = content.current, box = fitted.current;
     if (!outer || !inner || !box) return;
+    const pointer = window.matchMedia("(pointer: fine)");
     const fit = () => {
-      const width = Math.min(900, outer.clientWidth);
+      const { desktop, width } = embedLayout(layout, pointer.matches, outer.clientWidth);
+      if (desktop) outer.dataset['layout'] = "desktop";
+      else delete outer.dataset['layout'];
       inner.style.width = `${width}px`;
       const result = embedFit(outer.clientWidth, outer.clientHeight, width, inner.offsetHeight);
       inner.style.transform = `scale(${result.scale})`;
@@ -71,9 +76,10 @@ function Embed() {
     };
     const observer = new ResizeObserver(fit);
     observer.observe(outer); observer.observe(inner);
+    pointer.addEventListener("change", fit);
     fit();
-    return () => observer.disconnect();
-  }, []);
+    return () => { observer.disconnect(); pointer.removeEventListener("change", fit); };
+  }, [layout]);
   return <main ref={viewport} className="glaze-embed" aria-label="Glaze video player">
     <div ref={fitted} className="embed-fitted"><div ref={content} className="embed-content">
     <ClientOnly fallback={<LoadingPlayer />}>

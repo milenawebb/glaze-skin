@@ -60,6 +60,7 @@ use the editor.
 - hint.ts schedules visit-scoped hints; ghost presses use transient shader uniforms, never retained maps.
 - Keep /embed presentation overrides outside the skin and scope its frame-ancestors header to that page, so the demo and package remain unchanged.
 - Embed containment scales one stable width-selected layout including tools; frame hit tests convert viewport coordinates to unscaled client dimensions so scaled embeds remain interactive.
+- The embed desktop search option selects a 960px design only for fine pointers; scope its band placement outside the skin to preserve default and touch layouts.
 - surface.ts supplies tested foam light limits and smooth corner math; debris material is CPU-cached, never copied from WebGL, to avoid GPU readback stalls.
 - Demo keyboard/accessibility descriptions share accessibility-copy.ts; contrast uses dark choice boundaries and two-tone focus, and system-preference overrides remain presentation-only.
 <!-- AGENT-MEMORY:END -->
