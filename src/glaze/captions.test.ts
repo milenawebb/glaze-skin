@@ -10,7 +10,8 @@ it("selects the Mux subtitle loader while keeping the native track hidden", () =
   expect(track.mode).toBe("hidden");
 });
 it("joins multiple simultaneous caption cues with a line break", () => {
-  expect(overlayCaptionText([{ mode: "hidden", kind: "captions", activeCues: [{ text: "First line" }, { text: "Second line" }] }], true)).toBe("First line\nSecond line");
+  const own = { mode: "hidden" as TextTrackMode, kind: "captions", activeCues: [{ text: "First line" }, { text: "Second line" }] };
+  expect(overlayCaptionText([own], true, own)).toBe("First line\nSecond line");
 });
 it("updates on cuechange and timeupdate, then removes listeners on detach", () => {
   const video = document.createElement("video");
@@ -23,26 +24,41 @@ it("updates on cuechange and timeupdate, then removes listeners on detach", () =
   track.activeCues = [{ text: "Time event" }]; video.dispatchEvent(new Event("timeupdate")); expect(text).toBe("Time event");
   detach(); track.activeCues = [{ text: "Detached" }]; track.dispatchEvent(new Event("cuechange")); expect(text).toBe("Time event");
 });
-it("attaches to late stream tracks and replaces listeners when the source changes", () => {
+it("disables a late generated stream track and only ever shows our own captions", () => {
   const video = document.createElement("video");
   const tracks = Object.assign(new EventTarget(), { 0: undefined as EventTarget | undefined, length: 0 });
   Object.defineProperty(video, "textTracks", { value: tracks });
   let text = "";
   const detach = observeCaptionCues(video, () => undefined, true, (value) => { text = value; });
-  const first = Object.assign(new EventTarget(), { kind: "subtitles", mode: "disabled", label: "English", language: "en", activeCues: [{ text: "Late caption" }] });
-  tracks[0] = first; tracks.length = 1; tracks.dispatchEvent(new Event("addtrack"));
-  expect(first.mode).toBe("hidden"); expect(text).toBe("Late caption");
-  const next = Object.assign(new EventTarget(), { kind: "captions", mode: "disabled", activeCues: [{ text: "New source" }] });
+  const generated = Object.assign(new EventTarget(), { kind: "subtitles", mode: "disabled", label: "English (Generated)", language: "en", activeCues: [{ text: "Robot caption" }] });
+  tracks[0] = generated; tracks.length = 1; tracks.dispatchEvent(new Event("addtrack"));
+  expect(generated.mode).toBe("disabled"); expect(text).toBe("");
+  const own = Object.assign(new EventTarget(), { kind: "captions", mode: "disabled", label: "English", language: "en", activeCues: [{ text: "Real caption" }] });
+  tracks[1] = own; tracks.length = 2; tracks.dispatchEvent(new Event("addtrack"));
+  expect(own.mode).toBe("hidden"); expect(generated.mode).toBe("disabled"); expect(text).toBe("Real caption");
+  own.activeCues = [{ text: "New cue" }]; own.dispatchEvent(new Event("cuechange")); expect(text).toBe("New cue");
+  generated.activeCues = [{ text: "Robot again" }]; generated.dispatchEvent(new Event("cuechange")); expect(text).toBe("New cue");
+  detach();
+});
+it("replaces listeners when the source changes", () => {
+  const video = document.createElement("video");
+  const first = Object.assign(new EventTarget(), { kind: "captions", mode: "hidden", label: "English", language: "en", activeCues: [{ text: "Old source" }] });
+  const tracks = Object.assign(new EventTarget(), { 0: first as EventTarget | undefined, length: 1 });
+  Object.defineProperty(video, "textTracks", { value: tracks });
+  let text = "";
+  const detach = observeCaptionCues(video, () => undefined, true, (value) => { text = value; });
+  expect(text).toBe("Old source");
+  const next = Object.assign(new EventTarget(), { kind: "captions", mode: "disabled", label: "English", language: "en", activeCues: [{ text: "New source" }] });
   tracks[0] = next; video.dispatchEvent(new Event("loadstart"));
   expect(text).toBe("New source");
   next.activeCues = [{ text: "New cue" }]; next.dispatchEvent(new Event("cuechange")); expect(text).toBe("New cue");
-  first.activeCues = [{ text: "Old source" }]; first.dispatchEvent(new Event("cuechange")); expect(text).toBe("New cue");
+  first.activeCues = [{ text: "Stale" }]; first.dispatchEvent(new Event("cuechange")); expect(text).toBe("New cue");
   detach();
 });
 it("updates cues when a sideloaded caption track finishes loading", () => {
   const video = document.createElement("video");
   const element = document.createElement("track"); element.kind = "captions"; element.srclang = "en"; element.src = "/captions.vtt"; element.default = true; video.append(element);
-  const track = Object.assign(new EventTarget(), { kind: "captions", mode: "disabled", activeCues: [] as { text: string }[] });
+  const track = Object.assign(new EventTarget(), { kind: "captions", mode: "disabled", label: "English", language: "en", activeCues: [] as { text: string }[] });
   Object.defineProperty(video, "textTracks", { value: Object.assign(new EventTarget(), { 0: track, length: 1 }) });
   let text = "";
   const detach = observeCaptionCues(video, () => undefined, true, (value) => { text = value; });
@@ -50,33 +66,30 @@ it("updates cues when a sideloaded caption track finishes loading", () => {
   detach();
 });
 
-it("sets every text track hidden so native captions never draw", () => {
-  const tracks = ["showing", "disabled"].map((mode) => ({ mode: mode as TextTrackMode, kind: "captions", activeCues: [{ text: "Hello" }] }));
-  overlayCaptionText(tracks, true);
-  expect(tracks.map((track) => track.mode)).toEqual(["hidden", "hidden"]);
+it("keeps our own track hidden and disables every other captions or subtitles track", () => {
+  const own = { mode: "showing" as TextTrackMode, kind: "captions", activeCues: [{ text: "Hello" }] };
+  const generated = { mode: "showing" as TextTrackMode, kind: "subtitles", activeCues: [{ text: "Robot" }] };
+  overlayCaptionText([own, generated], true, own);
+  expect(own.mode).toBe("hidden");
+  expect(generated.mode).toBe("disabled");
 });
-it("renders only one caption language from active cues", () => {
-  expect(overlayCaptionText([
-    { mode: "hidden", kind: "subtitles", activeCues: [{ text: "<b>Hello</b>" }] },
-    { mode: "hidden", kind: "subtitles", activeCues: [{ text: "Bonjour" }] },
-  ], true)).toBe("Hello");
+it("renders only our own track, never a generated one", () => {
+  const own = { mode: "hidden" as TextTrackMode, kind: "captions", activeCues: [{ text: "<b>Hello</b>" }] };
+  const generated = { mode: "hidden" as TextTrackMode, kind: "subtitles", activeCues: [{ text: "Robot" }] };
+  expect(overlayCaptionText([generated, own], true, own)).toBe("Hello");
 });
-it("prefers the real captions track over a generated subtitles track", () => {
-  expect(overlayCaptionText([
-    { mode: "hidden", kind: "subtitles", activeCues: [{ text: "Generated" }] },
-    { mode: "hidden", kind: "captions", activeCues: [{ text: "Real" }] },
-  ], true)).toBe("Real");
-  expect(overlayCaptionText([
-    { mode: "hidden", kind: "subtitles", activeCues: [{ text: "Generated" }] },
-    { mode: "hidden", kind: "captions", activeCues: [] },
-  ], true)).toBe("Generated");
+it("never falls back to a generated track when our own track has no cues yet", () => {
+  const own = { mode: "hidden" as TextTrackMode, kind: "captions", activeCues: [] };
+  const generated = { mode: "hidden" as TextTrackMode, kind: "subtitles", activeCues: [{ text: "Generated" }] };
+  expect(overlayCaptionText([generated, own], true, own)).toBe("");
 });
-it("CC off hides the overlay while native tracks remain hidden", () => {
-  const track = { mode: "showing" as TextTrackMode, kind: "captions", activeCues: [{ text: "Hello" }] };
-  expect(overlayCaptionText([track], false)).toBe("");
-  expect(track.mode).toBe("hidden");
+it("CC off hides the overlay while our track stays hidden", () => {
+  const own = { mode: "showing" as TextTrackMode, kind: "captions", activeCues: [{ text: "Hello" }] };
+  expect(overlayCaptionText([own], false, own)).toBe("");
+  expect(own.mode).toBe("hidden");
 });
 it("does not produce an empty caption box or show metadata", () => {
   expect(overlayCaptionText([{ mode: "hidden", kind: "metadata", activeCues: [{ text: "data" }] }], true)).toBe("");
-  expect(overlayCaptionText([{ mode: "hidden", kind: "captions", activeCues: [{ text: "  " }] }], true)).toBe("");
+  const own = { mode: "hidden" as TextTrackMode, kind: "captions", activeCues: [{ text: "  " }] };
+  expect(overlayCaptionText([own], true, own)).toBe("");
 });
