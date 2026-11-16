@@ -145,7 +145,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       if(resizing)return;
       refreshProtected();
       const deadline=performance.now()+6;
-      while(pending.length&&performance.now()<deadline){const event=pending.shift();if(event)processEvent(event);if(event?.type==="pointermove")break;}
+      while(pending.length&&performance.now()<deadline){const event=pending.shift();if(event)processEvent(event);break;}
       const pose = hint.tick(now, hintBlocked(), reduced);
       const bottom = parseFloat(getComputedStyle(canvas.parentElement ?? canvas).paddingBottom) || 96;
       const hy = size.h - bottom * .5, hx = hintSpot(size.w * .5, hy);
@@ -169,7 +169,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
         if(p.foam)stampFingertip(r,p.x,p.y,p.pad,fingerDepth(held,p.pressure),.18,p.dragging?1.6:1);
         else stampDent(r, p.x, p.y, radius, Math.max(immediateDepth(1), dentDepth(held, p.pressure)), 0.18);
         const extent = radius * 2.2;
-        smoothDents(r, p.x - extent, p.y - extent, p.x + extent, p.y + extent);
+        if(!p.dragging)smoothDents(r, p.x - extent, p.y - extent, p.x + extent, p.y + extent);
       }
       for (let i = breaks.length - 1; i >= 0; i--) {
         const b = breaks[i];
@@ -325,7 +325,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       if (!p) return;
       let { x, y } = local(e);
       const remaining=Math.hypot(x-p.x,y-p.y);
-      if(remaining>9){const t=9/remaining;x=p.x+(x-p.x)*t;y=p.y+(y-p.y)*t;pending.unshift(e);}
+      if(remaining>5){const t=5/remaining;x=p.x+(x-p.x)*t;y=p.y+(y-p.y)*t;pending.unshift(e);}
       const held = (performance.now() - p.start) / 1000;
       p.pressure = pressureScale(e);
       const depth = dentDepth(held, p.pressure);
@@ -362,7 +362,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
           p.foam=!glazed;previous=point;
         }
       }
-      const steps = Math.max(1, Math.ceil(dist / 3));
+      const steps = 1;
       if(p.dragging&&dist>0)p.pad.angle=Math.atan2(y-p.y,x-p.x)-Math.PI/2;
       for (let s = 1; s <= steps; s++) {
         const t = s / steps;
@@ -371,7 +371,8 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
         else stampDent(r,px,py,p.radius-1,depth*.85,1);
       }
       const extent = p.radius * 2.2;
-      smoothDents(r, Math.min(p.x, x) - extent, Math.min(p.y, y) - extent, Math.max(p.x, x) + extent, Math.max(p.y, y) + extent);
+      // The shader already smooths nine samples. Avoid a second wide CPU blur for each swipe step.
+      if(!p.dragging)smoothDents(r, Math.min(p.x, x) - extent, Math.min(p.y, y) - extent, Math.max(p.x, x) + extent, Math.max(p.y, y) + extent);
       p.spots.push({x,y});
       p.x = x;
       p.y = y;

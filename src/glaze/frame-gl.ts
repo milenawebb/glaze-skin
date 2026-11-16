@@ -5,6 +5,7 @@ import { canvasDpr, coarsePointer, coatingScale, mapSize } from "./touch";
  * frame and lit in the fragment shader.
  */
 import { COLOR_FADE_MS } from "./preferences";
+import { FOAM_DARKENING_LIMIT, SURFACE_SMOOTHING } from "./surface";
 import { region, union, tailWeight, type Region } from "./regions";
 export const FRAME = { side: 30, top: 30, bottom: 96, outerRadius: 46, innerRadius: 16 };
 
@@ -30,12 +31,18 @@ varying vec2 vUv;
 float sdRR(vec2 p, vec2 c, vec2 hs, float r){ vec2 q=abs(p-c)-hs+r; return length(max(q,0.))+min(max(q.x,q.y),0.)-r; }
 // Smooth inside distance: a hard max(q.x,q.y) makes a mitred diagonal ridge at each corner.
 float smaxk(float a,float b,float k){ float h=clamp(.5-.5*(b-a)/k,0.,1.); return mix(b,a,h)+k*h*(1.-h); }
-float sdRRs(vec2 p, vec2 c, vec2 hs, float r, float k){ vec2 q=abs(p-c)-hs+r; return length(max(q,0.))+min(smaxk(q.x,q.y,k),0.)-r; }
-float sdO(vec2 p){ return sdRRs(p, uRes*.5, uRes*.5, uRo, 12.); }
-float sdI(vec2 p){ vec2 a=uIns.xy; vec2 b=uRes-uIns.zw; return sdRRs(p,(a+b)*.5,(b-a)*.5,uRi,12.); }
+float sdRRs(vec2 p, vec2 c, vec2 hs, float r, float k){
+  vec2 q=abs(p-c)-hs+r;
+  vec2 pos=(q+sqrt(q*q+k*k))*.5;
+  float m=(q.x+q.y+sqrt((q.x-q.y)*(q.x-q.y)+k*k))*.5;
+  return length(pos)+(m-sqrt(m*m+k*k))*.5-r;
+}
+float sdO(vec2 p){ return sdRRs(p, uRes*.5, uRes*.5, uRo, ${SURFACE_SMOOTHING}.); }
+float sdI(vec2 p){ vec2 a=uIns.xy; vec2 b=uRes-uIns.zw; return sdRRs(p,(a+b)*.5,(b-a)*.5,uRi,${SURFACE_SMOOTHING}.); }
 float prof(vec2 p, out float amp){
   float a=max(-sdO(p),0.); float b=max(sdI(p),0.); float w=a+b+1e-3; float t=a/w;
-  amp=min(w,64.)/64.; float x=clamp(4.*t*(1.-t),0.,1.); return pow(x,.55);
+  // No hard thickness cap: its 64px contour produced the bright diagonal wedge in the bottom band.
+  amp=w/sqrt(w*w+4096.); float x=clamp(4.*t*(1.-t),0.,1.); return pow(x,.55);
 }
 // Rise-back runs here: uRise holds what still has to rise, uRiseK eases 0 to -1.
 float dent0(vec2 p){ vec2 q=p/uRes; vec2 delta=(p-uHint.xy)/vec2(14.,12.); float ghost=uHint.z*exp(-dot(delta,delta)*.5); return ((texture2D(uDent,q).r*4.-.5)+(texture2D(uRise,q).r*4.-.5)*uRiseK)*uReset+ghost; }
@@ -46,7 +53,7 @@ float dent(vec2 p){
   return s;
 }
 float broken(vec2 p){ return texture2D(uGlaze,p/uRes).r*uReset; }
-float H(vec2 p){ float amp; float pr=prof(p,amp); return 24.*amp*pr*(1.-0.8*dent(p))-3.5*broken(p); }
+float baseH(vec2 p){ float amp; float profile=prof(p,amp); return 24.*profile*amp; }
 float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
 float noise(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.-2.*f);
   return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),mix(hash(i+vec2(0.,1.)),hash(i+1.),f.x),f.y); }
@@ -113,12 +120,16 @@ vec3 face(vec2 p, vec3 col, float hole){
 void main(){
   vec2 p=vec2(vUv.x,1.-vUv.y)*uRes;
   float so=sdO(p), si=sdI(p);
-  float a=clamp(.5-so,0.,1.)*clamp(si+.5,0.,1.);
+  vec2 ia=uIns.xy, ib=uRes-uIns.zw;
+  float a=clamp(.5-sdRR(p,uRes*.5,uRes*.5,uRo),0.,1.)*clamp(sdRR(p,(ia+ib)*.5,(ib-ia)*.5,uRi)+.5,0.,1.);
   if(a<=0.) discard;
   float e=2.;
-  float hx=H(p+vec2(e,0.))-H(p-vec2(e,0.));
-  float hy=H(p+vec2(0.,e))-H(p-vec2(0.,e));
+  vec2 xp=p+vec2(e,0.), xm=p-vec2(e,0.), yp=p+vec2(0.,e), ym=p-vec2(0.,e);
+  float bx=baseH(xp), ax=baseH(xm), by=baseH(yp), ay=baseH(ym);
+  float hx=bx*(1.-.8*dent(xp))-ax*(1.-.8*dent(xm))-3.5*(broken(xp)-broken(xm));
+  float hy=by*(1.-.8*dent(yp))-ay*(1.-.8*dent(ym))-3.5*(broken(yp)-broken(ym));
   vec3 N=normalize(vec3(-hx/(2.*e),-hy/(2.*e),1.));
+  vec3 N0=normalize(vec3(-(bx-ax)/(2.*e),-(by-ay)/(2.*e),1.));
   vec3 L=normalize(vec3(-.55,-.65,.75));
   vec3 V=vec3(0.,0.,1.);
   float signedDent=dent(p);float d=max(0.,signedDent);float bulge=max(0.,-signedDent);
@@ -162,6 +173,10 @@ void main(){
     c=mix(c,monoColor,uMono);
   }
   if(uSprinkles>0.) c=mix(c,sprinkles(p,c,coat),uSprinkles);
+  // Foam uses a bounded relative light response, never cumulative gray saturation or shell shadows.
+  float foamRatio=clamp((dot(N,L)*.38+.67)/(dot(N0,L)*.38+.67),${1 - FOAM_DARKENING_LIMIT},1.08);
+  vec3 cleanFoam=mix(foam,mix(mix(vec3(dot(uMonoColor,vec3(.299,.587,.114))),uMonoColor,.92),vec3(1.),.07),uMono);
+  c=mix(c,cleanFoam*(clamp(dot(N0,L)*.38+.67,0.,1.)+.065)*foamRatio,hole);
   // Soft-toy light: follows the rounded outline and is sampled through the dent normal, so it bends into dents.
   {
     vec2 q=p+N.xy*10.;
@@ -314,6 +329,18 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
   let fullUpload=true;
 
   const material=document.createElement("canvas");let materialJob=0;
+  // CPU-only shell colors for tiny flying fragments. Never read back the GPU frame.
+  const cacheMaterial=()=>{
+    material.width=256;material.height=256;
+    const m=material.getContext("2d");if(!m)return;
+    const css=getComputedStyle(canvas);
+    const mono=r.mono>=.5;
+    const gradient=m.createLinearGradient(0,0,256,256);
+    gradient.addColorStop(0,css.getPropertyValue(mono?"--sq-mono-color":"--sq-wax-blue").trim());
+    gradient.addColorStop(.5,css.getPropertyValue(mono?"--sq-mono-color":"--sq-wax-milk").trim());
+    gradient.addColorStop(1,css.getPropertyValue(mono?"--sq-mono-color":"--sq-wax-yellow").trim());
+    m.fillStyle=gradient;m.fillRect(0,0,256,256);
+  };
   const r: FrameRenderer = {
     resetAmount:1,
     dirtyHeight(bounds){heightDirty=union(heightDirty,bounds);},
@@ -343,6 +370,7 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
       targetMono = r.mono;
       fromColors = currentColors.length ? currentColors.map((color) => [...color]) : next;
       targetColors = next;
+      clearTimeout(materialJob);materialJob=window.setTimeout(cacheMaterial,COLOR_FADE_MS);
       if (!currentColors.length) currentColors = next;
       paletteStart = performance.now();
     },
@@ -415,11 +443,10 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
         }
         coatDirty=null;
       }
-      const capture=fullUpload;fullUpload=false;
+      fullUpload=false;
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-      if(capture||t<1){clearTimeout(materialJob);materialJob=window.setTimeout(()=>{const copy=()=>{if(material.width!==canvas.width||material.height!==canvas.height){material.width=canvas.width;material.height=canvas.height;}const m=material.getContext("2d");m?.clearRect(0,0,material.width,material.height);m?.drawImage(canvas,0,0);};const idle=(window as Window&{requestIdleCallback?:(cb:()=>void,o?:{timeout:number})=>number}).requestIdleCallback;if(idle)idle(copy,{timeout:500});else copy();},150);}
 
     },
     snapshot(x, y, radius) {
@@ -427,8 +454,8 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
       // Local fragments are tiny textured quads; avoid full-frame canvas clones.
       const side = Math.ceil(radius * 4); if (image.width !== side) { image.width = side; image.height = side; }
       const context = image.getContext("2d");context?.clearRect(0,0,image.width,image.height);
-      const scale = canvas.width / (r.width || 1);
-      context?.drawImage(material, (x - radius) * scale, (y - radius) * scale, radius * 2 * scale, radius * 2 * scale, 0, 0, image.width, image.height);
+      if(!material.width||material.width!==256)cacheMaterial();
+      context?.drawImage(material, 0, 0, material.width, material.height, 0, 0, image.width, image.height);
       return image;
     },
     destroy() {
