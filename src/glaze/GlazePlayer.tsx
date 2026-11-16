@@ -439,7 +439,7 @@ function ReplayBubble({ replay }: { replay: () => void }) {
         onClick={go}
         onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); e.stopPropagation(); if (!e.repeat) go(); } }}
         onKeyUp={(e) => { if (e.key === " ") e.preventDefault(); }}>
-        <span className="sq-center-bubble sq-squish-body"><svg className="sq-play-icon sq-replay-glyph" viewBox="0 0 24 24" aria-hidden="true">{REPLAY_GLYPH}</svg></span>
+        <span className="sq-center-bubble sq-squish-body sq-wobble"><svg className="sq-play-icon sq-replay-glyph" viewBox="0 0 24 24" aria-hidden="true">{REPLAY_GLYPH}</svg><Sprinkles /></span>
       </button>
     </div>
   );
@@ -448,6 +448,9 @@ function ReplayBubble({ replay }: { replay: () => void }) {
 function BunPlay({ crusted, onCrack, waiting, ended, replay }: { crusted: boolean; onCrack: CrackFn; waiting: boolean; ended: boolean; replay: () => void }) {
   const store = usePlayer();
   const paused = usePlayer((s) => s.paused);
+  const [everPlayed, setEverPlayed] = useState(false);
+  useEffect(() => { if (!paused && !everPlayed) setEverPlayed(true); }, [paused, everPlayed]);
+  const invite = !everPlayed && paused && !ended && !waiting;
   const { pressed, handlers } = usePress();
   const crustRef = useRef<HTMLSpanElement>(null);
   return (
@@ -457,6 +460,7 @@ function BunPlay({ crusted, onCrack, waiting, ended, replay }: { crusted: boolea
       data-pressed={pressed || undefined}
       aria-label={ended ? "Replay" : paused ? "Play" : "Pause"}
       data-loading={(waiting && !ended) || undefined}
+      data-invite={invite || undefined}
       aria-keyshortcuts="Space k"
       {...handlers}
       onPointerDown={(e) => {
@@ -474,7 +478,7 @@ function BunPlay({ crusted, onCrack, waiting, ended, replay }: { crusted: boolea
         <svg className="sq-play-icon" viewBox="0 0 24 24" aria-hidden="true">
           {ended ? REPLAY_ICON : paused ? <path d="M8 4 21 12 8 20Z" /> : <path d="M6 4h4v16H6zM14 4h4v16h-4z" />}
         </svg>
-        {waiting && !ended && <Sprinkles />}
+        {((waiting && !ended) || invite) && <Sprinkles />}
         {crusted && (
           <span key={String(crusted)} ref={crustRef} className="sq-crust-wrap">
             <Crust />
