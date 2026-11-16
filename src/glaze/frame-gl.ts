@@ -1,3 +1,4 @@
+import {timed} from "./profile";
 import { canvasDpr, coarsePointer, coatingScale, mapSize } from "./touch";
 /**
  * Raw WebGL renderer for the squishy frame. A CPU height map (Float32Array,
@@ -174,7 +175,9 @@ void main(){
   }
   if(uSprinkles>0.) c=mix(c,sprinkles(p,c,coat),uSprinkles);
   // Foam uses a bounded relative light response, never cumulative gray saturation or shell shadows.
-  float foamRatio=clamp((dot(N,L)*.38+.67)/(dot(N0,L)*.38+.67),${1 - FOAM_DARKENING_LIMIT},1.08);
+  // Signed slopes reverse at a swipe end and formerly produced gray end caps.
+  // Use bounded depth shading instead, identical for tap and swipe envelopes.
+  float foamRatio=1.-.04*clamp(d,0.,1.);
   vec3 cleanFoam=mix(foam,mix(mix(vec3(dot(uMonoColor,vec3(.299,.587,.114))),uMonoColor,.92),vec3(1.),.07),uMono);
   c=mix(c,cleanFoam*(clamp(dot(N0,L)*.38+.67,0.,1.)+.065)*foamRatio,hole);
   // Soft-toy light: follows the rounded outline and is sampled through the dent normal, so it bends into dents.
@@ -423,13 +426,13 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
         for(let y=0;y<h;y++)for(let x=0;x<w;x++){const value=((data[(y+b.y0)*r.dw+x+b.x0]??0)+.5)/4;values[y*w+x]=gl2?value:Math.round(value*255);}
         gl.texSubImage2D(gl.TEXTURE_2D,0,b.x0,b.y0,w,h,gl2?gl2.RED:gl.LUMINANCE,gl2?gl.FLOAT:gl.UNSIGNED_BYTE,values);
       };
-      upload(r.dent,heightDirty);heightDirty=null;
+      timed("height upload",()=>upload(r.dent,heightDirty));heightDirty=null;
       gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,riseTex);
-      upload(r.rise,riseDirty);riseDirty=null;
+      timed("rise upload",()=>upload(r.rise,riseDirty));riseDirty=null;
       gl.activeTexture(gl.TEXTURE1);
       gl.bindTexture(gl.TEXTURE_2D,glazeTex);
       if(fullUpload){gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,coating.width,coating.height,0,gl.RGBA,gl.UNSIGNED_BYTE,null);coatDirty=region(coating.width,coating.height,0,0,coating.width-1,coating.height-1);}
-      if(coatDirty){
+      timed("coating upload",()=>{if(coatDirty){
         const b=coatDirty,w=b.x1-b.x0+1,h=b.y1-b.y0+1;
         if(gl2){
           // WebGL2 uploads the dirty sub-rectangle straight from the canvas.
@@ -443,10 +446,21 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
         }
         coatDirty=null;
       }
+      });
       fullUpload=false;
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      timed("draw",()=>{
+        // Rasterize only the ring, not the transparent video-sized center.
+        const sx=canvas.width/r.width,sy=canvas.height/r.height,pad=FRAME.innerRadius+2;
+        const top=Math.ceil((lastInsets.t+pad)*sy),bottom=Math.ceil((lastInsets.b+pad)*sy);
+        const left=Math.ceil((lastInsets.l+pad)*sx),right=Math.ceil((lastInsets.r+pad)*sx);
+        gl.enable(gl.SCISSOR_TEST);
+        for(const [x,y,w,h] of [[0,0,canvas.width,bottom],[0,canvas.height-top,canvas.width,top],[0,bottom,left,canvas.height-top-bottom],[canvas.width-right,bottom,right,canvas.height-top-bottom]]){
+          if(w>0&&h>0){gl.scissor(x,y,w,h);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);}
+        }
+        gl.disable(gl.SCISSOR_TEST);
+      });
 
     },
     snapshot(x, y, radius) {

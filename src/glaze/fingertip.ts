@@ -16,6 +16,7 @@ export function stampFingertip(r:{dent:Float32Array;dw:number;dh:number;width:nu
  for(let yy=bounds.y0;yy<=bounds.y1;yy++)for(let xx=bounds.x0;xx<=bounds.x1;xx++){
   const dx=xx*sx-x,dy=yy*sy-y;
   const target=padHeight(dx,dy,c,s,iw,il,depth)*tailWeight(Math.hypot(dx,dy)/(extent/6)),i=yy*r.dw+xx,cur=r.dent[i]??0,delta=target-cur,soft=.002*Math.abs(target);
-  r.dent[i]=cur+(target>=0?.5*(delta+Math.sqrt(delta*delta+soft*soft)):.5*(delta-Math.sqrt(delta*delta+soft*soft)))*rate;
+  // A swept envelope, not repeated soft additions: stationary ends and overlaps cannot accumulate depth.
+  r.dent[i]=cur+(target>=0?Math.max(delta,0):Math.min(delta,0))*rate;
  }
 }

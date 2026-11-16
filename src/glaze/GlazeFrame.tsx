@@ -1,24 +1,35 @@
+import {timed,profiled} from "./profile";
 import { createFrameHint } from "./hint";
 import { clipCrackPaths, mapShell } from "./damage";
 import { useEffect, useRef, useState } from "react";
-import { createFrameRenderer, isOnRing, smoothDents, stampDent, type FrameRenderer } from "./frame-gl";
-import { playCrack, playCrunch, playShatter, playSquelch } from "./sounds";
+import { createFrameRenderer, isOnRing, smoothDents as rawsmoothDents, stampDent as rawstampDent, type FrameRenderer } from "./frame-gl";
+import { playCrack as rawplayCrack, playCrunch as rawplayCrunch, playShatter as rawplayShatter, playSquelch as rawplaySquelch } from "./sounds";
 import { vibratePress } from "./haptics";
 import { coarsePointer, dentDepth, dentRadius, faceExpression, frameInsets, pressureScale } from "./touch";
 
-import { breakGlaze, hasGlaze } from "./glaze";
+import { breakGlaze as rawbreakGlaze, hasGlaze } from "./glaze";
 
-import { prepareShellDebris, cancelShellDebris, createShellBreak, peelShell, SHELL_BREAK_MS, paintCoating, insideShellPolygon, framePressStage, type ShellBreak } from "./shell";
+import { prepareShellDebris, cancelShellDebris, createShellBreak, peelShell as rawpeelShell, SHELL_BREAK_MS, paintCoating as rawpaintCoating, insideShellPolygon, framePressStage, type ShellBreak } from "./shell";
 import { angularCell, maxPiece, chipPlates, chipRadius, snapRadius, snapToGlaze, ISLAND_SIZE } from "./chip";
 import { createGlazeStrip, dragThreshold, isGlazeDrag, stripWidth } from "./strip";
 
 import { recoverySettings, recoveryFactor, immediateDepth } from "./recovery";
 import { settledResize } from "./resize";
-import { fingerPad, fingerDepth, stampFingertip, type FingerPad } from "./fingertip";
+import { fingerPad, fingerDepth, stampFingertip as rawstampFingertip, type FingerPad } from "./fingertip";
 import type { GlazeColor } from "./preferences";
 import { DEFAULT_GLAZE_STYLE, monoStyleAmount, type GlazeStyle } from "./glaze-style";
 import { region, resetAmount, resetDuration, REDUCED_FADE_MS, union, type Region } from "./regions";
 
+const stampFingertip=profiled("height fingertip",rawstampFingertip);
+const stampDent=profiled("height round",rawstampDent);
+const smoothDents=profiled("height blur",rawsmoothDents);
+const breakGlaze=profiled("strip mask",rawbreakGlaze);
+const paintCoating=profiled("coating mask",rawpaintCoating);
+const peelShell=profiled("piece queue",rawpeelShell);
+const playCrunch=profiled("sound crunch",rawplayCrunch);
+const playSquelch=profiled("sound squish",rawplaySquelch);
+const playCrack=profiled("sound crack",rawplayCrack);
+const playShatter=profiled("sound shatter",rawplayShatter);
 /** Same rounded corners as the video stage, so no layer gets a square box. */
 function insideRounded(x:number,y:number,b:{x:number;y:number;w:number;h:number;r:number}){const qx=Math.abs(x-(b.x+b.w/2))-b.w/2+b.r,qy=Math.abs(y-(b.y+b.h/2))-b.h/2+b.r;return Math.hypot(Math.max(qx,0),Math.max(qy,0))+Math.min(Math.max(qx,qy),0)-b.r<=0;}
 
@@ -145,9 +156,9 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       const frameStart=performance.now();
       // CSS stretches the last rendered bitmap; no mask replay or upload mid-resize.
       if(resizing)return;
-      refreshProtected();
+      timed("layout",refreshProtected);
       const deadline=performance.now()+6;
-      while(pending.length&&performance.now()<deadline){const event=pending.shift();if(event)processEvent(event);break;}
+      while(pending.length&&performance.now()<deadline){const event=pending.shift();if(event)timed("pointer "+event.type,()=>processEvent(event));break;}
       const pose = hint.tick(now, hintBlocked(), reduced);
       const bottom = parseFloat(getComputedStyle(canvas.parentElement ?? canvas).paddingBottom) || 96;
       const hy = size.h - bottom * .5, hx = hintSpot(size.w * .5, hy);
@@ -193,7 +204,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
         }
       }
 
-      r.render();
+      timed("render total",()=>r.render());
       const spent=performance.now()-frameStart;
       if(import.meta.env?.DEV&&spent>30)console.warn(`[glaze] slow frame: ${spent.toFixed(1)}ms`);
       if (pose.active || pending.length || presses.size || breaks.length || rise || cracked.some(c=>!c.removed&&!c.drawn) || resetRef.current || r.face > 0 || r.paletteAnimating()) raf = requestAnimationFrame(loop);
