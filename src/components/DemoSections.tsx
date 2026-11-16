@@ -77,7 +77,7 @@ export function DemoSections() {
         </div>
       </section>
       <footer className="demo-footer">
-        <a href="https://github.com/milenawebb/glaze-skin" target="_blank" rel="noopener noreferrer">GitHub</a> · Apache 2.0 · A sensory experience by <a href="https://milenawebb.com" target="_blank" rel="noopener noreferrer">Milena Webb</a>
+        <a href="https://github.com/milenawebb/glaze-skin" target="_blank" rel="noopener noreferrer">GitHub</a> · Apache 2.0 · A sensory experience by <a href="https://milenawebb.com/#glaze" target="_blank" rel="noopener noreferrer">Milena Webb</a>
       </footer>
     </div>
   );
