@@ -1,6 +1,7 @@
 import { ClientOnly, createFileRoute } from "@tanstack/react-router";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useLayoutEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { embedFit } from "@/lib/embed-fit";
 
 const PLAYBACK_ID = "IL8LEwPXBY4C2HldJqjKKjtO6y5aGkQXqVPWx5cuo01g";
 const RELOAD_FLAG = "glaze-embed-reloaded";
@@ -54,11 +55,32 @@ function LoadingPlayer() {
 }
 
 function Embed() {
-  return <main className="glaze-embed" aria-label="Glaze video player">
+  const viewport = useRef<HTMLElement>(null);
+  const content = useRef<HTMLDivElement>(null);
+  const fitted = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const outer = viewport.current, inner = content.current, box = fitted.current;
+    if (!outer || !inner || !box) return;
+    const fit = () => {
+      const width = Math.min(900, outer.clientWidth);
+      inner.style.width = `${width}px`;
+      const result = embedFit(outer.clientWidth, outer.clientHeight, width, inner.offsetHeight);
+      inner.style.transform = `scale(${result.scale})`;
+      box.style.width = `${result.width}px`;
+      box.style.height = `${result.height}px`;
+    };
+    const observer = new ResizeObserver(fit);
+    observer.observe(outer); observer.observe(inner);
+    fit();
+    return () => observer.disconnect();
+  }, []);
+  return <main ref={viewport} className="glaze-embed" aria-label="Glaze video player">
+    <div ref={fitted} className="embed-fitted"><div ref={content} className="embed-content">
     <ClientOnly fallback={<LoadingPlayer />}>
       <Suspense fallback={<LoadingPlayer />}>
         <EmbedPlayer playbackId={PLAYBACK_ID} title="Glaze demo video" sounds={false} />
       </Suspense>
     </ClientOnly>
+    </div></div>
   </main>;
 }

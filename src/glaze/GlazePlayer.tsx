@@ -116,7 +116,7 @@ export function GlazeSkin({ children, resetKey, label, sounds: startSounds = fal
     const root = rootRef.current;
     if (!root) return;
     const resize = new ResizeObserver(() => {
-      const nextCompact = root.getBoundingClientRect().width < 480;
+      const nextCompact = root.clientWidth < 480;
       setCompact(nextCompact);
       if (!nextCompact) setColorOpen(false);
     });

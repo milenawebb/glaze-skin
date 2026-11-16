@@ -59,5 +59,6 @@ use the editor.
 - chip.ts owns tap snapping, finger-sized break-offs, island and crumb rules; no cracks or pieces without glaze near the tap.
 - hint.ts schedules visit-scoped hints; ghost presses use transient shader uniforms, never retained maps.
 - Keep /embed presentation overrides outside the skin and scope its frame-ancestors header to that page, so the demo and package remain unchanged.
+- Embed containment scales one stable width-selected layout including tools; frame hit tests convert viewport coordinates to unscaled client dimensions so scaled embeds remain interactive.
 - surface.ts supplies tested foam light limits and smooth corner math; debris material is CPU-cached, never copied from WebGL, to avoid GPU readback stalls.
 <!-- AGENT-MEMORY:END -->

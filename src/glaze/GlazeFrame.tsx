@@ -74,7 +74,8 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       const key = `${size.w}x${size.h}`;
       if (spotCache.key === key) return spotCache.x;
       const base = canvas.getBoundingClientRect();
-      const buttons = Array.from(root?.querySelectorAll<HTMLElement>(".sq-frame-tools button, .sq-frame-colors button, .sq-frame-actions button") ?? []).map(b => b.getBoundingClientRect()).filter(b => b.width && Math.abs(b.top + b.height / 2 - base.top - hy) < 60).map(b => ({ l: b.left - base.left, r: b.right - base.left }));
+      const sx=canvas.clientWidth/(base.width||1),sy=canvas.clientHeight/(base.height||1);
+      const buttons = Array.from(root?.querySelectorAll<HTMLElement>(".sq-frame-tools button, .sq-frame-colors button, .sq-frame-actions button") ?? []).map(b => b.getBoundingClientRect()).filter(b => b.width && Math.abs((b.top + b.height / 2 - base.top)*sy - hy) < 60).map(b => ({ l: (b.left - base.left)*sx, r: (b.right - base.left)*sx }));
       const gap = (x: number) => Math.min(Infinity, ...buttons.map(b => x < b.l ? b.l - x : x > b.r ? x - b.r : 0));
       const options = [72, 64, 84, 56, 96].map(d => cx + d);
       const x = options.find(o => gap(o) >= 60) ?? options.reduce((a, b) => gap(b) > gap(a) ? b : a);
@@ -96,7 +97,8 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     let protectedCache:{x:number;y:number;w:number;h:number;r:number}[]=[];
     const refreshProtected = () => {
       const bounds=canvas.getBoundingClientRect();
-      protectedCache=Array.from(canvas.parentElement?.querySelectorAll<HTMLElement>(".sq-stage")??[]).map(el=>{const b=el.getBoundingClientRect();return {x:b.left-bounds.left-3,y:b.top-bounds.top-3,w:b.width+6,h:b.height+6,r:(parseFloat(getComputedStyle(el).borderTopLeftRadius)||0)+3};});
+      const sx=canvas.clientWidth/(bounds.width||1),sy=canvas.clientHeight/(bounds.height||1);
+      protectedCache=Array.from(canvas.parentElement?.querySelectorAll<HTMLElement>(".sq-stage")??[]).map(el=>{const b=el.getBoundingClientRect();return {x:(b.left-bounds.left)*sx-3,y:(b.top-bounds.top)*sy-3,w:b.width*sx+6,h:b.height*sy+6,r:(parseFloat(getComputedStyle(el).borderTopLeftRadius)||0)+3};});
     };
     const safe = (x:number,y:number) => {
       const insets=frameInsets(size.w);
@@ -216,9 +218,8 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     const fullUploadPending=()=>{r.dirtyHeight(region(r.dw,r.dh,0,0,r.dw-1,r.dh-1));r.dirtyCoating(0,0,size.w,size.h);};
 
     const rebuild = () => {
-      const rect = canvas.getBoundingClientRect();
       const old=size;
-      size = { w: rect.width, h: rect.height };
+      size = { w: canvas.clientWidth, h: canvas.clientHeight };
       for(const p of presses.values()){p.x=p.x/old.w*size.w;p.y=p.y/old.h*size.h;p.origin={x:p.origin.x/old.w*size.w,y:p.origin.y/old.h*size.h};p.spots=p.spots.map(v=>({x:v.x/old.w*size.w,y:v.y/old.h*size.h}));}
       refreshProtected();holeBins.clear();for(const d of damage)if(d.hole)indexHole(d.shape);
       if (snapSize(r, size)) {
@@ -250,7 +251,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
 
     const local = (e: PointerEvent) => {
       const rect = canvas.getBoundingClientRect();
-      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      return { x: (e.clientX - rect.left)*canvas.clientWidth/(rect.width||1), y: (e.clientY - rect.top)*canvas.clientHeight/(rect.height||1) };
     };
     const crack = (x:number,y:number) => {
       if(!safe(x,y))return "foam";

@@ -266,8 +266,10 @@
 .demo-code:focus-visible, .demo-table-wrap:focus-visible, .demo-code pre:focus-visible { outline: 2px solid var(--demo-text); outline-offset: 2px; }
 
 /* Embed-only layout. The demo and the independently shipped skin stay unchanged. */
-html:has(.glaze-embed), body:has(.glaze-embed) { background: transparent; }
-.glaze-embed { width: 100%; max-width: 932px; margin-inline: auto; padding: 16px 16px 20px; overflow-x: clip; }
+html:has(.glaze-embed), body:has(.glaze-embed) { background: transparent; overflow: hidden; }
+.glaze-embed { position: fixed; inset: 16px; display: grid; place-items: center; }
+.embed-fitted { position: relative; }
+.embed-content { position: absolute; top: 0; left: 0; display: flow-root; transform-origin: top left; }
 .glaze-embed .sq-root { width: 100%; max-width: 900px; margin-bottom: 64px; overflow: visible; }
 .embed-placeholder { width: 100%; aspect-ratio: 900 / 632; }
 .glaze-embed .sq-root .sq-frame-tools { position: absolute; z-index: 8; top: calc(100% + 8px); left: 50%; translate: -50% 0; display: flex; align-items: center; gap: 4px; height: 52px; padding: 4px; border-radius: 999px; background: var(--sq-liquid-refraction), var(--sq-liquid-surface); backdrop-filter: blur(10px) saturate(115%); box-shadow: var(--sq-liquid-shadow); max-width: calc(100% - 8px); }
