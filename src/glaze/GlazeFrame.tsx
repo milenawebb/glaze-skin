@@ -96,7 +96,9 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     motion.addEventListener("change",onMotion);
     const cracked: { x:number; y:number; radius:number; shape:ShellBreak; removed:boolean; start:number; drawn:boolean }[]=[];
     let protectedCache:{x:number;y:number;w:number;h:number;r:number}[]=[];
+    let bandBottom=96;
     const refreshProtected = () => {
+      bandBottom=parseFloat(getComputedStyle(canvas.parentElement ?? canvas).paddingBottom) || 96;
       const bounds=canvas.getBoundingClientRect();
       const sx=canvas.clientWidth/(bounds.width||1),sy=canvas.clientHeight/(bounds.height||1);
       protectedCache=Array.from(canvas.parentElement?.querySelectorAll<HTMLElement>(".sq-stage")??[]).map(el=>{const b=el.getBoundingClientRect();return {x:(b.left-bounds.left)*sx-3,y:(b.top-bounds.top)*sy-3,w:b.width*sx+6,h:b.height*sy+6,r:(parseFloat(getComputedStyle(el).borderTopLeftRadius)||0)+3};});
@@ -163,7 +165,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       do{const event=pending.shift();if(event)processEvent(event);}while(pending.length&&performance.now()<deadline);
       flushStrips();
       const pose = hint.tick(now, hintBlocked(), reduced);
-      const bottom = parseFloat(getComputedStyle(canvas.parentElement ?? canvas).paddingBottom) || 96;
+      const bottom = bandBottom;
       const hy = size.h - bottom * .5, hx = hintSpot(size.w * .5, hy);
       r.hint = { x: hx, y: hy, depth: intact(hx,hy) ? pose.depth : 0, crack: intact(hx,hy) ? pose.crack : 0, glance: pose.glance, blink: pose.blink, smile: pose.smile };
       label?.toggleAttribute("data-visible", pose.label);
