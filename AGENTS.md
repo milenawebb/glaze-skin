@@ -57,7 +57,7 @@ use the editor.
 - Compact flavor choices open horizontally beside the existing toggle in the bottom band above other player layers; demo-only preview tabs use viewport visibility independently of the skin's width.
 - Rise-back queues all signed dent depth to rest, uses 50ms shader updates and local final uploads; scissor retained pixels during recovery so unchanged lighting is not recomputed. Pointer input wakes immediately; phones halve maps and restore context loss.
 - chip.ts owns tap snapping, finger-sized break-offs, island and crumb rules; no cracks or pieces without glaze near the tap.
-- hint.ts schedules visit-scoped hints; ghost presses use transient shader uniforms, never retained maps.
+- hint.ts schedules visit hints; ghost presses use transient uniforms, never retained maps.
 - Keep /embed presentation overrides outside the skin and scope its frame-ancestors header to that page, leaving demo and package unchanged.
 - Embed containment scales one stable width-selected layout including tools; frame hit tests convert viewport coordinates to unscaled client dimensions so scaled embeds remain interactive.
 - The embed desktop search option selects a 960px design only for fine pointers; scope its band placement outside the skin to preserve default and touch layouts.
