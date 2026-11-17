@@ -44,7 +44,7 @@ use the editor.
 - Speed uses the shared four-option popup on every size, upward on wider players and downward on phones; keep popup state local so media and control state survive resizes.
 - Native tracks stay hidden; captions.ts selects the exposed HLS engine subtitle loader directly because the library bridge only loads showing tracks, and owns cuechange/timeupdate/source-safe listeners for the single overlay and local CC state.
 - Reserve the time display width from the duration and keep seek glaze absolutely overlaid, so time changes and cracking cannot shift the progress track.
-- Queue frame inputs (coalesced) for RAF and drain them within a 6ms budget; swipe strips paint once per frame into one damage entry per swipe; coating is a willReadFrequently canvas uploaded by dirty getImageData; protected button areas refresh via ResizeObserver, not per frame. Use indexed holes. Ordinary resize settles 100ms; demo tabs fade and opt into synchronous layout/frame resize events, retaining maps/resources so no stretched bitmap is revealed. Reset uses one shader fade for both maps.
+- Drain coalesced inputs per RAF (6ms budget); batch swipe strips per frame into one damage entry; CPU-backed coating uploads dirty getImageData; protected areas refresh on resize only. Ordinary resize settles 100ms; demo tabs fade and opt into synchronous layout/frame resize events, retaining maps/resources so no stretched bitmap is revealed. Reset uses one shader fade for both maps.
 - Fingertip soft additions have a bounded sink; Gaussian tails and wider foam normal sampling round swipe ends, while relative light clamps preserve directional dents. Recovery and Reset remain independent.
 - Clip all fracture paths against current glaze and retained holes before storage/replay; hole painting replaces fissure pixels, and pointer material transitions select foam squish versus glaze crunch so exposed areas only dent.
 - Classify frame gestures before fracture: release within the threshold uses two-step cracking, while drags retain overlapping jagged strip polygons without adding fissures; strip.ts owns threshold and widths for concrete tests.
@@ -62,5 +62,4 @@ use the editor.
 - Embed containment scales one stable width-selected layout including tools; frame hit tests convert viewport coordinates to unscaled client dimensions so scaled embeds remain interactive.
 - The embed desktop search option selects a 960px design only for fine pointers; scope its band placement outside the skin to preserve default and touch layouts.
 - surface.ts supplies tested foam light limits and smooth corner math; debris material is CPU-cached, never copied from WebGL, to avoid GPU readback stalls.
-- Demo keyboard/accessibility descriptions share accessibility-copy.ts; contrast uses dark choice boundaries and two-tone focus, and system-preference overrides remain presentation-only.
 <!-- AGENT-MEMORY:END -->
