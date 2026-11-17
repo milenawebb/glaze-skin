@@ -48,10 +48,10 @@ describe("phone speed caps", () => {
     expect(canvasDpr(3, false)).toBe(2);
     expect(canvasDpr(1, true)).toBe(1);
   });
-  it("allows 12 flying pieces on phones and 40 on desktop", async () => {
+  it("allows 12 flying pieces on phones and 24 on desktop", async () => {
     const { flyingLimit } = await import("./touch");
     expect(flyingLimit(true)).toBe(12);
-    expect(flyingLimit(false)).toBe(40);
+    expect(flyingLimit(false)).toBe(24);
   });
 });
 describe("phone map resolution", () => {

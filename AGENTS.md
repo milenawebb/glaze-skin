@@ -33,7 +33,7 @@ use the editor.
 - Icons/manifest in public, linked from root head; no service worker.
 - The Glaze skin lives self-contained in src/glaze/ (entry index.ts, own CSS vars, no app imports) to ship as its own package.
 - All skin sounds stay in src/glaze/sounds.ts, one function per sound, so recordings can replace synthesis.
-- Shell debris uses cached material, pooled shapes and one frame-batched queue capped at forty to avoid GPU readback and phone stalls.
+- Shell debris uses cached material, pooled shapes and one frame-batched queue (desktop cap 24, phones 12); edge and shadow are baked into each piece canvas and motion is 2D transform only, avoiding per-frame filter repaints, GPU readback and phone stalls.
 - Route skin audio through one master highpass; click sound selection stays tied to press-down material until the gesture becomes a drag, preventing squish plus fracture on jitter or recovery.
 - Decode recording assets on sound enable and keep press tracking, variation and shared drag voice limits in sounds.ts so audio remains package-local and unlocks on the enabling gesture.
 - Control audio observes press/release in window capture before React glaze changes; coating animations never trigger control audio, preventing duplicate clips and slider propagation issues.

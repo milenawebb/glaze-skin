@@ -3,16 +3,16 @@ import { createShellBreak, takeShellChips, createCrackTrail, SHELL_BREAK_MS, fra
 import { breakGlaze, hasGlaze } from "./glaze";
 
 describe("wax shell", () => {
-  it("limits flying pieces to forty even during overlapping breaks",()=>{
+  it("limits flying pieces to twenty-four even during overlapping breaks",()=>{
     vi.useFakeTimers();cancelShellDebris();
     const layer=document.createElement("div");document.body.append(layer);for(let i=0;i<45;i++){const el=document.createElement("canvas");el.className="sq-shell-plate";layer.append(el);}
     const image=document.createElement("canvas");image.width=20;image.height=20;
     const animate=HTMLCanvasElement.prototype.animate;
     HTMLCanvasElement.prototype.animate=()=>({onfinish:null} as Animation);
     const get=HTMLCanvasElement.prototype.getContext;
-    HTMLCanvasElement.prototype.getContext=(()=>({scale(){},beginPath(){},moveTo(){},lineTo(){},closePath(){},clip(){},drawImage(){}})) as unknown as typeof get;
+    HTMLCanvasElement.prototype.getContext=(()=>({save(){},restore(){},clearRect(){},fillRect(){},scale(){},beginPath(){},moveTo(){},lineTo(){},closePath(){},clip(){},drawImage(){}})) as unknown as typeof get;
     Element.prototype.getAnimations??=()=>[];
-    try{peelShell(layer,image,{boundary:[],plates:[[{x:0,y:0},{x:20,y:0},{x:0,y:20}]],cracks:[],arcs:[],removed:new Set()},10,10,10);vi.advanceTimersByTime(300);expect(MAX_FLYING_PIECES).toBe(40);expect(layer.querySelectorAll(".sq-shell-plate")).toHaveLength(40);expect(layer.querySelectorAll('[data-debris="crumb"]')).toHaveLength(8);}
+    try{peelShell(layer,image,{boundary:[],plates:[[{x:0,y:0},{x:20,y:0},{x:0,y:20}]],cracks:[],arcs:[],removed:new Set()},10,10,10);vi.advanceTimersByTime(300);expect(MAX_FLYING_PIECES).toBe(24);expect(layer.querySelectorAll(".sq-shell-plate")).toHaveLength(24);expect(layer.querySelectorAll('[data-debris="crumb"]')).toHaveLength(4);}
     finally{layer.remove();cancelShellDebris();vi.useRealTimers();HTMLCanvasElement.prototype.animate=animate;HTMLCanvasElement.prototype.getContext=get;}
   });
   it("gives pieces individual 0.4–1.1 second falls and thin or thick edges",()=>{

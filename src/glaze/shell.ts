@@ -3,7 +3,7 @@ import { coarsePointer, flyingLimit } from "./touch";
 export interface ShellPoint { x: number; y: number }
 export interface ShellBreak { boundary: ShellPoint[]; plates: ShellPoint[][]; cracks: ShellPoint[][]; arcs: ShellPoint[][]; removed: Set<number> }
 export const SHELL_BREAK_MS = 600;
-export const MAX_FLYING_PIECES = 40;
+export const MAX_FLYING_PIECES = 24;
 export function pieceMotion(crumb:boolean,random=Math.random){
   return {duration:400+random()*700,dx:(random()-.5)*(crumb?240:100),dy:40+random()*100,lift:random()<.65?4+random()*24:0,spin:(random()-.5)*640,tilt:random()<.3?20+random()*35:random()*12,thickness:crumb?.3+random()*.6:.6+random()*4};
 }
@@ -101,7 +101,7 @@ export function peelShell(layer: HTMLElement,image:HTMLCanvasElement,shape:Shell
     // One substantial chunk, three midsize flakes, and eight crumbs/dust specks.
     // Phones: one chunk, one flake and one crumb, drawn as plain few-sided shapes.
     const phone=coarsePointer();
-    for(const i of phone?[0,1,4]:[0,1,2,3,4,5,6,7,8,9,10,11]){
+    for(const i of phone?[0,1,4]:[0,1,2,3,4,5,6,7]){
       jobs.push(()=>{if(generation!==debrisGeneration||!layer.isConnected)return;
       const flying=layer.getElementsByClassName("sq-shell-plate");const cap=flyingLimit(coarsePointer());while(flying.length>=cap){const oldest=flying[0] as HTMLCanvasElement|undefined;if(!oldest)break;oldest.getAnimations().forEach(a=>a.cancel());recyclePiece(oldest);}
       const crumb=i>=4,size=i===0?span*.44:i<4?span*(.1+Math.random()*.12):.35+Math.random()*2;
@@ -110,15 +110,25 @@ export function peelShell(layer: HTMLElement,image:HTMLCanvasElement,shape:Shell
       const prepared=phone?{shape:simpleShape(i),motion:pieceMotion(crumb)}:piecePool[i]?.shift();
       const fragment=prepared?prepared.shape.map(p=>({x:origin.x+p.x*size,y:origin.y+p.y*size})):debrisPolygon(origin,size,i),motion=prepared?.motion??pieceMotion(crumb);
       prepareShellDebris();
-      const left=Math.min(...fragment.map(p=>p.x))-1,top=Math.min(...fragment.map(p=>p.y))-1;
-      const w=Math.max(2,Math.max(...fragment.map(p=>p.x))-left+1),h=Math.max(2,Math.max(...fragment.map(p=>p.y))-top+1);
+      // Edge and shadow are baked into the canvas once; padding keeps them unclipped.
+      const pad=crumb?1:Math.ceil(motion.thickness+8);
+      const left=Math.min(...fragment.map(p=>p.x))-pad,top=Math.min(...fragment.map(p=>p.y))-pad;
+      const w=Math.max(2,Math.max(...fragment.map(p=>p.x))-left+pad),h=Math.max(2,Math.max(...fragment.map(p=>p.y))-top+pad);
       const piece=canvasPool.pop()??document.createElement("canvas");piece.className="sq-shell-plate";piece.removeAttribute("style");piece.dataset['debris']=crumb?"crumb":i===0?"chunk":"flake";
       const scale=crumb?1:Math.min(2,image.width/(radius*2));piece.width=Math.ceil(w*scale);piece.height=Math.ceil(h*scale);
-      piece.style.width=`${w}px`;piece.style.height=`${h}px`;piece.style.left=`${left}px`;piece.style.top=`${top}px`;piece.style.setProperty("--sq-piece-thickness",`${motion.thickness}px`);piece.style.transformOrigin=`${Math.random()*100}% ${Math.random()*100}%`;
-      const ctx=piece.getContext("2d");if(!ctx)return;ctx.scale(scale,scale);
-      const clip=(points:ShellPoint[])=>{ctx.beginPath();points.forEach((p,j)=>j===0?ctx.moveTo(p.x-left,p.y-top):ctx.lineTo(p.x-left,p.y-top));ctx.closePath();ctx.clip();};
-      clip(poly);clip(fragment);ctx.drawImage(image,x-radius-left,y-radius-top,radius*2,radius*2);layer.appendChild(piece);
-      const anim=piece.animate([{transform:"translate(0,0) rotateX(0deg) rotate(0deg)",opacity:1},{transform:`translate(${motion.dx*.25}px,${-motion.lift}px) rotateX(${motion.tilt}deg) rotate(${motion.spin*.2}deg)`,opacity:1,offset:.25},{transform:`translate(${motion.dx}px,${motion.dy}px) rotateX(${motion.tilt*2}deg) rotate(${motion.spin}deg)`,opacity:0}],{duration:motion.duration,easing:"cubic-bezier(.3,.15,.65,1)",fill:"forwards"});anim.onfinish=()=>recyclePiece(piece);
+      piece.style.width=`${w}px`;piece.style.height=`${h}px`;piece.style.left=`${left}px`;piece.style.top=`${top}px`;piece.style.transformOrigin=`${Math.random()*100}% ${Math.random()*100}%`;
+      const ctx=piece.getContext("2d");if(!ctx)return;
+      const drawShape=(c:CanvasRenderingContext2D)=>{c.save();c.scale(scale,scale);const clip=(points:ShellPoint[])=>{c.beginPath();points.forEach((p,j)=>j===0?c.moveTo(p.x-left,p.y-top):c.lineTo(p.x-left,p.y-top));c.closePath();c.clip();};clip(poly);clip(fragment);c.drawImage(image,x-radius-left,y-radius-top,radius*2,radius*2);c.restore();};
+      if(crumb)drawShape(ctx);
+      else{
+        const {shape:body,edge}=scratch(piece.width,piece.height),b=body.getContext("2d"),e=edge.getContext("2d");if(!b||!e)return;
+        b.clearRect(0,0,body.width,body.height);drawShape(b);
+        e.globalCompositeOperation="copy";e.drawImage(body,0,0);e.globalCompositeOperation="source-in";const colors=shellColors(layer);e.fillStyle=colors.edge;e.fillRect(0,0,edge.width,edge.height);e.globalCompositeOperation="source-over";
+        ctx.save();ctx.shadowColor=colors.shadow;ctx.shadowBlur=3*scale;ctx.shadowOffsetY=4*scale;ctx.drawImage(edge,0,motion.thickness*scale);ctx.restore();
+        ctx.drawImage(body,0,0);
+      }
+      layer.appendChild(piece);
+      const anim=piece.animate([{transform:"translate(0,0) rotate(0deg) scaleY(1)",opacity:1},{transform:`translate(${motion.dx*.25}px,${-motion.lift}px) rotate(${motion.spin*.2}deg) scaleY(${Math.cos(motion.tilt*Math.PI/180)})`,opacity:1,offset:.25},{transform:`translate(${motion.dx}px,${motion.dy}px) rotate(${motion.spin}deg) scaleY(${Math.cos(motion.tilt*2*Math.PI/180)})`,opacity:0}],{duration:motion.duration,easing:"cubic-bezier(.3,.15,.65,1)",fill:"forwards"});anim.onfinish=()=>recyclePiece(piece);
       if(coarsePointer())trackPhonePiece(piece,layer,anim,left,top,w,h,motion);
       });
     }
@@ -126,6 +136,10 @@ export function peelShell(layer: HTMLElement,image:HTMLCanvasElement,shape:Shell
   // The first few pieces appear in this frame; the rest follow over the next frames.
   runDebris(1);scheduleDebris();
 }
+let scratchCanvases:{shape:HTMLCanvasElement;edge:HTMLCanvasElement}|null=null;
+function scratch(w:number,h:number){scratchCanvases??={shape:document.createElement("canvas"),edge:document.createElement("canvas")};for(const c of [scratchCanvases.shape,scratchCanvases.edge]){if(c.width<w)c.width=w;if(c.height<h)c.height=h;}return scratchCanvases;}
+let colorCache:{layer:HTMLElement;edge:string;shadow:string;at:number}|null=null;
+function shellColors(layer:HTMLElement){const now=performance.now();if(colorCache&&colorCache.layer===layer&&now-colorCache.at<500)return colorCache;const cs=getComputedStyle(layer);colorCache={layer,edge:cs.getPropertyValue("--sq-shell-edge").trim()||"#fff5da",shadow:cs.getPropertyValue("--sq-shell-shadow").trim()||"rgba(0,0,0,.25)",at:now};return colorCache;}
 function simpleShape(i:number){const sides=4+(i%2),a=Math.random()*Math.PI*2;return Array.from({length:sides},(_,k)=>{const t=a+k*Math.PI*2/sides,r=.7+Math.random()*.3;return {x:Math.cos(t)*r,y:Math.sin(t)*r};});}
 const canvasPool:HTMLCanvasElement[]=[];
 const phonePieces=new Map<HTMLCanvasElement,{layer:HTMLElement;anim:Animation;left:number;top:number;w:number;h:number;motion:ReturnType<typeof pieceMotion>}>();
