@@ -71,3 +71,13 @@ d2("tornOutline", () => {
     e2(a.slice(1, 9).some(p => Math.abs(p.y) > 0.2)).toBe(true);
   });
 });
+import { holeParts } from "./shell";
+import { mapShell } from "./damage";
+d2("merged swipe strips", () => {
+  i2("keep every capsule as its own hole outline through resize", () => {
+    const a=[{x:0,y:0},{x:.1,y:0},{x:.1,y:.1}],b=[{x:.2,y:0},{x:.3,y:0},{x:.3,y:.1}];
+    const entry={boundary:[],plates:[],cracks:[],arcs:[],removed:new Set<number>(),strips:[a,b]};
+    e2(holeParts(entry).map(p=>p.boundary)).toEqual([a,b]);
+    e2(mapShell(entry,100,50).strips?.[1]?.[2]).toEqual({x:30,y:5});
+  });
+});

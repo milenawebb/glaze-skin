@@ -328,6 +328,8 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
   let targetColors: number[][] = [];
   let currentMono = 0, fromMono = 0, targetMono = 0;
   const coating = document.createElement("canvas");
+  // CPU-backed so dirty uploads read pixels without a GPU readback.
+  const coatingCtx = coating.getContext("2d", { willReadFrequently: true });
   // Reused upload buffers: no per-frame allocations, and no 2D readbacks.
   const size=mapSize(coarsePointer());
   const heightScratch=gl2?new Float32Array(size*size):new Uint8Array(size*size);
@@ -441,16 +443,8 @@ export function createFrameRenderer(canvas: HTMLCanvasElement): FrameRenderer | 
       if(fullUpload){gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,coating.width,coating.height,0,gl.RGBA,gl.UNSIGNED_BYTE,null);coatDirty=region(coating.width,coating.height,0,0,coating.width-1,coating.height-1);}
       if(coatDirty){
         const b=coatDirty,w=b.x1-b.x0+1,h=b.y1-b.y0+1;
-        if(gl2){
-          // WebGL2 uploads the dirty sub-rectangle straight from the canvas.
-          gl2.pixelStorei(gl2.UNPACK_SKIP_PIXELS,b.x0);gl2.pixelStorei(gl2.UNPACK_SKIP_ROWS,b.y0);
-          gl2.texSubImage2D(gl2.TEXTURE_2D,0,b.x0,b.y0,w,h,gl2.RGBA,gl2.UNSIGNED_BYTE,coating);
-          gl2.pixelStorei(gl2.UNPACK_SKIP_PIXELS,0);gl2.pixelStorei(gl2.UNPACK_SKIP_ROWS,0);
-        }else{
-          if(coatScratch.width!==w)coatScratch.width=w;if(coatScratch.height!==h)coatScratch.height=h;
-          const sc=coatScratch.getContext("2d");
-          if(sc){sc.clearRect(0,0,w,h);sc.drawImage(coating,b.x0,b.y0,w,h,0,0,w,h);gl.texSubImage2D(gl.TEXTURE_2D,0,b.x0,b.y0,gl.RGBA,gl.UNSIGNED_BYTE,coatScratch);}
-        }
+        const pixels=coatingCtx?.getImageData(b.x0,b.y0,w,h);
+        if(pixels)gl.texSubImage2D(gl.TEXTURE_2D,0,b.x0,b.y0,w,h,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array(pixels.data.buffer,pixels.data.byteOffset,pixels.data.byteLength));
         coatDirty=null;
       }
       // Keep the exact shader lighting, but evaluate it only around recovering dents.

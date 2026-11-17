@@ -1,7 +1,7 @@
 import { coarsePointer, flyingLimit } from "./touch";
 /** Crack paths are generated once and shared by the mask and removable chips. */
 export interface ShellPoint { x: number; y: number }
-export interface ShellBreak { boundary: ShellPoint[]; plates: ShellPoint[][]; cracks: ShellPoint[][]; arcs: ShellPoint[][]; removed: Set<number> }
+export interface ShellBreak { boundary: ShellPoint[]; plates: ShellPoint[][]; cracks: ShellPoint[][]; arcs: ShellPoint[][]; removed: Set<number>; strips?: ShellPoint[][] }
 export const SHELL_BREAK_MS = 600;
 export const MAX_FLYING_PIECES = 24;
 export function pieceMotion(crumb:boolean,random=Math.random){
@@ -52,6 +52,8 @@ export function createShellBreak(x: number, y: number, radius: number, random = 
   const boundary=rays.flatMap((ray,i)=>jagged(ray.at(-1)??center,rays[(i+1)%count]?.at(-1)??center,random,2.5));
   return {boundary,plates,cracks,arcs,removed:new Set()};
 }
+/** Strip-merged swipe entries expose each capsule as its own hole outline. */
+export function holeParts(shape: ShellBreak): ShellBreak[] { return shape.strips ? shape.strips.map(boundary=>({boundary,plates:[],cracks:[],arcs:[],removed:shape.removed})) : [shape]; }
 export function insideShellPolygon(x: number, y: number, poly: ShellPoint[]) {
   let inside=false;
   for(let i=0,j=poly.length-1;i<poly.length;j=i++){
@@ -175,7 +177,7 @@ export function paintCoating(canvas:HTMLCanvasElement,width:number,shape:ShellBr
  if(hole){
    // Holes only ever grow: "lighten" while fading in, so overlapping or touching holes never pull red back down (no ghost rings);
    // the final full fill uses source-over to delete crack lines (green) inside the removed piece.
-   ctx.globalCompositeOperation=progress>=1?"source-over":"lighten";ctx.fillStyle=`rgb(${Math.round(255*progress)},0,0)`;ctx.beginPath();tornOutline(shape.boundary).forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));ctx.closePath();ctx.fill();
+   ctx.globalCompositeOperation=progress>=1?"source-over":"lighten";ctx.fillStyle=`rgb(${Math.round(255*progress)},0,0)`;ctx.beginPath();for(const outline of shape.strips??[shape.boundary]){tornOutline(outline).forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));ctx.closePath();}ctx.fill();
    // A thin same-colour edge stroke covers antialiased fissure pixels: no readback needed.
    ctx.strokeStyle=ctx.fillStyle;ctx.lineWidth=width/canvas.width;ctx.lineJoin="round";ctx.stroke();}
  else {ctx.globalCompositeOperation="lighten";ctx.strokeStyle="rgb(0,255,0)";ctx.lineJoin="round";ctx.lineCap="round";for(const path of [...shape.cracks,...shape.arcs])for(let i=1;i<path.length;i++){const a=path[i-1],b=path[i];if(!a||!b)continue;ctx.lineWidth=.14+.65*(1-i/path.length);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}}

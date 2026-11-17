@@ -22,7 +22,7 @@ export function clipCrackPaths(paths: ShellPoint[][], intact: (x: number, y: num
 /** Geometry is retained in unit-frame space; raster masks are disposable. */
 export function mapShell(shape: ShellBreak, w: number, h: number): ShellBreak {
   const path = (points: ShellBreak["boundary"]) => points.map(p => ({ x: p.x * w, y: p.y * h }));
-  return { boundary: path(shape.boundary), plates: shape.plates.map(path), cracks: shape.cracks.map(path), arcs: shape.arcs.map(path), removed: shape.removed };
+  return { boundary: path(shape.boundary), plates: shape.plates.map(path), cracks: shape.cracks.map(path), arcs: shape.arcs.map(path), removed: shape.removed, ...(shape.strips ? { strips: shape.strips.map(path) } : {}) };
 }
 
 /** Sample normalized height data into a fresh device-resolution map. */

@@ -8,7 +8,7 @@ import { coarsePointer, dentDepth, dentRadius, faceExpression, frameInsets, pres
 
 import { breakGlaze, hasGlaze } from "./glaze";
 
-import { prepareShellDebris, cancelShellDebris, createShellBreak, peelShell, SHELL_BREAK_MS, paintCoating, insideShellPolygon, framePressStage, type ShellBreak } from "./shell";
+import { holeParts, prepareShellDebris, cancelShellDebris, createShellBreak, peelShell, SHELL_BREAK_MS, paintCoating, insideShellPolygon, framePressStage, type ShellBreak } from "./shell";
 import { angularCell, maxPiece, chipPlates, chipRadius, snapRadius, snapToGlaze, ISLAND_SIZE } from "./chip";
 import { createGlazeStrip, dragThreshold, isGlazeDrag, stripWidth } from "./strip";
 
@@ -22,7 +22,7 @@ import { region, resetAmount, resetDuration, REDUCED_FADE_MS, union, type Region
 /** Same rounded corners as the video stage, so no layer gets a square box. */
 function insideRounded(x:number,y:number,b:{x:number;y:number;w:number;h:number;r:number}){const qx=Math.abs(x-(b.x+b.w/2))-b.w/2+b.r,qy=Math.abs(y-(b.y+b.h/2))-b.h/2+b.r;return Math.hypot(Math.max(qx,0),Math.max(qy,0))+Math.min(Math.max(qx,qy),0)-b.r<=0;}
 
-interface Press { target:{x:number;y:number}|null; crackedOnDown:boolean; pad:FingerPad; before:Float32Array; x: number; y: number; origin: {x:number;y:number}; dragging:boolean; pointerType:string; exposed:ShellBreak[]; initialFoam:boolean; start: number; radius: number; pressure: number | null; sound: ((depth: number) => void) | undefined; foam: boolean; spots: {x:number;y:number}[]; flakeDistance:number }
+interface Press { target:{x:number;y:number}|null; crackedOnDown:boolean; pad:FingerPad; before:Float32Array; x: number; y: number; origin: {x:number;y:number}; dragging:boolean; pointerType:string; exposed:ShellBreak[]; initialFoam:boolean; start: number; radius: number; pressure: number | null; sound: ((depth: number) => void) | undefined; foam: boolean; spots: {x:number;y:number}[]; flakeDistance:number; swipe?: { shape: ShellBreak; hole: boolean; progress: number } }
 
 /** WebGL squishy frame. Dents stay until `resetKey` changes. */
 export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_GLAZE_STYLE, onFallback, onReset }: { resetKey: number; color?: GlazeColor; glazeStyle?: GlazeStyle; onFallback: () => void; onReset?: () => void }) {
@@ -111,10 +111,10 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     const indexHole=(shape:ShellBreak)=>{const points=shape.boundary;if(!points.length)return;const x0=Math.floor(Math.min(...points.map(p=>p.x))*size.w/32),x1=Math.floor(Math.max(...points.map(p=>p.x))*size.w/32),y0=Math.floor(Math.min(...points.map(p=>p.y))*size.h/32),y1=Math.floor(Math.max(...points.map(p=>p.y))*size.h/32);for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const key=`${x},${y}`,items=holeBins.get(key)??[];if(!items.includes(shape))items.push(shape);holeBins.set(key,items);}};
     const intact = (x:number,y:number) => safe(x,y) && hasGlaze(r,x,y) && !(holeBins.get(binKey(x,y))??[]).some(shape=>insideShellPolygon(x/size.w,y/size.h,shape.boundary));
     let replaying=false;
-    const paint = (shape:ShellBreak,hole:boolean,progress=1) => {
+    const paint = (shape:ShellBreak,hole:boolean,progress=1,record=true) => {
       if(!hole)shape={...shape,cracks:clipCrackPaths(shape.cracks,intact),arcs:clipCrackPaths(shape.arcs,intact)};
       if(!hole&&!shape.cracks.length&&!shape.arcs.length)return;
-      if(!replaying){
+      if(!replaying&&record){
         const normalized=mapShell(shape,1/size.w,1/size.h);
         const retained=hole?damage.find(d=>d.hole&&d.shape.boundary.length===normalized.boundary.length&&d.shape.boundary.every((p,i)=>Math.abs(p.x-(normalized.boundary[i]?.x??-1))<1e-9&&Math.abs(p.y-(normalized.boundary[i]?.y??-1))<1e-9)):undefined;
         if(retained)retained.progress=progress;else {damage.push({shape:normalized,hole,progress});if(hole)indexHole(normalized);}
@@ -124,7 +124,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       ctx.save();ctx.scale(scale,scale);ctx.beginPath();if(ctx.roundRect)ctx.roundRect(0,0,size.w,size.h,46);else ctx.rect(0,0,size.w,size.h);
       for(const b of protectedCache){if(ctx.roundRect)ctx.roundRect(b.x,b.y,b.w,b.h,b.r);else ctx.rect(b.x,b.y,b.w,b.h);}
       ctx.clip("evenodd");ctx.scale(1/scale,1/scale);paintCoating(r.coating,size.w,shape,hole,progress);ctx.restore();
-      const points=hole?shape.boundary:[...shape.cracks,...shape.arcs].flat();
+      const points=hole?(shape.strips?shape.strips.flat():shape.boundary):[...shape.cracks,...shape.arcs].flat();
       if(points.length)r.dirtyCoating(Math.min(...points.map(p=>p.x))-2,Math.min(...points.map(p=>p.y))-2,Math.max(...points.map(p=>p.x))+2,Math.max(...points.map(p=>p.y))+2);
     };
     // Rise-back lives on the GPU: r.rise holds depth still to rise, the shader eases it by r.riseK.
@@ -139,6 +139,19 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       rise=finish?null:{start:now,duration:remaining,bounds:b};
     };
     const clearRise=()=>{bakeRise(performance.now());if(rise){r.rise.fill(0);r.dirtyRise(region(r.dw,r.dh,0,0,r.dw-1,r.dh-1));}rise=null;r.riseK=0;};
+    // One swipe frame: strips paint in one pass and join that swipe's single damage entry.
+    let stripBatch:ShellBreak["boundary"][]=[];
+    const addStrip=(p:Press,boundary:ShellBreak["boundary"])=>{
+      stripBatch.push(boundary);
+      const normalized=boundary.map(v=>({x:v.x/size.w,y:v.y/size.h}));
+      if(!p.swipe){p.swipe={shape:{boundary:[],plates:[],cracks:[],arcs:[],removed:new Set(),strips:[]},hole:true,progress:1};damage.push(p.swipe);}
+      p.swipe.shape.strips?.push(normalized);
+      indexHole({boundary:normalized,plates:[],cracks:[],arcs:[],removed:p.swipe.shape.removed});
+    };
+    const flushStrips=()=>{
+      if(!stripBatch.length)return;
+      paint({boundary:[],plates:[],cracks:[],arcs:[],removed:new Set(),strips:stripBatch},true,1,false);stripBatch=[];
+    };
     const beforePool:Float32Array[]=[];
     clearTransient.current=()=>{cancelShellDebris();breaks.length=0;cracked.length=0;clearRise();damage.length=0;holeBins.clear();pending.length=0;canvas.parentElement?.querySelectorAll(".sq-shell-plate").forEach(p=>p.remove());};
     const loop = (now: number) => {
@@ -146,9 +159,9 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       const frameStart=performance.now();
       // CSS stretches the last rendered bitmap; no mask replay or upload mid-resize.
       if(resizing)return;
-      refreshProtected();
       const deadline=performance.now()+6;
-      while(pending.length&&performance.now()<deadline){const event=pending.shift();if(event)processEvent(event);break;}
+      do{const event=pending.shift();if(event)processEvent(event);}while(pending.length&&performance.now()<deadline);
+      flushStrips();
       const pose = hint.tick(now, hintBlocked(), reduced);
       const bottom = parseFloat(getComputedStyle(canvas.parentElement ?? canvas).paddingBottom) || 96;
       const hy = size.h - bottom * .5, hx = hintSpot(size.w * .5, hy);
@@ -227,7 +240,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       const old=size;
       size = { w: canvas.clientWidth, h: canvas.clientHeight };
       for(const p of presses.values()){p.x=p.x/old.w*size.w;p.y=p.y/old.h*size.h;p.origin={x:p.origin.x/old.w*size.w,y:p.origin.y/old.h*size.h};p.spots=p.spots.map(v=>({x:v.x/old.w*size.w,y:v.y/old.h*size.h}));}
-      refreshProtected();holeBins.clear();for(const d of damage)if(d.hole)indexHole(d.shape);
+      refreshProtected();holeBins.clear();for(const d of damage)if(d.hole)for(const part of holeParts(d.shape))indexHole(part);
       if (snapSize(r, size)) {
         r.coating.getContext("2d")?.clearRect(0,0,r.coating.width,r.coating.height);
         replaying=true;
@@ -257,6 +270,9 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       return true;
     };
     ro.observe(canvas);
+    // Protected button areas only change with layout, never per frame.
+    const protectedRo=new ResizeObserver(()=>refreshProtected());
+    canvas.parentElement?.querySelectorAll(".sq-stage").forEach(el=>protectedRo.observe(el));
 
     const local = (e: PointerEvent) => {
       const rect = canvas.getBoundingClientRect();
@@ -324,18 +340,25 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       // Taps on bare squishy act on glaze within reach; with none nearby they only squish.
       const target=foam?snapToGlaze(x,y,snapRadius(coarsePointer()),intact):{x,y};
       const crackedOnDown=!!target&&!cracked.some(c=>insideShellPolygon(target.x/size.w,target.y/size.h,c.shape.boundary))&&crack(target.x,target.y)!=="foam";
-      presses.set(e.pointerId, { target,crackedOnDown,pad,before,x, y, origin:{x,y},dragging:false,pointerType:e.pointerType,exposed:damage.filter(d=>d.hole).map(d=>d.shape),initialFoam:foam,start: e.timeStamp, radius, pressure, sound: foam?playSquelch(immediateDepth(1)):undefined, foam, spots:[{x,y}],flakeDistance:20 });
+      presses.set(e.pointerId, { target,crackedOnDown,pad,before,x, y, origin:{x,y},dragging:false,pointerType:e.pointerType,exposed:damage.filter(d=>d.hole).flatMap(d=>holeParts(d.shape)),initialFoam:foam,start: e.timeStamp, radius, pressure, sound: foam?playSquelch(immediateDepth(1)):undefined, foam, spots:[{x,y}],flakeDistance:20 });
       resetRef.current = null;r.resetAmount=1;
 
       vibratePress();
       schedule();
     };
+    // Same 5px steps as before, run back to back so the strip keeps up with the finger.
     const move = (e: PointerEvent) => {
       const p = presses.get(e.pointerId);
       if (!p) return;
-      let { x, y } = local(e);
-      const remaining=Math.hypot(x-p.x,y-p.y);
-      if(remaining>5){const t=5/remaining;x=p.x+(x-p.x)*t;y=p.y+(y-p.y)*t;pending.unshift(e);}
+      const target = local(e);
+      for(let guard=0;guard<400;guard++){
+        const remaining=Math.hypot(target.x-p.x,target.y-p.y);
+        if(remaining<=5)break;
+        const t=5/remaining;moveTo(e,p,p.x+(target.x-p.x)*t,p.y+(target.y-p.y)*t);
+      }
+      moveTo(e,p,target.x,target.y);
+    };
+    const moveTo = (e: PointerEvent, p: Press, x: number, y: number) => {
       const held = (performance.now() - p.start) / 1000;
       p.pressure = pressureScale(e);
       const depth = dentDepth(held, p.pressure);
@@ -367,7 +390,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
               p.flakeDistance=0;
             }
             // The vector swath is retained even where it passes beneath frame buttons.
-            breakGlaze(r,point.x,point.y,width,1,shape.boundary);paint(shape,true);
+            breakGlaze(r,point.x,point.y,width,1,shape.boundary);addStrip(p,shape.boundary);
           }else if(!p.foam||!p.sound)p.sound=playSquelch(depth);
           p.foam=!glazed;previous=point;
         }
@@ -416,6 +439,8 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
         e.preventDefault();canvas.setPointerCapture?.(e.pointerId);
       }
       if(e.type==="pointermove"){
+        const coalesced=e.getCoalescedEvents?.();
+        if(coalesced&&coalesced.length>1){pending.push(...coalesced);schedule();return;}
         const last=pending.at(-1);
         if(last?.type==="pointermove"&&last.pointerId===e.pointerId)pending.pop();
       }
@@ -442,6 +467,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     canvas.addEventListener("pointercancel", queue);
     canvas.addEventListener("lostpointercapture", queue);
     return () => {
+      protectedRo.disconnect();
       clearInterval(hintTimer);
       io?.disconnect();
       root?.removeEventListener("pointerdown", controlUse, true);
