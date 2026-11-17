@@ -108,9 +108,10 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       return isOnRing(x,y,size.w,size.h,insets) && !protectedCache.some(b=>insideRounded(x,y,b));
     };
     const damage=damageRef.current;
-    const holeBins=new Map<string,ShellBreak[]>();
-    const binKey=(x:number,y:number)=>`${Math.floor(x/32)},${Math.floor(y/32)}`;
-    const indexHole=(shape:ShellBreak)=>{const points=shape.boundary;if(!points.length)return;const x0=Math.floor(Math.min(...points.map(p=>p.x))*size.w/32),x1=Math.floor(Math.max(...points.map(p=>p.x))*size.w/32),y0=Math.floor(Math.min(...points.map(p=>p.y))*size.h/32),y1=Math.floor(Math.max(...points.map(p=>p.y))*size.h/32);for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const key=`${x},${y}`,items=holeBins.get(key)??[];if(!items.includes(shape))items.push(shape);holeBins.set(key,items);}};
+    const holeBins=new Map<number,ShellBreak[]>();
+    // Numeric bin keys: intact() runs thousands of times per crack, so avoid building strings.
+    const binKey=(x:number,y:number)=>Math.floor(x/32)*65536+Math.floor(y/32);
+    const indexHole=(shape:ShellBreak)=>{const points=shape.boundary;if(!points.length)return;const x0=Math.floor(Math.min(...points.map(p=>p.x))*size.w/32),x1=Math.floor(Math.max(...points.map(p=>p.x))*size.w/32),y0=Math.floor(Math.min(...points.map(p=>p.y))*size.h/32),y1=Math.floor(Math.max(...points.map(p=>p.y))*size.h/32);for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const key=x*65536+y,items=holeBins.get(key)??[];if(!items.includes(shape))items.push(shape);holeBins.set(key,items);}};
     const intact = (x:number,y:number) => safe(x,y) && hasGlaze(r,x,y) && !(holeBins.get(binKey(x,y))??[]).some(shape=>insideShellPolygon(x/size.w,y/size.h,shape.boundary));
     let replaying=false;
     const paint = (shape:ShellBreak,hole:boolean,progress=1,record=true) => {
@@ -161,7 +162,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       const frameStart=performance.now();
       // CSS stretches the last rendered bitmap; no mask replay or upload mid-resize.
       if(resizing)return;
-      const deadline=performance.now()+6;
+      const deadline=performance.now()+6;inputDeadline=deadline;
       do{const event=pending.shift();if(event)processEvent(event);}while(pending.length&&performance.now()<deadline);
       flushStrips();
       const pose = hint.tick(now, hintBlocked(), reduced);
@@ -176,7 +177,8 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       // Only a uniform changes while dents rise; the maps are baked once at the end.
       const recoveryBounds=rise?.bounds;
       if(rise){if(now-rise.start>=rise.duration)bakeRise(now,true);else r.riseK=riseK(now);}
-      for(const c of cracked) if(!c.removed && !c.drawn){
+      // A crack made by this frame's press draws next frame, keeping the press frame short.
+      for(const c of cracked) if(!c.removed && !c.drawn && c.start<frameStart){
         paint(mapShell(c.shape,size.w,size.h),false);c.drawn=true;
       }
       for (const p of presses.values()) {
@@ -272,6 +274,13 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       return true;
     };
     ro.observe(canvas);
+    // Run the per-press math once on scratch data while idle, so the first press and drag don't pay JIT warm-up.
+    const warm=window.setTimeout(()=>{
+      const scratch={dw:128,dh:128,width:240,height:240,dent:new Float32Array(128*128)} as unknown as FrameRenderer;
+      const pad=fingerPad("mouse");
+      for(let i=0;i<6;i++){stampFingertip(scratch,120+i*5,120,pad,1.2,1,1.6);stampDent(scratch,120,120+i*5,16,.5,1);smoothDents(scratch,90,90,150,150);}
+      clipCrackPaths(createShellBreak(120,120,60).cracks,()=>true);createGlazeStrip({x:100,y:120},{x:105,y:120},28);
+    },800);
     // Protected button areas only change with layout, never per frame.
     const protectedRo=new ResizeObserver(()=>refreshProtected());
     canvas.parentElement?.querySelectorAll(".sq-stage").forEach(el=>protectedRo.observe(el));
@@ -356,6 +365,8 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
       for(let guard=0;guard<400;guard++){
         const remaining=Math.hypot(target.x-p.x,target.y-p.y);
         if(remaining<=5)break;
+        // Out of frame budget: resume this movement next frame instead of running long.
+        if(performance.now()>inputDeadline){pending.unshift(e);return;}
         const t=5/remaining;moveTo(e,p,p.x+(target.x-p.x)*t,p.y+(target.y-p.y)*t);
       }
       moveTo(e,p,target.x,target.y);
@@ -432,6 +443,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     };
     // Handlers enqueue only input; all mutation runs in the next frame.
     const pending:PointerEvent[]=[];
+    let inputDeadline=Infinity;
     const processEvent=(e:PointerEvent)=>{if(e.type==="pointerdown")down(e);else if(e.type==="pointermove")move(e);else up(e);};
     const queue=(e:PointerEvent)=>{
       if(e.target instanceof Element && e.target.closest('button, [data-glaze-control]'))return;
@@ -469,7 +481,7 @@ export function GlazeFrame({ resetKey, color = "Rainbow", glazeStyle = DEFAULT_G
     canvas.addEventListener("pointercancel", queue);
     canvas.addEventListener("lostpointercapture", queue);
     return () => {
-      protectedRo.disconnect();
+      clearTimeout(warm);protectedRo.disconnect();
       clearInterval(hintTimer);
       io?.disconnect();
       root?.removeEventListener("pointerdown", controlUse, true);

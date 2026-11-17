@@ -5,6 +5,7 @@ export function fingerPad(type:string,random=Math.random):FingerPad{
  // Gentle low-frequency outline wobble so no two presses match.
  return {width,length,angle,waves:random()<.5?2:3,phase:random()*Math.PI*2,wobble:.06+random()*.02};
 }
+const FAR=(4.2*1.08)**2;
 export const MAX_FINGER_DEPTH = 1.8;
 export function fingerDepth(held:number,pressure:number|null){return (1+Math.min(1,Math.max(0,held)/2)*.8)*(pressure??1);}
 export function fingertipHeight(dx:number,dy:number,pad:FingerPad,depth:number,stretch=1){
@@ -25,6 +26,9 @@ export function stampFingertip(r:{dent:Float32Array;dw:number;dh:number;width:nu
  const c=Math.cos(pad.angle),s=Math.sin(pad.angle),iw=2/pad.width,il=2/(pad.length*stretch),sx=r.width/r.dw,sy=r.height/r.dh;
  for(let yy=bounds.y0;yy<=bounds.y1;yy++)for(let xx=bounds.x0;xx<=bounds.x1;xx++){
   const dx=xx*sx-x,dy=yy*sy-y;
+  // Beyond 4.2 pad radii (wobble included) bowl and ring are below 1e-6 and the update is a no-op: skip the cell.
+  const v=(-dx*s+dy*c)*il,u=(dx*c+dy*s)*iw/(1-.1*Math.max(-1.5,Math.min(1.5,v))),w=v+1/3;
+  if(u*u+w*w>FAR)continue;
   const shape=padHeight(dx,dy,c,s,iw,il,1,pad)*tailWeight(Math.hypot(dx,dy)/(extent/6)),target=shape*depth,i=yy*r.dw+xx,cur=r.dent[i]??0,delta=target-cur;
   // Soft additions approach a bounded sink instead of flattening repeated presses.
   const limit=Math.abs(shape)*Math.max(depth,MAX_FINGER_DEPTH),soft=.04*Math.abs(target)*Math.max(0,1-Math.abs(cur)/Math.max(limit,1e-9));
